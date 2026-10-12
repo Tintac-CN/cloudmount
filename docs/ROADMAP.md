@@ -6,10 +6,14 @@
 ## M0 · 打通官方 API（1–2 周）
 
 - [ ] 申请 115 开放平台个人开发者 + 创建 PKCE 应用（外部审核，立即启动）
-- [ ] `cloudmount-cli login`：PKCE 设备码扫码 → token 持久化（DPAPI）
-- [ ] `ls`（分页 + usertime 字段）、`quota`
-- [ ] `upload`：SHA1/前128K 预计算 → 秒传命中 → OSS 分片直传
-- [ ] `download`：downurl 直链缓存 + Range 下载
+- [x] `cloudmount-cli login`：PKCE(S256) 设备码扫码 → 终端二维码渲染 → 轮询换取 token
+- [x] 凭据持久化：Windows 凭据管理器 / macOS Keychain / Linux 0600 文件
+- [x] token 自动刷新（单飞 + 5 分钟提前量 + 40140123–26 失效重试一次）
+- [x] `ls`（分页 + usertime 排序）、`quota`（rt_space_info 解析）
+- [x] `upload`：SHA1/前128K 预计算 → 秒传命中 → 二次认证（sign_check 闭区间）→ OSS 直传
+- [x] `download`：downurl 直链 + Range 流式下载（带进度）
+- [x] 全局限速（1 r/s 令牌桶）+ 指数退避 + 频控码识别（406 / 40140117）
+- [ ] **待 AppID 实测**：真实账号跑通全链路；确认 copy/新建目录的响应字段
 - **验收**：CLI 全流程可用；请求速率 ≤1 r/s 无频控
 
 ## M1 · Rust 同步引擎（3–5 周）

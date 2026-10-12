@@ -2,7 +2,8 @@
 
 > 把 115 网盘变成你所有设备上的"同步盘"—— OneDrive 式体验、Rust 极致轻量、全开源。
 >
-> **状态：架构与骨架阶段**（v0.1 scaffold，编译通过）。核心 trait 与驱动骨架已就绪，
+> **状态：M0 实现完成**（官方 OpenAPI 全链路代码就绪：扫码登录 / 列目录 / 秒传上传 /
+> Range 下载 / 配额）。待 115 开放平台 AppID 审核通过后即可端到端实测；
 > 里程碑见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 是什么
@@ -71,8 +72,17 @@ docs/                   架构、路线图、设计探索记录
 
 ```bash
 # 工具链：Rust stable + Node.js 18+
-cargo check --workspace      # 核心 Rust 全部编译通过（当前状态）
-cargo run -p cloudmount-cli -- --help
+cargo check --workspace      # 核心 Rust 全部编译通过
+cargo test --workspace       # 34 个单元测试（含 RFC 7636 PKCE 向量、真实报文样本）
+
+# 115 官方 API 全链路（需要开放平台 AppID，https://open.115.com/ ）
+export CLOUDMOUNT_APP_ID=<你的 AppID>
+cargo run -p cloudmount-cli -- login     # 终端二维码，用 115 App 扫码
+cargo run -p cloudmount-cli -- status    # 登录状态
+cargo run -p cloudmount-cli -- ls 0      # 列出根目录
+cargo run -p cloudmount-cli -- quota     # 空间配额
+cargo run -p cloudmount-cli -- upload ./report.pdf --to 0
+cargo run -p cloudmount-cli -- download <file_id> ./report.pdf
 
 # 前端
 cd web-ui && npm install && npm run dev
@@ -80,6 +90,9 @@ cd web-ui && npm install && npm run dev
 # 桌面壳（需 tauri-cli）
 cd apps/desktop && cargo tauri dev
 ```
+
+凭据存放：Windows 凭据管理器 / macOS Keychain / Linux 下 `<data_dir>/secrets`（0600）。
+数据目录可用 `CLOUDMOUNT_DATA_DIR` 覆盖。
 
 ## 路线图
 

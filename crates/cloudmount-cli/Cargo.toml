@@ -18,3 +18,6 @@ clap.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+time.workspace = true
+# 终端二维码渲染（仅 CLI 需要，不污染核心与边缘二进制）
+qrcode = { version = "0.14", default-features = false }

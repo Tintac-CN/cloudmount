@@ -23,7 +23,7 @@ authors = ["zhonghaoxi"]
 [workspace.dependencies]
 # --- async runtime: 默认 current_thread 省内存 ---
 tokio = { version = "1.47", default-features = false, features = ["rt", "macros", "sync", "time", "fs", "io-util"] }
-# --- HTTP: 核心传输层用同步 ureq，依赖最浅 ---
+# --- HTTP: 核心传输层用同步 ureq，依赖最浅（表单用 form-urlencoded） ---
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 # --- TLS: 纯 Rust，ARM 交叉编译友好 ---
 rustls = "0.23"
@@ -39,12 +39,17 @@ anyhow = "1"
 # --- 日志 ---
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-# --- 时间/哈希 ---
+# --- 哈希 / 编码 / 随机 ---
 sha1 = "0.10"
+sha2 = "0.10"
 hex = "0.4"
-time = { version = "0.3", features = ["formatting", "parsing"] }
+base64 = "0.22"
+getrandom = "0.3"
+time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
+# --- 系统凭据存储（仅在 Windows/macOS 启用，Linux 回退到 0600 文件）---
+keyring = { version = "3", default-features = false }
 # --- CLI ---
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 
 [profile.release]
 opt-level = "z"

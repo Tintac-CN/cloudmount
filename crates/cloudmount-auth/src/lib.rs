@@ -13,9 +13,11 @@
 
 pub mod cookie;
 pub mod open;
+pub mod pkce;
 pub mod store;
 
-use cloudmount_core::Result;
+/// 复用核心错误类型。
+pub use cloudmount_core::{Error, Result};
 
 /// 登录方式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

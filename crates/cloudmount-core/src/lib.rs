@@ -10,11 +10,15 @@
 //!   同一个 [`Provider`] trait，上层同步引擎与 VFS 无感知。
 //! - **极简依赖**：只依赖 serde / thiserror / time / tracing，保持轻量。
 
+pub mod envelope;
 pub mod error;
+pub mod paths;
 pub mod provider;
+pub mod serde_util;
 pub mod sync;
 pub mod types;
 
+pub use envelope::{classify_code, ApiErrorKind, Envelope};
 pub use error::{Error, Result};
 pub use provider::{Provider, UploadResult, UploadSource};
 pub use types::{EntryKind, Quota, RangeSpec, RemoteEntry, RemoteId};
@@ -26,5 +30,5 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const DEFAULT_USER_AGENT: &str = concat!(
     "CloudMount/",
     env!("CARGO_PKG_VERSION"),
-    " (+https://github.com/zhonghaoxi/cloudmount)"
+    " (+https://github.com/Tintac-CN/cloudmount)"
 );
