@@ -1,0 +1,12 @@
+[package]
+name = "cloudmount-vfs"
+description = "挂载层抽象：把 Provider 投影为本地文件系统视图（占位符/水合/pin）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cloudmount-core = { path = "../cloudmount-core" }
+thiserror.workspace = true
+tracing.workspace = true

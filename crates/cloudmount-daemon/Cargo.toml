@@ -1,0 +1,23 @@
+[package]
+name = "cloudmount-daemon"
+description = "常驻服务：同步引擎 + 挂载后端 + WebDAV 边缘出口（低内存目标 5–15MB）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cloudmountd"
+path = "src/main.rs"
+
+[dependencies]
+cloudmount-core = { path = "../cloudmount-core" }
+cloudmount-vfs = { path = "../cloudmount-vfs" }
+cloudmount-auth = { path = "../cloudmount-auth" }
+cloudmount-driver115 = { path = "../cloudmount-driver115" }
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true

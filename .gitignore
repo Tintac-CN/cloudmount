@@ -1,0 +1,33 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / web-ui
+node_modules/
+web-ui/dist/
+
+# Tauri
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+
+# Windows driver build artifacts
+drivers/win/*.sys
+drivers/win/*.pdb
+drivers/win/*.cat
+drivers/win/x64/
+drivers/win/.vs/
+
+# 本地配置与凭据（绝不入库）
+*.local.toml
+*.session
+*.cookie
+.env
+
+# IDE
+.idea/
+.vscode/
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,35 @@
+# CloudMount 边缘节点 systemd 服务
+# 安装：sudo cp cloudmountd.service /etc/systemd/system/ && sudo systemctl enable --now cloudmountd
+# 低内存设备建议再配：sudo systemctl edit cloudmountd → MemoryMax=256M
+
+[Unit]
+Description=CloudMount edge daemon (115 sync drive)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 以非 root 运行；FUSE 挂载需要该用户在 fuse 组或使用 --device /dev/fuse 的容器
+User=cloudmount
+ExecStart=/usr/local/bin/cloudmountd serve --listen 127.0.0.1:8384
+Restart=on-failure
+RestartSec=5
+
+# 资源护栏（512MB 设备友好）
+MemoryMax=256M
+TasksMax=128
+# 传输缓冲本来就小，这里双保险
+Environment=RUST_LOG=info
+# 环境变量配置（详见 README）：
+# CLOUDMOUNT_DATA_DIR=/var/lib/cloudmount
+# CLOUDMOUNT_LISTEN=127.0.0.1:8384
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cloudmount
+PrivateTmp=yes
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

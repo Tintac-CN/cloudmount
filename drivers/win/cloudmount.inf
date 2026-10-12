@@ -1,0 +1,54 @@
+;; CloudMount Windows 存储内核 —— minifilter 安装信息（骨架）
+;;
+;; 正式分发前必须：
+;;   1. EV 代码签名证书签名；
+;;   2. 提交微软 Partner Center 做 Attestation signing（分钟级）；
+;;   3. 开发期用 testsigning + 自签证书。
+;; ClassGuid 与版本号按 WDK 向导最终生成的为准。
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = "ActivityMonitor"
+ClassGuid   = {b8cf7230-8d6e-4c8f-8f3f-4a1b2c3d4e5f}
+Provider    = %ManufacturerName%
+CatalogFile = cloudmount.cat
+DriverVer   = 10/12/2026,0.1.0.0
+PnpLockdown = 1
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+cloudmount.sys = 1,,
+
+[DestinationDirs]
+DefaultDestDir = 12 ; %windir%\system32\drivers
+DriverFiles = 12
+
+[DefaultInstall]
+OptionDesc = %ServiceDescription%
+CopyFiles = DriverFiles
+
+[DefaultInstall.Services]
+AddService = cloudmount,,cloudmount.Service
+
+[DefaultUninstall.Services]
+DelService = cloudmount,0x200
+
+[DriverFiles]
+cloudmount.sys,,,%COPYFLG_ADD_TO_REGISTRY_INF%
+
+[cloudmount.Service]
+DisplayName    = %ServiceName%
+Description    = %ServiceDescription%
+ServiceBinary  = %12%\cloudmount.sys
+Dependencies   = FltMgr
+ServiceType    = 2       ; SERVICE_FILE_SYSTEM_DRIVER
+StartType      = 3       ; SERVICE_DEMAND_START（手动启动，便于失败排查）
+
+[Strings]
+ManufacturerName     = "CloudMount Project"
+ServiceName          = "CloudMount Filter"
+ServiceDescription   = "CloudMount 115 网盘占位符文件系统过滤器"
+DiskName             = "CloudMount Installation Disk"
+COPYFLG_ADD_TO_REGISTRY_INF = 0x00000002

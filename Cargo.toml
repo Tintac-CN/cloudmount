@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/cloudmount-core",
+    "crates/cloudmount-vfs",
+    "crates/cloudmount-driver115",
+    "crates/cloudmount-auth",
+    "crates/cloudmount-cli",
+    "crates/cloudmount-daemon",
+]
+# Tauri 桌面壳是独立 cargo 项目（依赖重、构建需前端产物），不进 workspace：
+exclude = ["apps/desktop"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/zhonghaoxi/cloudmount"
+homepage = "https://github.com/zhonghaoxi/cloudmount"
+authors = ["zhonghaoxi"]
+
+[workspace.dependencies]
+# --- async runtime: 默认 current_thread 省内存 ---
+tokio = { version = "1.47", default-features = false, features = ["rt", "macros", "sync", "time", "fs", "io-util"] }
+# --- HTTP: 核心传输层用同步 ureq，依赖最浅 ---
+ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+# --- TLS: 纯 Rust，ARM 交叉编译友好 ---
+rustls = "0.23"
+rustls-platform-verifier = "0.7"
+# --- 序列化 ---
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# --- 本地元数据 DB ---
+rusqlite = { version = "0.37", features = ["bundled"] }
+# --- 错误 ---
+thiserror = "2"
+anyhow = "1"
+# --- 日志 ---
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# --- 时间/哈希 ---
+sha1 = "0.10"
+hex = "0.4"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+# --- CLI ---
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+incremental = false
+
+# 小体积优先的 dev 配置（调试体验与体积折中）
+[profile.dev]
+opt-level = 1
