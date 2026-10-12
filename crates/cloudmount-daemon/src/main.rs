@@ -33,9 +33,11 @@ use cloudmount_auth::open::OpenApiAuth;
 use cloudmount_auth::store::default_store;
 use cloudmount_core::{Provider, RemoteId};
 use cloudmount_driver115::Open115Provider;
+#[cfg(windows)]
+use cloudmount_sync::remote::RemoteViewTracker;
 #[cfg(feature = "mock")]
 use cloudmount_sync::testutil::MockRemote;
-use cloudmount_sync::{remote::RemoteViewTracker, SyncEngine, SyncEngineConfig};
+use cloudmount_sync::{SyncEngine, SyncEngineConfig};
 #[cfg(windows)]
 use cloudmount_vfs::backends::cfapi_mount::PlaceholderSync;
 use std::sync::Arc;
@@ -275,6 +277,7 @@ fn run_placeholder_mount(_cli: &Cli, _sync_root: &std::path::Path) -> anyhow::Re
 }
 
 /// 构造 Provider（mock 通道或官方 OpenAPI）。
+#[cfg(windows)]
 fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
     #[cfg(feature = "mock")]
     if cli.mock {
