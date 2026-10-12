@@ -19,7 +19,7 @@
 
 use super::cfapi::{self, PlaceholderSpec};
 use crate::{Mount, MountBackend};
-use cloudmount_core::{EntryKind, Error, RangeSpec, RemoteEntry, RemoteId, Result};
+use cloudmount_core::{EntryKind, Error, RangeSpec, RemoteEntry, RemoteId, Result, UploadSource};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -43,6 +43,8 @@ pub struct CfapiMount {
     state: Arc<MountState>,
     /// 已投影的相对路径（增量投影用）。
     projected: Mutex<HashSet<String>>,
+    /// 水合记录（与连接回调共享；区分"过滤器写入"与"用户修改"）。
+    hydration_log: cfapi::HydrationLog,
 }
 
 impl CfapiBackend {
@@ -110,7 +112,8 @@ impl CfapiBackend {
             reader.read_to_end(&mut buf)?;
             Ok(buf)
         });
-        let connection = cfapi::connect(point, hydrate)?;
+        let hydration_log: cfapi::HydrationLog = Arc::new(Mutex::new(HashMap::new()));
+        let connection = cfapi::connect_with_log(point, hydrate, hydration_log.clone())?;
 
         let projected = remote.keys().cloned().collect();
         Ok(CfapiMount {
@@ -118,6 +121,7 @@ impl CfapiBackend {
             connection,
             state,
             projected: Mutex::new(projected),
+            hydration_log,
         })
     }
 }
@@ -247,6 +251,44 @@ impl CfapiMount {
             v.remove(rel);
         }
     }
+
+    // ---------- 双向同步支撑（供 LocalChangeUploader 使用） ----------
+
+    /// 远端视图条目查询（水合寻址与上传父目录解析）。
+    pub fn remote_entry(&self, rel: &str) -> Option<RemoteEntry> {
+        self.state
+            .remote
+            .read()
+            .ok()
+            .and_then(|v| v.get(rel).cloned())
+    }
+
+    /// 路径是否已投影（区分"我们的投影"与"用户新建"）。
+    pub fn is_projected(&self, rel: &str) -> bool {
+        self.projected
+            .lock()
+            .map(|p| p.contains(rel))
+            .unwrap_or(false)
+    }
+
+    /// 上传成功后更新视图条目并标记已投影
+    /// （防止 PlaceholderSync 把本地新文件重复投影为占位符）。
+    pub fn upsert_view_entry(&self, rel: &str, entry: RemoteEntry) {
+        if let Ok(mut v) = self.state.remote.write() {
+            v.insert(rel.to_string(), entry);
+        }
+        if let Ok(mut p) = self.projected.lock() {
+            p.insert(rel.to_string());
+        }
+    }
+
+    /// 某路径最近一次水合完成后的 mtime（None = 从未水合）。
+    pub fn hydration_mtime(&self, rel: &str) -> Option<i64> {
+        self.hydration_log
+            .lock()
+            .ok()
+            .and_then(|m| m.get(rel).copied())
+    }
 }
 
 /// 远端视图同步的轮次结果。
@@ -363,3 +405,171 @@ fn lock_poisoned<T>(_: T) -> Error {
 
 // 引用 Provider trait（供 open_range 方法解析）
 use cloudmount_core::Provider;
+
+// ============ 本地→远端：上传协调器 ============
+
+/// 本地变更上传的轮次结果。
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct UploadStats {
+    /// 成功上传的文件数。
+    pub uploaded: u32,
+    /// 因"过滤器水合写入"跳过的修改数（非用户修改，正确行为）。
+    pub skipped_hydration: u32,
+    /// 因"我们自己的投影"跳过的创建数（投影不是用户新建）。
+    pub skipped_projected: u32,
+    /// 本地删除（保守策略：不上传，远端保留）。
+    pub removed_logged: u32,
+    /// 跳过的目录事件。
+    pub skipped_dirs: u32,
+    /// 失败数。
+    pub errors: u32,
+}
+
+/// **本地变更上传协调器**：把挂载视图里的用户修改上传到远端。
+///
+/// ## 三类事件的判定（防误上传的关键）
+///
+/// | RDC 事件 | 判定 | 动作 |
+/// |---|---|---|
+/// | Created（文件） | `is_projected`？是 → 我们投影的 | 跳过 |
+/// | Created（文件） | 未投影 → 用户新建 | 上传 |
+/// | Modified（文件） | mtime == 水合记录 → **过滤器水合写入** | 跳过（否则读一次文件就上传一次） |
+/// | Modified（文件） | mtime ≠ 水合记录 → 用户在水合后修改 | 上传 |
+/// | Removed | 保守策略（与同步引擎一致） | 不上传，远端保留 |
+/// | 目录事件 | 新本地目录上传需建远端目录链（TODO） | 跳过 |
+///
+/// 上传成功后：更新挂载视图（防止 PlaceholderSync 重复投影）+ `CfSetInSyncState`
+/// （Explorer 绿勾）。
+pub struct LocalChangeUploader {
+    mount: Arc<CfapiMount>,
+    provider: Arc<dyn Provider>,
+    /// 远端根 ID（上传到根目录用）。
+    remote_root: RemoteId,
+    watcher: Box<dyn cloudmount_sync::scan::LocalWatcher>,
+}
+
+impl LocalChangeUploader {
+    /// 创建协调器（在挂载完成后、进入循环前调用）。
+    pub fn new(
+        mount: Arc<CfapiMount>,
+        provider: Arc<dyn Provider>,
+        remote_root: RemoteId,
+    ) -> Result<Self> {
+        let watcher = cloudmount_sync::watcher::build_watcher(
+            mount.root(),
+            cloudmount_sync::watcher::WatcherBackend::Auto,
+        )?;
+        Ok(Self {
+            mount,
+            provider,
+            remote_root,
+            watcher,
+        })
+    }
+
+    /// 拉取本地变更并上传。每轮调用一次。
+    pub fn poll_and_upload(&mut self) -> Result<UploadStats> {
+        use cloudmount_sync::scan::LocalChange;
+        let changes = self.watcher.poll()?;
+        let mut stats = UploadStats::default();
+        for change in changes {
+            match change {
+                LocalChange::Created { path, entry } => {
+                    self.handle_created(&path, &entry, &mut stats)
+                }
+                LocalChange::Modified { path, entry } => {
+                    self.handle_modified(&path, &entry, &mut stats)
+                }
+                LocalChange::Removed { path, .. } => {
+                    // 保守策略：本地删除不上传（远端保留；与同步引擎默认一致）
+                    tracing::debug!(path = %path, "本地删除（保守策略：不上传）");
+                    stats.removed_logged += 1;
+                }
+            }
+        }
+        Ok(stats)
+    }
+
+    fn handle_created(&self, path: &str, entry: &LocalEntryView, stats: &mut UploadStats) {
+        if entry.is_dir {
+            // TODO(M2.5)：新本地目录 → 创建远端目录链后上传其下文件
+            stats.skipped_dirs += 1;
+            return;
+        }
+        if self.mount.is_projected(path) {
+            // 我们自己的投影（PlaceholderSync.project 创建的占位符）
+            stats.skipped_projected += 1;
+            return;
+        }
+        self.dispatch_upload(path, stats);
+    }
+
+    fn handle_modified(&self, path: &str, entry: &LocalEntryView, stats: &mut UploadStats) {
+        if entry.is_dir {
+            stats.skipped_dirs += 1;
+            return;
+        }
+        // 水合写入判定：mtime == 水合记录 → 过滤器写入（读文件触发的按需水合）
+        if let Some(hydrated_mtime) = self.mount.hydration_mtime(path) {
+            if hydrated_mtime == entry.mtime {
+                stats.skipped_hydration += 1;
+                return;
+            }
+        }
+        self.dispatch_upload(path, stats);
+    }
+
+    fn dispatch_upload(&self, rel: &str, stats: &mut UploadStats) {
+        match self.upload_inner(rel) {
+            Ok(()) => stats.uploaded += 1,
+            Err(e) => {
+                tracing::error!(rel, error = %e, "本地变更上传失败");
+                stats.errors += 1;
+            }
+        }
+    }
+
+    fn upload_inner(&self, rel: &str) -> Result<()> {
+        let abs = self.mount.root().join(rel.replace('/', "\\"));
+        let meta = std::fs::metadata(&abs)?;
+        if !meta.is_file() {
+            return Ok(()); // 竞态：已消失
+        }
+        let (parent_rel, name) = match rel.rsplit_once('/') {
+            Some((p, n)) => (p, n),
+            None => ("", rel),
+        };
+
+        // 解析父目录远端 ID（根用 remote_root；子目录须已在视图中）
+        let parent_id = if parent_rel.is_empty() {
+            self.remote_root.clone()
+        } else {
+            self.mount
+                .remote_entry(parent_rel)
+                .filter(|e| e.kind == EntryKind::Directory)
+                .map(|e| e.id)
+                .ok_or_else(|| {
+                    Error::Other(format!(
+                        "父目录 {parent_rel} 不在远端视图（新本地目录上传待 M2.5 支持）"
+                    ))
+                })?
+        };
+
+        let result =
+            self.provider
+                .upload(&parent_id, name, UploadSource::Path(&abs), meta.len())?;
+        // 取权威远端信息并更新挂载视图（防 PlaceholderSync 重复投影）
+        let entry = self.provider.stat(&result.id)?;
+        self.mount.upsert_view_entry(rel, entry);
+        // 标记同步（Explorer 绿勾）。失败仅告警不回滚：上传已成功，
+        // 且新建的普通文件（非占位符）本就可能不支持该标记。
+        if let Err(e) = cfapi::set_in_sync(&abs) {
+            tracing::debug!(rel, error = %e, "标记同步状态失败（不影响上传结果）");
+        }
+        tracing::info!(rel, "本地变更已上传");
+        Ok(())
+    }
+}
+
+/// 本地条目视图（避免直接依赖 sync 的 LocalEntry 类型名冲突时的别名）。
+type LocalEntryView = cloudmount_sync::scan::LocalEntry;

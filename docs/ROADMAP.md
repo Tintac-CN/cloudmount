@@ -87,7 +87,14 @@
 - [x] **踩坑：Population 策略必须 ALWAYS_FULL(3)**——FULL(2) 下目录条目需
       提供程序信号"填充完成"才对其它进程可见（表现为 dir 看不到文件 +
       跨进程读取报"提供程序未运行"；同进程读却正常，极具迷惑性）
-- [ ] 本地→远端（用户修改上传）接同步引擎 RDC 监视（双向写路径设计）
+- [x] **双向写路径完成（2026-10-13）**：`LocalChangeUploader`（RDC 事件 →
+      三路判定 → 上传 → CfSetInSyncState 绿勾）。
+      判定表：Created+已投影=我们的投影跳过；Created+未投影=用户新建上传；
+      Modified+水合记录/远端 mtime 匹配=过滤器写入跳过（**实测 Win11 内核态
+      水合写入根本不产生 RDC 事件**，双 mtime 判定作为跨版本防御）；
+      Modified+不匹配=用户修改上传；Removed=保守不上传。
+      e2e（真机 cldflt）：水合零上传 / 用户修改上传 / 新建上传 全过。
+      daemon 循环已接入（先本地→远端，再远端→视图）
 - [ ] 内容变化重投影：CfUpdatePlaceholders + 失效通知（当前计数跳过）
 - [ ] Tauri 壳：托盘（状态角标/菜单）+ web-ui 集成 + WebView2 引导
 - [ ] 资源管理器状态图标与右键动词（CfAPI 原生）+ MSIX 打包

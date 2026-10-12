@@ -227,6 +227,13 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
         }
     }
 
+    // 双向：本地变更（用户修改/新建）→ 上传
+    let mut uploader = cloudmount_vfs::LocalChangeUploader::new(
+        mount.clone(),
+        provider.clone(),
+        remote_root.clone(),
+    )?;
+
     let mut sync = PlaceholderSync::new(mount.clone(), &initial);
     let interval = Duration::from_secs(cli.interval.max(1));
     // --once + --hold-secs：保持 hold_secs 再退出（供自动化验证/演示）
@@ -237,6 +244,17 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
 
     // 挂载循环是阻塞实现：直接在调用线程上跑
     loop {
+        // 先处理本地→远端（用户修改上传），再处理远端→视图（投影/删除）
+        match uploader.poll_and_upload() {
+            Ok(stats) if stats.uploaded > 0 || stats.errors > 0 => tracing::info!(
+                uploaded = stats.uploaded,
+                skipped_hydration = stats.skipped_hydration,
+                errors = stats.errors,
+                "本地变更已处理"
+            ),
+            Ok(_) => {}
+            Err(e) => tracing::error!(error = %e, "本地变更轮询失败（下一轮重试）"),
+        }
         match tracker.next_view(provider.as_ref(), &remote_root) {
             Ok(Some(view)) => match sync.apply_remote_view(&view) {
                 Ok(stats) => tracing::info!(

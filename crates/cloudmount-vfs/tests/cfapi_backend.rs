@@ -269,3 +269,169 @@ fn placeholder_sync_counts_content_changes() {
     );
     assert_eq!(stats.added, 0);
 }
+
+// ============ 双向写路径：本地变更上传 ============
+
+/// 有界等待：条件满足即返回（异步事件送达，固定 sleep 在慢机器会闪烁）。
+fn wait_for<F: FnMut() -> bool>(mut f: F, timeout_ms: u64) -> bool {
+    let deadline = std::time::Instant::now() + Duration::from_millis(timeout_ms);
+    while std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+        if f() {
+            return true;
+        }
+    }
+    false
+}
+
+#[test]
+fn bidirectional_hydration_does_not_upload() {
+    use cloudmount_vfs::LocalChangeUploader;
+
+    let remote = MockRemote::new();
+    remote.put_file("read.txt", b"read me to hydrate");
+    let view = view_of(&remote, &["read.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("bidir-read");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    let mut uploader = LocalChangeUploader::new(
+        mount.clone(),
+        Arc::new(remote.clone()),
+        cloudmount_core::RemoteId("0".into()),
+    )
+    .expect("uploader");
+
+    // 读文件（触发水合）→ 轮询 → 不应上传。
+    // 实测（Win11 26300）：过滤器的内核态水合写入**不产生 RDC 事件**，
+    // poll 天然看不到变更；水合跳过逻辑（双 mtime 判定）作为跨版本防御保留。
+    std::fs::read(root.join("read.txt")).expect("水合读取");
+    let uploads_before = remote
+        .ops()
+        .upload
+        .load(std::sync::atomic::Ordering::SeqCst);
+    std::thread::sleep(Duration::from_millis(400)); // 等可能的异步事件
+    let stats = uploader.poll_and_upload().unwrap();
+    assert_eq!(stats.uploaded, 0, "水合读取绝不应触发上传: {stats:?}");
+    assert_eq!(
+        remote
+            .ops()
+            .upload
+            .load(std::sync::atomic::Ordering::SeqCst),
+        uploads_before,
+        "远端上传计数不应增长"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn bidirectional_user_modification_uploads() {
+    use cloudmount_vfs::LocalChangeUploader;
+
+    let remote = MockRemote::new();
+    remote.put_file("doc.txt", b"original content");
+    let view = view_of(&remote, &["doc.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("bidir-mod");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    let mut uploader = LocalChangeUploader::new(
+        mount.clone(),
+        Arc::new(remote.clone()),
+        cloudmount_core::RemoteId("0".into()),
+    )
+    .expect("uploader");
+
+    // 先水合（建立基线），再用户修改
+    std::fs::read(root.join("doc.txt")).expect("水合");
+    let _ = uploader.poll_and_upload(); // 排掉水合事件
+
+    std::fs::write(root.join("doc.txt"), b"modified by user").expect("用户修改");
+    let ok = wait_for(
+        || {
+            uploader
+                .poll_and_upload()
+                .map(|s| s.uploaded > 0)
+                .unwrap_or(false)
+        },
+        4000,
+    );
+    assert!(ok, "用户修改应被上传");
+    assert_eq!(
+        remote.read("doc.txt").unwrap(),
+        b"modified by user",
+        "远端应更新为用户内容"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn bidirectional_new_file_uploads() {
+    use cloudmount_vfs::LocalChangeUploader;
+
+    let remote = MockRemote::new();
+    remote.put_file("seed.txt", b"seed");
+    let view = view_of(&remote, &["seed.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("bidir-new");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    let mut uploader = LocalChangeUploader::new(
+        mount.clone(),
+        Arc::new(remote.clone()),
+        cloudmount_core::RemoteId("0".into()),
+    )
+    .expect("uploader");
+
+    // 用户在同步根新建文件 → 上传
+    std::fs::write(root.join("fresh-note.txt"), b"created by user").expect("新建");
+    let ok = wait_for(
+        || {
+            uploader
+                .poll_and_upload()
+                .map(|s| s.uploaded > 0)
+                .unwrap_or(false)
+        },
+        4000,
+    );
+    assert!(ok, "用户新建应被上传");
+    assert_eq!(
+        remote.read("fresh-note.txt").unwrap(),
+        b"created by user",
+        "远端应出现新文件"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -15,5 +15,7 @@ tracing.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
 
+cloudmount-sync = { path = "../cloudmount-sync" }
+
 [dev-dependencies]
 cloudmount-sync = { path = "../cloudmount-sync", features = ["testutil"] }

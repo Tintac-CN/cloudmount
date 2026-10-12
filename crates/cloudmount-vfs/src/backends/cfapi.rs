@@ -34,27 +34,30 @@
 //!   正式版应经 `CfExecute` 上报错误状态并重试）。
 
 use cloudmount_core::Result;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use windows::core::PCWSTR;
+use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
 use windows::Win32::Storage::CloudFilters::{
     CfConnectSyncRoot, CfCreatePlaceholders, CfDisconnectSyncRoot, CfExecute, CfRegisterSyncRoot,
-    CfUnregisterSyncRoot, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS, CF_CALLBACK_REGISTRATION,
-    CF_CALLBACK_TYPE_CANCEL_FETCH_DATA, CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE,
-    CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE, CF_CREATE_FLAGS, CF_CREATE_FLAG_NONE, CF_FS_METADATA,
-    CF_HARDLINK_POLICY_NONE, CF_HYDRATION_POLICY, CF_HYDRATION_POLICY_FULL,
-    CF_HYDRATION_POLICY_MODIFIER, CF_INSYNC_POLICY_NONE, CF_OPERATION_INFO,
-    CF_OPERATION_PARAMETERS, CF_OPERATION_PARAMETERS_0_0, CF_OPERATION_TYPE_TRANSFER_DATA,
-    CF_PLACEHOLDER_CREATE_FLAGS, CF_PLACEHOLDER_CREATE_FLAG_DISABLE_ON_DEMAND_POPULATION,
+    CfSetInSyncState, CfUnregisterSyncRoot, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS,
+    CF_CALLBACK_REGISTRATION, CF_CALLBACK_TYPE_CANCEL_FETCH_DATA, CF_CALLBACK_TYPE_FETCH_DATA,
+    CF_CALLBACK_TYPE_NONE, CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE, CF_CREATE_FLAGS,
+    CF_CREATE_FLAG_NONE, CF_FS_METADATA, CF_HARDLINK_POLICY_NONE, CF_HYDRATION_POLICY,
+    CF_HYDRATION_POLICY_FULL, CF_HYDRATION_POLICY_MODIFIER, CF_INSYNC_POLICY_NONE,
+    CF_IN_SYNC_STATE_IN_SYNC, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
+    CF_OPERATION_PARAMETERS_0_0, CF_OPERATION_TYPE_TRANSFER_DATA, CF_PLACEHOLDER_CREATE_FLAGS,
+    CF_PLACEHOLDER_CREATE_FLAG_DISABLE_ON_DEMAND_POPULATION,
     CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC, CF_PLACEHOLDER_CREATE_INFO,
     CF_PLACEHOLDER_MANAGEMENT_POLICY_DEFAULT, CF_POPULATION_POLICY,
     CF_POPULATION_POLICY_ALWAYS_FULL, CF_POPULATION_POLICY_MODIFIER, CF_REGISTER_FLAG_NONE,
-    CF_SYNC_POLICIES, CF_SYNC_REGISTRATION,
+    CF_SET_IN_SYNC_FLAG_NONE, CF_SYNC_POLICIES, CF_SYNC_REGISTRATION,
 };
 use windows::Win32::Storage::FileSystem::{
-    FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_BASIC_INFO,
+    CreateFileW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_BASIC_INFO,
+    FILE_FLAGS_AND_ATTRIBUTES, OPEN_EXISTING,
 };
 
 /// 环境自检：cldflt（Cloud Files 过滤器）是否可用。
@@ -67,6 +70,49 @@ pub fn platform_available() -> bool {
 /// Unix 秒 → Windows FILETIME（100ns，自 1601-01-01）。
 fn filetime_from_unix(secs: i64) -> i64 {
     (secs + 11_644_473_600) * 10_000_000
+}
+
+/// 文件 mtime（Unix 秒）；不存在返回 0。
+fn file_mtime(path: &Path) -> i64 {
+    std::fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// 把文件标记为"已同步"（Explorer 显示绿勾）。
+///
+/// 上传成功后调用；文件须已存在（水合态）。
+pub fn set_in_sync(abs_path: &Path) -> Result<()> {
+    let wide = to_wide(&abs_path.to_string_lossy());
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            windows::Win32::Storage::FileSystem::FILE_SHARE_READ
+                | windows::Win32::Storage::FileSystem::FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
+            None,
+        )
+    }
+    .map_err(|e| cloudmount_core::Error::Other(format!("打开文件失败: {e}")))?;
+    let result = unsafe {
+        CfSetInSyncState(
+            handle,
+            CF_IN_SYNC_STATE_IN_SYNC,
+            CF_SET_IN_SYNC_FLAG_NONE,
+            None,
+        )
+    }
+    .map_err(|e| cloudmount_core::Error::Other(format!("CfSetInSyncState 失败: {e}")));
+    unsafe {
+        let _ = windows::Win32::Foundation::CloseHandle(handle);
+    }
+    result
 }
 
 /// 宽字符串 → 以 NUL 结尾的 UTF-16 缓冲。
@@ -390,11 +436,26 @@ pub fn create_placeholders(sync_root: &Path, specs: &[PlaceholderSpec]) -> Resul
 /// 水合函数：给定相对路径与请求范围，返回内容。
 pub type HydrateFn = Box<dyn Fn(&str, u64, u64) -> Result<Vec<u8>> + Send + Sync>;
 
+/// 水合记录（rel_path → 完成后 mtime），连接回调与挂载层共享。
+///
+/// 双向同步的关键：过滤器的按需水合会写文件（触发 RDC 修改事件），
+/// 但那不是用户修改、不应上传。上传协调器据此区分。
+pub type HydrationLog = Arc<Mutex<HashMap<String, i64>>>;
+
 /// 连接上下文（经 `CfConnectSyncRoot` 的 callbackcontext 传入回调）。
 struct HydrationContext {
     hydrate: HydrateFn,
+    /// 同步根（水合完成后 stat 文件 mtime 用）。
+    sync_root: PathBuf,
     /// 已取消的传输（TransferKey）。
     cancelled: Mutex<HashSet<i64>>,
+    /// 最近水合完成的（rel_path → 完成后的 mtime）。
+    ///
+    /// **双向同步的关键**：过滤器的按需水合会写文件（触发 RDC 修改事件），
+    /// 但那不是用户修改、不应上传。上传协调器据此区分：
+    /// RDC 报告的 mtime == 水合记录的 mtime → 过滤器写入，跳过；
+    /// 不等（用户在水合后又改过）→ 上传。
+    hydrated: HydrationLog,
 }
 
 unsafe impl Send for HydrationContext {}
@@ -430,9 +491,21 @@ impl Drop for CloudConnection {
 /// `hydrate` 在过滤器的回调线程上被调用（可能并发），必须对同一文件的
 /// 相同范围返回稳定内容。
 pub fn connect(sync_root: &Path, hydrate: HydrateFn) -> Result<CloudConnection> {
+    connect_with_log(sync_root, hydrate, Arc::new(Mutex::new(HashMap::new())))
+}
+
+/// [`connect`] 的变体：水合记录写入调用方提供的共享日志
+/// （挂载层据此区分"过滤器水合写入"与"用户修改"）。
+pub fn connect_with_log(
+    sync_root: &Path,
+    hydrate: HydrateFn,
+    hydration_log: HydrationLog,
+) -> Result<CloudConnection> {
     let ctx = Arc::new(HydrationContext {
         hydrate,
+        sync_root: sync_root.to_path_buf(),
         cancelled: Mutex::new(HashSet::new()),
+        hydrated: hydration_log,
     });
 
     static CALLBACK_TABLE: [CF_CALLBACK_REGISTRATION; 3] = [
@@ -528,6 +601,11 @@ unsafe extern "system" fn fetch_data_callback(
             if let Err(e) = transfer_data(info, offset, Some(&bytes), 0) {
                 tracing::error!(rel = %rel_path, error = %e, "TransferData 失败");
             } else {
+                // 记录水合后的 mtime：供上传协调器区分"过滤器写入"与"用户修改"
+                if let Ok(mut hydrated) = ctx.hydrated.lock() {
+                    let abs = ctx.sync_root.join(rel_path.replace('/', "\\"));
+                    hydrated.insert(rel_path.to_string(), file_mtime(&abs));
+                }
                 tracing::debug!(rel = %rel_path, len = bytes.len(), "水合完成");
             }
         }

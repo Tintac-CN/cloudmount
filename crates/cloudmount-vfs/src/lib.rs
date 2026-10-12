@@ -24,7 +24,9 @@ pub mod backends;
 #[cfg(windows)]
 pub use backends::cfapi;
 #[cfg(windows)]
-pub use backends::cfapi_mount::{CfapiBackend, CfapiMount};
+pub use backends::cfapi_mount::{
+    CfapiBackend, CfapiMount, LocalChangeUploader, PlaceholderSync, UploadStats,
+};
 
 pub use placeholder::{HydrationState, PlaceholderState};
 
