@@ -43,6 +43,8 @@ pub struct CfapiMount {
     root: PathBuf,
     connection: cfapi::CloudConnection,
     state: Arc<MountState>,
+    /// 是否启用了 Shell 侧注册（决定卸载时是否同步注销 Shell 身份）。
+    shell_integration: bool,
     /// 已投影的相对路径（增量投影用）。
     projected: Mutex<HashSet<String>>,
     /// 水合记录（与连接回调共享；区分"过滤器写入"与"用户修改"）。
@@ -143,6 +145,7 @@ impl CfapiBackend {
             root: point.to_path_buf(),
             connection,
             state,
+            shell_integration: self.shell_integration,
             projected: Mutex::new(projected),
             hydration_log,
         })
@@ -463,11 +466,19 @@ impl Mount for CfapiMount {
         &self.root
     }
 
-    /// 卸载：断开连接（停止回调）+ 注销同步根（占位符还原/移除）。
+    /// 卸载：断开连接（停止回调）+ 双注销（内核 + Shell 侧）。
     fn unmount(self: Box<Self>) -> Result<()> {
         // connection 先 Drop（断开回调），再注销
         drop(self.connection);
-        cfapi::unregister(&self.root)
+        let kernel = cfapi::unregister(&self.root);
+        // Shell 侧同步注销（Explorer 导航栏/图标不残留）
+        if self.shell_integration {
+            use super::shell_reg;
+            if let Err(e) = shell_reg::unregister_shell("CloudMount", "CloudMount 云挂") {
+                tracing::warn!(error = %e, "Shell 侧同步根注销失败（不阻塞卸载）");
+            }
+        }
+        kernel
     }
 }
 
