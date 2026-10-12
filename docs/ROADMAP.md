@@ -75,8 +75,8 @@
       + 水合（回调 → `Provider.open_range`，即 downurl+Range 模式）+ 增量投影
       （`project()`：新文件出现→创建占位符→可水合；幂等）。
       端到端测试用 MockRemote 当"云端"走完整链路——拿到 AppID 后换
-      `Open115Provider` 即为真实 115。`project` 的已知边界：已有占位符的
-      内容更新重投影需 `CfUpdatePlaceholders`（M2.5）；dehydrate（释放空间）M2.5
+      `Open115Provider` 即为真实 115。~~`project` 的已知边界~~
+      **已解决（M2.5，2026-10-13）**：内容变化重投影 + dehydrate 均已实现（见下）
 - [x] **PlaceholderSync 协调器（2026-10-12）**：远端视图变化 → 本地视图同步
       （新增投影 / 删除传播含嵌套子树 / 内容变化计数）。
       端到端测试：云端增删 → apply → 本地占位符同步 + 新文件可水合
@@ -84,6 +84,14 @@
       （RemoteViewTracker：probe 短路 + 周期全量安全网 → PlaceholderSync 应用）。
       **跨进程全链路已在本机真机验证**：daemon 挂载后，其它进程（cmd/Explorer 级）
       能看到占位符、读文件触发按需水合。`--mock`（feature）提供免凭据自检通道
+- [x] **M2.5：内容变化重投影 + dehydrate + 新本地目录上传（2026-10-13）**：
+  - 内容变化：`CfUpdatePlaceholder` + `DEHYDRATE`（新元数据生效、陈旧本地数据
+    丢弃、下次读取水合新内容）；**冲突保护**：本地 mtime ≠ 旧远端 mtime
+    （用户修改未上传）→ 跳过计冲突，绝不覆盖用户数据
+  - dehydrate 释放空间：`CfDehydratePlaceholder` 整文件脱水（共享冲突明确报错）
+  - 新本地目录上传：`ensure_remote_dir` 逐级创建远端目录链（视图/投影集合同步）
+  - e2e（真机 cldflt）：重投影后读到新内容；本地已修改→用户数据保留；
+    嵌套新目录+文件全部上传
 - [x] **踩坑：Population 策略必须 ALWAYS_FULL(3)**——FULL(2) 下目录条目需
       提供程序信号"填充完成"才对其它进程可见（表现为 dir 看不到文件 +
       跨进程读取报"提供程序未运行"；同进程读却正常，极具迷惑性）
