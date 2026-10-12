@@ -271,7 +271,7 @@ fn add_watch_recursive(
     };
     let mut stack = vec![(abs, rel.to_string())];
     while let Some((dir, dir_rel)) = stack.pop() {
-        match inotify.add_watch(&dir, mask) {
+        match inotify.watches().add(&dir, mask) {
             Ok(wd) => {
                 wd_map.insert(wd, dir_rel.clone());
             }
