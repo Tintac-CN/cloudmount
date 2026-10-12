@@ -210,7 +210,7 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
         .ok_or_else(|| anyhow::anyhow!("首轮必须产出远端视图"))?;
     tracing::info!(entries = initial.len(), "初始远端视图就绪");
 
-    let backend = cloudmount_vfs::CfapiBackend::new(provider.clone());
+    let backend = cloudmount_vfs::CfapiBackend::new(provider.clone()).with_shell_integration();
     let mount = Arc::new(backend.mount_concrete(sync_root, &initial)?);
     tracing::info!(
         root = %mount.root().display(),

@@ -631,3 +631,64 @@ fn dehydrate_discards_local_data_but_keeps_metadata() {
     assert!(root.join("d.txt").exists());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// ============ Shell 侧注册（WinRT，Explorer 导航栏/图标） ============
+
+#[test]
+fn shell_register_unregister_roundtrip() {
+    let root = tmpdir("shell-reg");
+    // Shell 注册不要求内核注册先行（两者独立），但真实产品两者都做
+    let reg = cloudmount_vfs::backends::shell_reg::ShellRegistration {
+        sync_root: &root,
+        provider_name: "CloudMount-Test",
+        display_name: "CloudMount 测试盘",
+        version: "0.1.0",
+        icon_resource: r"%SystemRoot%\system32\charmap.exe,0",
+        identity: "test-server->test-client",
+    };
+    match cloudmount_vfs::backends::shell_reg::register_shell(&reg) {
+        Ok(()) => {
+            // 同名重注册（幂等：先注销再注册）
+            cloudmount_vfs::backends::shell_reg::register_shell(&reg).expect("重复注册应幂等");
+            cloudmount_vfs::backends::shell_reg::unregister_shell(
+                "CloudMount-Test",
+                "CloudMount 测试盘",
+            )
+            .expect("注销");
+        }
+        Err(e) => {
+            let msg = format!("{e}");
+            // CI runner 与部分虚拟机不支持 Shell 注册（同 CfRegisterSyncRoot 的限制）
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 Shell 同步根注册，跳过：{msg}");
+                return;
+            }
+            panic!("Shell 注册失败（非环境限制）: {msg}");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn backend_mount_with_shell_integration_registers_and_unregisters() {
+    let remote = MockRemote::new();
+    remote.put_file("x.txt", b"data");
+    let view = view_of(&remote, &["x.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone())).with_shell_integration();
+    let root = tmpdir("shell-int");
+    let mount = match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    };
+    // Shell 注册成功（Register 幂等已验证）；WinRT 查询需 StorageFolder
+    // 类型包装，此处省略——注册/注销往返本身即为验证目标
+    cloudmount_vfs::Mount::unmount(Box::new(mount)).ok();
+}

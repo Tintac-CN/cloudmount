@@ -28,6 +28,8 @@ use std::sync::{Arc, Mutex, RwLock};
 /// CfAPI 挂载后端。
 pub struct CfapiBackend {
     provider: Arc<dyn Provider>,
+    /// 是否做 Shell 侧注册（Explorer 导航栏/图标；持久跨重启）。
+    shell_integration: bool,
 }
 
 /// 挂载句柄内部共享状态（回调与控制面共享）。
@@ -50,7 +52,16 @@ pub struct CfapiMount {
 impl CfapiBackend {
     /// 创建后端（`provider` 提供水合数据源）。
     pub fn new(provider: Arc<dyn Provider>) -> Self {
-        Self { provider }
+        Self {
+            provider,
+            shell_integration: false,
+        }
+    }
+
+    /// 启用 Shell 侧注册（Explorer 导航栏/状态图标；持久跨重启）。
+    pub fn with_shell_integration(mut self) -> Self {
+        self.shell_integration = true;
+        self
     }
 
     /// 挂载并返回具体句柄（暴露 [`CfapiMount::project`] 增量投影）。
@@ -59,8 +70,20 @@ impl CfapiBackend {
         point: &Path,
         remote: &HashMap<String, RemoteEntry>,
     ) -> Result<CfapiMount> {
-        // 1. 注册（幂等）
+        // 1. 注册（幂等）：内核过滤层 + 可选 Shell 层（导航栏/图标）
         cfapi::register(point, "CloudMount", cloudmount_core::VERSION)?;
+        if self.shell_integration {
+            use super::shell_reg;
+            let reg = shell_reg::ShellRegistration {
+                sync_root: point,
+                provider_name: "CloudMount",
+                display_name: "CloudMount 云挂",
+                version: cloudmount_core::VERSION,
+                icon_resource: r"%SystemRoot%\system32\charmap.exe,0",
+                identity: "cloudmount-sync-root",
+            };
+            shell_reg::register_shell(&reg)?;
+        }
 
         // 2. 共享状态（水合回调按 rel_path 寻址）
         let state = Arc::new(MountState {
