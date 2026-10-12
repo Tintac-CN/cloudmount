@@ -94,7 +94,7 @@ impl LocalWatcher for InotifyWatcher {
             tracing::warn!("inotify 事件溢出，执行全量重扫");
             rescan_into(&self.root, &mut self.snapshot)?;
         }
-        if self.polls % RESCAN_EVERY_POLLS == 0 {
+        if self.polls.is_multiple_of(RESCAN_EVERY_POLLS) {
             rescan_into(&self.root, &mut self.snapshot)?;
         }
 
