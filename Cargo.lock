@@ -267,6 +267,7 @@ dependencies = [
  "cloudmount-core",
  "thiserror",
  "tracing",
+ "windows",
 ]
 
 [[package]]

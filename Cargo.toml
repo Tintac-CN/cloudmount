@@ -52,7 +52,7 @@ time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
 # --- 系统凭据存储（仅在 Windows/macOS 启用，Linux 回退到 0600 文件）---
 keyring = { version = "3", default-features = false }
 # --- Windows API（仅 Windows 目标：ReadDirectoryChangesW 等） ---
-windows = { version = "0.62", features = ["Win32_Storage_FileSystem", "Win32_Foundation", "Win32_Security", "Win32_System_IO"] }
+windows = { version = "0.62", features = ["Win32_Storage_FileSystem", "Win32_Storage_CloudFilters", "Win32_Foundation", "Win32_Security", "Win32_System_IO", "Win32_System_CorrelationVector"] }
 # --- CLI ---
 clap = { version = "4", features = ["derive", "env"] }
 

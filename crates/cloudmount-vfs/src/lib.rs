@@ -18,6 +18,12 @@
 
 pub mod placeholder;
 
+/// 平台原生挂载后端。
+pub mod backends;
+
+#[cfg(windows)]
+pub use backends::cfapi;
+
 pub use placeholder::{HydrationState, PlaceholderState};
 
 use cloudmount_core::{RangeSpec, RemoteId, Result};

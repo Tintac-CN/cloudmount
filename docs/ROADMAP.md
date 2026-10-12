@@ -60,10 +60,21 @@
 
 ## M2 · Windows 挂载（4–6 周）
 
+- [x] **CfAPI 后端基座**（`cloudmount-vfs::backends::cfapi`，2026-10-12 完成）：
+  - SyncRoot 注册/注销（幂等）—— 真机 cldflt 验证通过
+  - 占位符创建：自动补全中间目录、目录加 `DISABLE_ON_DEMAND_POPULATION`、
+    `RelativeFileName` 不含分隔符（按父目录分组逐目录创建）
+  - `CfConnectSyncRoot` + FETCH_DATA/CANCEL_FETCH_DATA 回调
+    （callbackcontext 携带上下文，FileIdentity 存相对路径）
+  - 水合完成：**`CF_OPERATION_TYPE_TRANSFER_DATA`**（对齐官方 CloudMirror 样例；
+    `RETRIEVE_DATA` 不用于完成 FETCH_DATA，会被以 INVALID_REQUEST 拒绝）；
+    失败时以 `STATUS_UNSUCCESSFUL` 明确结束读取（不再等 60s 超时）
+  - **金标准测试**：注册→占位符→连接→读文件触发 FETCH_DATA→水合→内容校验，
+    本机真实 cldflt 上 5/5 通过（含嵌套子目录）
+- [ ] CfAPI 与同步引擎对接：水合回调接 115 下载（downurl+Range），
+      远端树快照→占位符投影，pin/释放空间
 - [ ] Tauri 壳：托盘（状态角标/菜单）+ web-ui 集成 + WebView2 引导
-- [ ] CfAPI 后端：SyncRoot 注册、占位符、FETCH_DATA 水合、pin/释放空间
-- [ ] 资源管理器状态图标与右键动词（CfAPI 原生）
-- [ ] MSIX 打包 + 自动更新
+- [ ] 资源管理器状态图标与右键动词（CfAPI 原生）+ MSIX 打包
 - **验收**： explorer 里打开 115 目录即用，行为与 OneDrive 一致
 
 ## M3 · Cookie 补充通道（2–3 周）

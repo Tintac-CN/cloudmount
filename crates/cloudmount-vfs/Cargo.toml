@@ -10,3 +10,7 @@ repository.workspace = true
 cloudmount-core = { path = "../cloudmount-core" }
 thiserror.workspace = true
 tracing.workspace = true
+
+# Windows CfAPI 后端
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
