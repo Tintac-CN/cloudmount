@@ -49,19 +49,38 @@ impl InotifyWatcher {
         let root_abs = std::fs::canonicalize(root)
             .map_err(|e| Error::Other(format!("watcher 根目录不可访问 {}: {e}", root.display())))?;
 
-        // 基线快照先于线程建立（初始挂 watch 期间的事件由溢出自愈兜底）
+        // **关键时序：inotify 与 watch 必须在线程启动前创建。**
+        // inotify 只报告 watch 存在之后的事件——若在线程内注册，
+        // "线程启动 → 注册完成"窗口期的文件系统事件会永久丢失
+        // （Windows RDC 无此问题：内核从句柄打开时即开始缓冲事件）。
+        let mask = watch_mask();
+        let mut inotify =
+            Inotify::init().map_err(|e| Error::Other(format!("inotify 初始化失败: {e}")))?;
+        let mut wd_map: HashMap<inotify::WatchDescriptor, String> = HashMap::new();
+        add_watch_recursive_at(&mut inotify, &mut wd_map, &root_abs, "", mask);
+
+        // 基线快照（watch 已就位，扫描期间发生的事件不会丢）
         let snapshot = crate::scan::scan_tree(&root_abs)?;
 
         let (tx, rx) = channel::<Vec<DirtyEvent>>();
         let overflow = Arc::new(AtomicBool::new(false));
         let shutdown = Arc::new(AtomicBool::new(false));
 
-        let thread_root = root_abs.clone();
         let thread_overflow = overflow.clone();
         let thread_shutdown = shutdown.clone();
+        let thread_root = root_abs.clone();
         std::thread::Builder::new()
             .name("cm-inotify-watcher".into())
-            .spawn(move || event_loop(thread_root, tx, thread_overflow, thread_shutdown))
+            .spawn(move || {
+                event_loop(
+                    inotify,
+                    wd_map,
+                    thread_root,
+                    tx,
+                    thread_overflow,
+                    thread_shutdown,
+                )
+            })
             .map_err(|e| Error::Other(format!("启动 watcher 线程失败: {e}")))?;
 
         Ok(Self {
@@ -121,42 +140,36 @@ impl Drop for InotifyWatcher {
     }
 }
 
-/// 事件线程主循环。
-fn event_loop(
-    root: PathBuf,
-    tx: Sender<Vec<DirtyEvent>>,
-    overflow: Arc<AtomicBool>,
-    shutdown: Arc<AtomicBool>,
-) {
-    let mut inotify = match Inotify::init() {
-        Ok(i) => i,
-        Err(e) => {
-            tracing::warn!(error = %e, "inotify 初始化失败");
-            return;
-        }
-    };
-
-    // watch 掩码：创建/删除/移入移出/写关闭/属性变化/自身删除与移动。
-    // 不含 MODIFY（写过程中反复触发，CLOSE_WRITE 已覆盖落盘）。
-    let mask = WatchMask::CREATE
+/// watch 掩码：创建/删除/移入移出/写关闭/属性变化/自身删除与移动。
+/// 不含 MODIFY（写过程中反复触发，CLOSE_WRITE 已覆盖落盘）。
+fn watch_mask() -> WatchMask {
+    WatchMask::CREATE
         | WatchMask::DELETE
         | WatchMask::MOVED_FROM
         | WatchMask::MOVED_TO
         | WatchMask::CLOSE_WRITE
         | WatchMask::ATTRIB
         | WatchMask::DELETE_SELF
-        | WatchMask::MOVE_SELF;
+        | WatchMask::MOVE_SELF
+}
 
-    // wd → 相对路径
-    let mut wd_map: HashMap<inotify::WatchDescriptor, String> = HashMap::new();
-    add_watch_recursive(&mut inotify, &mut wd_map, &root, "", mask);
+/// 事件线程主循环。
+/// inotify 与 watch 表由 `new` **在线程启动前**建好并移交（时序见 new 的说明）。
+fn event_loop(
+    mut inotify: Inotify,
+    mut wd_map: HashMap<inotify::WatchDescriptor, String>,
+    root: PathBuf,
+    tx: Sender<Vec<DirtyEvent>>,
+    overflow: Arc<AtomicBool>,
+    shutdown: Arc<AtomicBool>,
+) {
+    let mask = watch_mask();
 
     loop {
         let mut buffer = [0u8; BUFFER_SIZE];
         // 注意：crate 的 init() 默认带 IN_NONBLOCK（fd 非阻塞），
         // read_events 无事件时立即返回 WouldBlock —— 必须用
-        // read_events_blocking（内部临时清除 O_NONBLOCK），
-        // 否则线程会把 WouldBlock 当致命错误退出。
+        // read_events_blocking（内部临时清除 O_NONBLOCK）。
         match inotify.read_events_blocking(&mut buffer) {
             Ok(events) => {
                 if shutdown.load(Ordering::SeqCst) {
@@ -259,14 +272,15 @@ fn handle_event(
             .mask
             .intersects(EventMask::CREATE | EventMask::MOVED_TO)
     {
-        add_watch_recursive(inotify, wd_map, root, &rel_path, mask);
+        add_watch_recursive_at(inotify, wd_map, root, &rel_path, mask);
     }
 
     dirty.push(DirtyEvent { rel_path, is_dir });
 }
 
 /// 递归挂 watch（跳过内部目录）。
-fn add_watch_recursive(
+/// `root` 为同步根的**绝对路径**，`rel` 为要挂的子目录相对路径（"" = 根）。
+fn add_watch_recursive_at(
     inotify: &mut Inotify,
     wd_map: &mut HashMap<inotify::WatchDescriptor, String>,
     root: &Path,
