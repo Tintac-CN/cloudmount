@@ -25,7 +25,7 @@ pub enum EntryKind {
 }
 
 /// 一个远端文件/目录条目（驱动列表结果的统一形态）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoteEntry {
     /// 稳定 ID。
     pub id: RemoteId,
@@ -57,6 +57,19 @@ pub struct Quota {
     pub used: u64,
     /// 剩余空间（字节）。
     pub remaining: u64,
+}
+
+/// 廉价的远端变更探测结果。
+///
+/// 115 官方 API 没有事件/增量接口，全量扫描一棵大目录代价高。
+/// 支持探测的后端可返回"条目数 + 最大修改时间"，引擎据此判断
+/// "远端未变"从而短路整棵子树的扫描。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangeProbe {
+    /// 该目录下的条目总数。
+    pub count: u64,
+    /// 该目录下最新的修改时间（Unix 秒）。
+    pub max_mtime: i64,
 }
 
 /// 一个 HTTP Range 请求（用于分块/并发下载与按需水合）。

@@ -10,7 +10,7 @@
 //!   这样避免把 tokio 的 async 传染进整个核心，也便于单线程低内存运行。
 
 use crate::error::Result;
-use crate::types::{Quota, RangeSpec, RemoteEntry, RemoteId};
+use crate::types::{ChangeProbe, Quota, RangeSpec, RemoteEntry, RemoteId};
 use std::io::Read;
 
 /// 一次上传的结果。
@@ -83,5 +83,13 @@ pub trait Provider: Send + Sync {
     /// 不支持时，同步引擎退化为 `usertime` 轮询 + 全量扫描兜底。
     fn supports_change_feed(&self) -> bool {
         false
+    }
+
+    /// 廉价的变更探测（可选能力）。
+    ///
+    /// 返回 `(条目数, 最大修改时间)`；引擎可以用它短路"远端未变"的整棵子树扫描。
+    /// 默认返回 `None` 表示不支持，引擎走全量扫描。
+    fn change_probe(&self, _dir: &RemoteId) -> Result<Option<ChangeProbe>> {
+        Ok(None)
     }
 }

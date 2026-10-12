@@ -5,6 +5,7 @@ members = [
     "crates/cloudmount-vfs",
     "crates/cloudmount-driver115",
     "crates/cloudmount-auth",
+    "crates/cloudmount-sync",
     "crates/cloudmount-cli",
     "crates/cloudmount-daemon",
 ]
@@ -45,6 +46,8 @@ sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
 getrandom = "0.3"
+# 保留/设置文件 mtime（同步盘需要保持远端时间）
+filetime = "0.2"
 time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
 # --- 系统凭据存储（仅在 Windows/macOS 启用，Linux 回退到 0600 文件）---
 keyring = { version = "3", default-features = false }

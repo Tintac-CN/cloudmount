@@ -15,13 +15,12 @@ pub mod error;
 pub mod paths;
 pub mod provider;
 pub mod serde_util;
-pub mod sync;
 pub mod types;
 
 pub use envelope::{classify_code, ApiErrorKind, Envelope};
 pub use error::{Error, Result};
 pub use provider::{Provider, UploadResult, UploadSource};
-pub use types::{EntryKind, Quota, RangeSpec, RemoteEntry, RemoteId};
+pub use types::{ChangeProbe, EntryKind, Quota, RangeSpec, RemoteEntry, RemoteId};
 
 /// 产品版本号（用于 UI 展示与 User-Agent）。
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -27,8 +27,8 @@ use crate::models::{
 };
 use cloudmount_auth::open::OpenApiAuth;
 use cloudmount_core::{
-    Envelope, Error, Provider, Quota, RangeSpec, RemoteEntry, RemoteId, Result, UploadResult,
-    UploadSource,
+    ChangeProbe, Envelope, Error, Provider, Quota, RangeSpec, RemoteEntry, RemoteId, Result,
+    UploadResult, UploadSource,
 };
 use std::collections::HashMap;
 use std::io::Read;
@@ -413,5 +413,28 @@ impl Provider for Open115Provider {
     fn quota(&self) -> Result<Quota> {
         let info: UserInfo = self.client.get_json("/open/user/info", &[])?;
         info.to_quota()
+    }
+
+    /// 廉价变更探测：按 `user_utime` 倒序只取 1 条 + 总数。
+    ///
+    /// 一次请求即可判定"该目录自上次同步以来是否变化"，避免每轮都全量拉取。
+    /// 与 `list()` 使用同一排序口径（`o=user_utime&asc=0`），保证语义一致。
+    fn change_probe(&self, dir: &RemoteId) -> Result<Option<ChangeProbe>> {
+        let raw = self.client.get_raw(
+            "/open/ufile/files",
+            &[
+                ("cid", dir.0.clone()),
+                ("limit", "1".to_string()),
+                ("offset", "0".to_string()),
+                ("show_dir", "1".to_string()),
+                ("o", "user_utime".to_string()),
+                ("asc", "0".to_string()),
+            ],
+        )?;
+        let page: ListPage = serde_json::from_value(raw)
+            .map_err(|e| Error::Other(format!("变更探测响应解析失败: {e}")))?;
+        let (files, count) = page.check()?;
+        let max_mtime = files.first().and_then(|f| f.uet.or(f.upt)).unwrap_or(0) as i64;
+        Ok(Some(ChangeProbe { count, max_mtime }))
     }
 }

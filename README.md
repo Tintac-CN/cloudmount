@@ -2,8 +2,12 @@
 
 > 把 115 网盘变成你所有设备上的"同步盘"—— OneDrive 式体验、Rust 极致轻量、全开源。
 >
-> **状态：M0 实现完成**（官方 OpenAPI 全链路代码就绪：扫码登录 / 列目录 / 秒传上传 /
-> Range 下载 / 配额）。待 115 开放平台 AppID 审核通过后即可端到端实测；
+> **状态：M0 + M1 实现完成**（114 个测试通过，CI 三平台绿）。
+> - **M0**：官方 OpenAPI 全链路 —— 扫码登录 / 列目录 / 秒传上传 / Range 下载 / 配额
+> - **M1**：双向同步引擎 —— SQLite 快照、三向对比、冲突保留两者、队列重试退避、
+>   块缓存、`cloudmountd` 常驻服务；端到端由内存 Mock 远端覆盖验证
+>
+> 待 115 开放平台 AppID 审核通过后即可端到端实测真实网盘；
 > 里程碑见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 是什么
@@ -83,6 +87,11 @@ cargo run -p cloudmount-cli -- ls 0      # 列出根目录
 cargo run -p cloudmount-cli -- quota     # 空间配额
 cargo run -p cloudmount-cli -- upload ./report.pdf --to 0
 cargo run -p cloudmount-cli -- download <file_id> ./report.pdf
+
+# M1：双向同步服务（无头常驻）
+export CLOUDMOUNT_SYNC_ROOT=/path/to/local/folder
+cargo run -p cloudmount-daemon -- --once        # 只跑一轮，便于验证
+# 或：cloudmountd --interval 30                 # 每 30 秒一轮
 
 # 前端
 cd web-ui && npm install && npm run dev
