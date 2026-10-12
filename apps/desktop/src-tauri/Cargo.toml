@@ -1,7 +1,7 @@
 [package]
 name = "cloudmount-desktop"
 description = "CloudMount 桌面壳（Tauri 2）：三端共用，托管共享 web-ui 与系统托盘"
-version.workspace = true
+version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/zhonghaoxi/cloudmount"
@@ -13,9 +13,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
-tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # 核心引擎以库形式链接（同进程，无 IPC 开销）
-cloudmount-core = { path = "../../crates/cloudmount-core" }
+cloudmount-core = { path = "../../../crates/cloudmount-core" }
+cloudmount-auth = { path = "../../../crates/cloudmount-auth" }
+cloudmount-driver115 = { path = "../../../crates/cloudmount-driver115" }
+cloudmount-sync = { path = "../../../crates/cloudmount-sync" }

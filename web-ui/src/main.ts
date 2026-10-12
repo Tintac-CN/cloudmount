@@ -26,16 +26,19 @@ async function render(): Promise<void> {
   try {
     const s: StatusInfo = await getStatus();
     const list = el("ul");
-    list.append(
+    const items: HTMLLIElement[] = [
       el("li", `版本：${s.version}`),
-      el("li", `登录：${s.loggedIn ? "已登录" : "未登录"}（通道：${s.channel}）`),
-      el("li", `同步：${s.syncing ? "进行中" : "空闲"}`),
+      el("li", `登录：${s.loggedIn ? "已登录" : "未登录"}`),
+      el("li", `同步：${s.paused ? "已暂停" : s.syncing ? "进行中" : "空闲"}`),
       el("li", `队列：↑${s.pendingUploads} ↓${s.pendingDownloads}`),
-      el(
-        "li",
-        `缓存：${(s.cacheBytes / 1e9).toFixed(2)} / ${(s.cacheLimitBytes / 1e9).toFixed(0)} GB`,
-      ),
-    );
+      el("li", `冲突：${s.conflicts} 错误：${s.errors}`),
+    ];
+    if (s.lastMessage) {
+      items.push(el("li", `最近：${s.lastMessage}`));
+    }
+    for (const item of items) {
+      list.append(item);
+    }
     root.append(el("h2", "状态"), list);
   } catch (err) {
     root.append(el("p", `后端未就绪：${String(err)}`));

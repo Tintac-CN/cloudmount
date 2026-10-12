@@ -95,7 +95,16 @@
       Modified+不匹配=用户修改上传；Removed=保守不上传。
       e2e（真机 cldflt）：水合零上传 / 用户修改上传 / 新建上传 全过。
       daemon 循环已接入（先本地→远端，再远端→视图）
-- [ ] 内容变化重投影：CfUpdatePlaceholders + 失效通知（当前计数跳过）
+- [x] **内容变化重投影（2026-10-13）**：`CfUpdatePlaceholder` + `DEHYDRATE`
+      （新元数据生效 + 陈旧本地数据丢弃，下次读取水合新内容）。
+      **冲突保护**：本地 mtime ≠ 旧远端 mtime（用户修改未上传）→ 跳过重投影
+      计入冲突（绝不覆盖用户数据）。e2e：远端变→重投影→读到新内容；
+      本地已修改→用户数据保留。
+- [x] **Tauri 壳（2026-10-13）**：托盘（状态菜单：打开/暂停恢复/打开目录/退出，
+      Linux 菜单文本更新兼容）+ 关窗隐藏到托盘 + 引擎线程（SyncEngine 循环，
+      暂停 AtomicBool + 状态快照共享）+ 命令面（get_status/set_sync_root/
+      toggle_pause/open_sync_folder，与 web-ui api.ts 契约对齐）+ 应用图标
+      （scripts/gen_icons.py 纯 stdlib 生成）。cargo check 通过。
 - [x] **应用一致性目录防护（2026-10-13）**：默认排除 `.git`/`.hg`/`.svn`/
       `@eaDir`/`#recycle` 目录与 `.DS_Store`/`Thumbs.db`/`~$*`/`.tmp` 等垃圾
       文件（`exclude.rs`，四处过滤：本地扫描/RDC 事件/inotify 事件/远端拉取）。

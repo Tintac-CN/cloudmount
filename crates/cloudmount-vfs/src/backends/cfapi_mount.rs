@@ -289,6 +289,50 @@ impl CfapiMount {
             .ok()
             .and_then(|m| m.get(rel).copied())
     }
+
+    /// 内容变化重投影：更新占位符元数据并丢弃陈旧本地数据。
+    ///
+    /// **安全检查**：本地 mtime 与旧远端条目 mtime 一致（未被用户修改）
+    /// 才执行——`DEHYDRATE` 会销毁未上传的用户修改。
+    /// 返回 true = 已更新；false = 本地已修改（冲突，跳过）。
+    pub fn update_entry(&self, rel: &str, new_entry: &RemoteEntry) -> Result<bool> {
+        let old_mtime = self
+            .remote_entry(rel)
+            .map(|e| e.mtime)
+            .unwrap_or(new_entry.mtime);
+        let abs = self.root.join(rel);
+        let local_mtime = std::fs::metadata(&abs)
+            .map(|m| {
+                m.modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0);
+
+        // 本地 mtime ≠ 旧远端 mtime → 用户修改过（未上传）→ 冲突，跳过
+        if local_mtime != 0 && local_mtime != old_mtime {
+            tracing::warn!(
+                rel,
+                local_mtime,
+                old_mtime,
+                "本地已修改，跳过远端重投影（冲突）"
+            );
+            return Ok(false);
+        }
+
+        let identity = rel.as_bytes().to_vec();
+        cfapi::update_placeholder(&abs, new_entry.size, new_entry.mtime, &identity)?;
+        // 更新水合寻址表（下次水合服务新内容）
+        self.upsert_view_entry(rel, new_entry.clone());
+        // 清水合记录（旧记录的 mtime 已失效）
+        if let Ok(mut log) = self.hydration_log.lock() {
+            log.remove(rel);
+        }
+        tracing::info!(rel, size = new_entry.size, "占位符已重投影（内容更新）");
+        Ok(true)
+    }
 }
 
 /// 远端视图同步的轮次结果。
@@ -298,7 +342,9 @@ pub struct ApplyStats {
     pub added: u32,
     /// 删除的占位符数。
     pub removed: u32,
-    /// 检测到内容变化但尚未处理的条目数（M2.5：CfUpdatePlaceholders）。
+    /// 内容变化已重投影的条目数（占位符更新 + 陈旧数据丢弃）。
+    pub content_updated: u32,
+    /// 内容变化但**未**处理的条目数（本地已修改的冲突，或重投影失败）。
     pub content_changes_pending: u32,
 }
 
@@ -361,19 +407,22 @@ impl PlaceholderSync {
             stats.added = self.mount.project(&added_view)?;
         }
 
-        // 3. 内容变化计数（两边都有但 size/mtime 变化 → M2.5 处理）
+        // 3. 内容变化重投影（两边都有但 size/mtime 变化）
         for (k, new_entry) in new_view {
             if let Some(old) = self.view.get(k) {
                 if old.size != new_entry.size || old.mtime != new_entry.mtime {
-                    stats.content_changes_pending += 1;
+                    // 本地已修改 → 冲突计数（不覆盖用户数据）；
+                    // 否则 CfUpdatePlaceholder + DEHYDRATE（下次读取水合新内容）
+                    match self.mount.update_entry(k, new_entry) {
+                        Ok(true) => stats.content_updated += 1,
+                        Ok(false) => stats.content_changes_pending += 1,
+                        Err(e) => {
+                            tracing::error!(rel = %k, error = %e, "重投影失败（下一轮重试）");
+                            stats.content_changes_pending += 1;
+                        }
+                    }
                 }
             }
-        }
-        if stats.content_changes_pending > 0 {
-            tracing::warn!(
-                pending = stats.content_changes_pending,
-                "检测到已投影条目的内容变化；重投影需 CfUpdatePlaceholders（M2.5）"
-            );
         }
 
         self.view = new_view.clone();

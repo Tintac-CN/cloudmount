@@ -236,15 +236,15 @@ fn placeholder_sync_applies_remote_add_and_delete() {
 }
 
 #[test]
-fn placeholder_sync_counts_content_changes() {
+fn placeholder_sync_reprojects_content_changes() {
     use cloudmount_vfs::backends::cfapi_mount::PlaceholderSync;
 
     let remote = MockRemote::new();
-    remote.put_file("doc.txt", b"v1");
+    remote.put_file("doc.txt", b"v1 content");
     let view = view_of(&remote, &["doc.txt"]);
 
     let backend = CfapiBackend::new(Arc::new(remote.clone()));
-    let root = tmpdir("sync-content");
+    let root = tmpdir("reproject");
     let mount = Arc::new(match backend.mount_concrete(&root, &view) {
         Ok(m) => m,
         Err(e) => {
@@ -256,21 +256,74 @@ fn placeholder_sync_counts_content_changes() {
             panic!("挂载失败: {msg}");
         }
     });
-    let mut sync = PlaceholderSync::new(mount, &view);
+    std::thread::sleep(Duration::from_millis(200));
 
-    // 内容变化（size 变化）→ 计入 content_changes_pending（M2.5 边界）
-    remote.put_file("doc.txt", b"v2-with-more-content");
-    let stats = sync
-        .apply_remote_view(&view_of(&remote, &["doc.txt"]))
-        .unwrap();
+    // 先水合旧内容（建立"已读取"基线）
+    assert_eq!(std::fs::read(root.join("doc.txt")).unwrap(), b"v1 content");
+
+    // 远端内容变化 → apply → 重投影
+    remote.put_file("doc.txt", b"v2 with different length");
+    let view2 = view_of(&remote, &["doc.txt"]);
+    let mut sync = PlaceholderSync::new(mount, &view);
+    let stats = sync.apply_remote_view(&view2).expect("apply");
+    assert_eq!(stats.content_updated, 1, "内容变化应被重投影: {stats:?}");
+    assert_eq!(stats.content_changes_pending, 0);
+
+    // 再读 → 水合**新**内容（DEHYDRATE 丢弃了旧数据）
     assert_eq!(
-        stats.content_changes_pending, 1,
-        "内容变化应计数: {stats:?}"
+        std::fs::read(root.join("doc.txt")).unwrap(),
+        b"v2 with different length",
+        "重投影后读取应得到新内容"
     );
-    assert_eq!(stats.added, 0);
+    // 元数据也应是新大小
+    assert_eq!(
+        std::fs::metadata(root.join("doc.txt")).unwrap().len(),
+        b"v2 with different length".len() as u64
+    );
 }
 
-// ============ 双向写路径：本地变更上传 ============
+#[test]
+fn placeholder_sync_skips_reproject_when_locally_modified() {
+    use cloudmount_vfs::backends::cfapi_mount::PlaceholderSync;
+
+    let remote = MockRemote::new();
+    remote.put_file("doc.txt", b"v1");
+    let view = view_of(&remote, &["doc.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("reproject-conflict");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    std::thread::sleep(Duration::from_millis(200));
+
+    // 用户修改（未上传）→ 远端也变化 → 冲突：不覆盖用户数据
+    std::fs::read(root.join("doc.txt")).unwrap(); // 先水合
+    std::fs::write(root.join("doc.txt"), b"user local edit").unwrap();
+
+    remote.put_file("doc.txt", b"remote v2");
+    let view2 = view_of(&remote, &["doc.txt"]);
+    let mut sync = PlaceholderSync::new(mount, &view);
+    let stats = sync.apply_remote_view(&view2).unwrap();
+    assert_eq!(
+        stats.content_changes_pending, 1,
+        "本地已修改应计冲突: {stats:?}"
+    );
+    assert_eq!(stats.content_updated, 0);
+    // 用户数据未被覆盖
+    assert_eq!(
+        std::fs::read(root.join("doc.txt")).unwrap(),
+        b"user local edit"
+    );
+}
 
 /// 有界等待：条件满足即返回（异步事件送达，固定 sleep 在慢机器会闪烁）。
 fn wait_for<F: FnMut() -> bool>(mut f: F, timeout_ms: u64) -> bool {

@@ -10,12 +10,13 @@ import { call } from "./platform";
 export interface StatusInfo {
   version: string;
   loggedIn: boolean;
-  channel: "open" | "cookie";
   syncing: boolean;
+  paused: boolean;
   pendingUploads: number;
   pendingDownloads: number;
-  cacheBytes: number;
-  cacheLimitBytes: number;
+  conflicts: number;
+  errors: number;
+  lastMessage: string;
 }
 
 /** 查询同步与账号状态（托盘/主界面共用）。 */
@@ -23,14 +24,17 @@ export function getStatus(): Promise<StatusInfo> {
   return call<StatusInfo>("get_status");
 }
 
-/** 发起扫码登录（返回二维码内容，UI 负责渲染）。 */
-export function beginLogin(method: "open" | "cookie"): Promise<{ qr: string }> {
-  return call("begin_login", { method });
+/** 设置同步根目录（设置页）。 */
+export function setSyncRoot(path: string): Promise<void> {
+  return call("set_sync_root", { path });
 }
 
-/** 列出远端目录。 */
-export function listDir(dirId: string): Promise<
-  Array<{ id: string; name: string; isDir: boolean; size: number; mtime: number }>
-> {
-  return call("list_dir", { dirId });
+/** 暂停/恢复同步（返回新状态：true = 已暂停）。 */
+export function togglePause(): Promise<boolean> {
+  return call("toggle_pause");
+}
+
+/** 打开同步目录（资源管理器）。 */
+export function openSyncFolder(): Promise<void> {
+  return call("open_sync_folder");
 }

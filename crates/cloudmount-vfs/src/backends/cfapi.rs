@@ -42,18 +42,18 @@ use windows::core::PCWSTR;
 use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
 use windows::Win32::Storage::CloudFilters::{
     CfConnectSyncRoot, CfCreatePlaceholders, CfDisconnectSyncRoot, CfExecute, CfRegisterSyncRoot,
-    CfSetInSyncState, CfUnregisterSyncRoot, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS,
-    CF_CALLBACK_REGISTRATION, CF_CALLBACK_TYPE_CANCEL_FETCH_DATA, CF_CALLBACK_TYPE_FETCH_DATA,
-    CF_CALLBACK_TYPE_NONE, CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE, CF_CREATE_FLAGS,
-    CF_CREATE_FLAG_NONE, CF_FS_METADATA, CF_HARDLINK_POLICY_NONE, CF_HYDRATION_POLICY,
-    CF_HYDRATION_POLICY_FULL, CF_HYDRATION_POLICY_MODIFIER, CF_INSYNC_POLICY_NONE,
-    CF_IN_SYNC_STATE_IN_SYNC, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
+    CfSetInSyncState, CfUnregisterSyncRoot, CfUpdatePlaceholder, CF_CALLBACK_INFO,
+    CF_CALLBACK_PARAMETERS, CF_CALLBACK_REGISTRATION, CF_CALLBACK_TYPE_CANCEL_FETCH_DATA,
+    CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE, CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE,
+    CF_CREATE_FLAGS, CF_CREATE_FLAG_NONE, CF_FS_METADATA, CF_HARDLINK_POLICY_NONE,
+    CF_HYDRATION_POLICY, CF_HYDRATION_POLICY_FULL, CF_HYDRATION_POLICY_MODIFIER,
+    CF_INSYNC_POLICY_NONE, CF_IN_SYNC_STATE_IN_SYNC, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
     CF_OPERATION_PARAMETERS_0_0, CF_OPERATION_TYPE_TRANSFER_DATA, CF_PLACEHOLDER_CREATE_FLAGS,
     CF_PLACEHOLDER_CREATE_FLAG_DISABLE_ON_DEMAND_POPULATION,
     CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC, CF_PLACEHOLDER_CREATE_INFO,
     CF_PLACEHOLDER_MANAGEMENT_POLICY_DEFAULT, CF_POPULATION_POLICY,
     CF_POPULATION_POLICY_ALWAYS_FULL, CF_POPULATION_POLICY_MODIFIER, CF_REGISTER_FLAG_NONE,
-    CF_SET_IN_SYNC_FLAG_NONE, CF_SYNC_POLICIES, CF_SYNC_REGISTRATION,
+    CF_SET_IN_SYNC_FLAG_NONE, CF_SYNC_POLICIES, CF_SYNC_REGISTRATION, CF_UPDATE_FLAG_DEHYDRATE,
 };
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_BASIC_INFO,
@@ -109,6 +109,59 @@ pub fn set_in_sync(abs_path: &Path) -> Result<()> {
         )
     }
     .map_err(|e| cloudmount_core::Error::Other(format!("CfSetInSyncState 失败: {e}")));
+    unsafe {
+        let _ = windows::Win32::Foundation::CloseHandle(handle);
+    }
+    result
+}
+
+/// 更新占位符（远端内容变化的重投影）。
+///
+/// - 新元数据（大小/mtime）+ 新 FileIdentity 生效；
+/// - `CF_UPDATE_FLAG_DEHYDRATE`：丢弃本地陈旧数据（若已水合），
+///   下次读取重新水合**新**内容。
+///
+/// **调用方必须先确认本地未被用户修改**——DEHYDRATE 会销毁未上传的修改。
+pub fn update_placeholder(abs_path: &Path, size: u64, mtime: i64, identity: &[u8]) -> Result<()> {
+    let wide = to_wide(&abs_path.to_string_lossy());
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            windows::Win32::Storage::FileSystem::FILE_SHARE_READ
+                | windows::Win32::Storage::FileSystem::FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
+            None,
+        )
+    }
+    .map_err(|e| cloudmount_core::Error::Other(format!("打开占位符失败: {e}")))?;
+
+    let ft = filetime_from_unix(mtime);
+    let metadata = CF_FS_METADATA {
+        BasicInfo: FILE_BASIC_INFO {
+            CreationTime: ft,
+            LastAccessTime: ft,
+            LastWriteTime: ft,
+            ChangeTime: ft,
+            FileAttributes: FILE_ATTRIBUTE_NORMAL.0,
+        },
+        FileSize: size as i64,
+    };
+    let result = unsafe {
+        CfUpdatePlaceholder(
+            handle,
+            Some(&metadata),
+            Some(identity.as_ptr() as *const core::ffi::c_void),
+            identity.len() as u32,
+            None,
+            windows::Win32::Storage::CloudFilters::CF_UPDATE_FLAGS(CF_UPDATE_FLAG_DEHYDRATE.0),
+            None,
+            None,
+        )
+    }
+    .map_err(|e| cloudmount_core::Error::Other(format!("CfUpdatePlaceholder 失败: {e}")));
     unsafe {
         let _ = windows::Win32::Foundation::CloseHandle(handle);
     }
