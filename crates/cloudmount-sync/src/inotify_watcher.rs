@@ -353,6 +353,18 @@ mod tests {
         std::thread::sleep(Duration::from_millis(150));
     }
 
+    /// 有界等待：条件满足即返回（CI 慢 runner 上事件送达延迟可达数秒）。
+    fn wait_event<F: FnMut() -> bool>(mut f: F, timeout_ms: u64) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+        while std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(100));
+            if f() {
+                return true;
+            }
+        }
+        false
+    }
+
     #[test]
     fn detects_create_modify_delete() {
         let root = tmpdir("basic");
@@ -360,34 +372,40 @@ mod tests {
         assert!(w.poll().unwrap().is_empty());
 
         std::fs::write(root.join("a.txt"), b"1").unwrap();
-        settle();
-        let changes = w.poll().unwrap();
         assert!(
-            changes
-                .iter()
-                .any(|c| matches!(c, LocalChange::Created { path, .. } if path == "a.txt")),
-            "应检测到创建: {changes:?}"
+            wait_event(
+                || w.poll()
+                    .unwrap()
+                    .iter()
+                    .any(|c| matches!(c, LocalChange::Created { path, .. } if path == "a.txt")),
+                8000
+            ),
+            "应检测到创建"
         );
 
         std::fs::write(root.join("a.txt"), b"12345678").unwrap();
-        settle();
-        let changes = w.poll().unwrap();
         assert!(
-            changes
-                .iter()
-                .any(|c| matches!(c, LocalChange::Modified { path, .. } if path == "a.txt")),
-            "应检测到修改: {changes:?}"
+            wait_event(
+                || w.poll()
+                    .unwrap()
+                    .iter()
+                    .any(|c| matches!(c, LocalChange::Modified { path, .. } if path == "a.txt")),
+                8000
+            ),
+            "应检测到修改"
         );
         assert_eq!(w.snapshot()["a.txt"].size, 8);
 
         std::fs::remove_file(root.join("a.txt")).unwrap();
-        settle();
-        let changes = w.poll().unwrap();
         assert!(
-            changes
-                .iter()
-                .any(|c| matches!(c, LocalChange::Removed { path, .. } if path == "a.txt")),
-            "应检测到删除: {changes:?}"
+            wait_event(
+                || w.poll()
+                    .unwrap()
+                    .iter()
+                    .any(|c| matches!(c, LocalChange::Removed { path, .. } if path == "a.txt")),
+                8000
+            ),
+            "应检测到删除"
         );
 
         let _ = std::fs::remove_dir_all(&root);
