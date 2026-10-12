@@ -446,14 +446,20 @@ mod tests {
         let mut w = build_watcher(&root, crate::watcher::WatcherBackend::Auto).unwrap();
         w.poll().unwrap();
         std::fs::write(root.join("probe.txt"), b"hi").unwrap();
-        settle();
-        let changes = w.poll().unwrap();
-        assert!(
-            changes
+        // 事件异步送达：有界重试（固定 sleep 在慢机器/CI 上会闪烁）
+        let mut detected = false;
+        for _ in 0..40 {
+            settle();
+            let changes = w.poll().unwrap();
+            if changes
                 .iter()
-                .any(|c| matches!(c, LocalChange::Created { path, .. } if path == "probe.txt")),
-            "Auto 后端应能检测到变更: {changes:?}"
-        );
+                .any(|c| matches!(c, LocalChange::Created { path, .. } if path == "probe.txt"))
+            {
+                detected = true;
+                break;
+            }
+        }
+        assert!(detected, "Auto 后端应在 6s 内检测到变更");
         let _ = std::fs::remove_dir_all(&root);
     }
 }

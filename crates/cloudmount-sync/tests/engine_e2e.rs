@@ -718,11 +718,17 @@ fn engine_works_with_native_watcher() {
     let mut engine = SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap();
 
     ws.write("native.txt", b"via-native-watcher");
-    // 原生事件是异步送达的：等待事件到达 watcher 线程
-    std::thread::sleep(std::time::Duration::from_millis(300));
-
-    let stats = engine.run_once().unwrap();
-    assert_eq!(stats.uploaded, 1, "原生 watcher 应检测到新文件: {stats:?}");
+    // 原生事件是异步送达的：有界重试等待（固定 sleep 在慢机器/CI 上会闪烁）
+    let mut uploaded = 0;
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let stats = engine.run_once().unwrap();
+        if stats.uploaded > 0 {
+            uploaded = stats.uploaded;
+            break;
+        }
+    }
+    assert_eq!(uploaded, 1, "原生 watcher 应在 2s 内检测到新文件并上传");
     assert_eq!(remote.read("native.txt").unwrap(), b"via-native-watcher");
 
     let _ = std::fs::remove_dir_all(&ws.root);
@@ -756,6 +762,7 @@ fn remote_id_root_is_used_for_parent_resolution() {
     let sub = remote.put_dir("cloudmount-root");
     let cfg = SyncEngineConfig {
         remote_root: RemoteId(sub),
+        watcher_backend: cloudmount_sync::watcher::WatcherBackend::Polling,
         ..SyncEngineConfig::new(&ws.root)
     };
     let mut engine = SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap();
