@@ -23,7 +23,6 @@ else
     echo "    gh 未认证，测试 SSH..."
     if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
         echo "    SSH 认证可用"
-        REMOTE="git@github.com:${USER_NAME}/${REPO}.git"
     else
         echo "!!  未认证。请先完成以下任一操作后重试："
         echo "    A) 把下面的 SSH 公钥添加到 https://github.com/settings/keys ："
@@ -32,7 +31,8 @@ else
         exit 1
     fi
 fi
-REMOTE="${REMOTE:-https://github.com/${USER_NAME}/${REPO}.git}"
+# 统一走 SSH remote：HTTPS 会触发凭证交互（无 TTY 时挂死）
+REMOTE="git@github.com:${USER_NAME}/${REPO}.git"
 
 echo "==> 2/4 创建远端仓库 ${USER_NAME}/${REPO}（公开）"
 if "$GH" repo view "${USER_NAME}/${REPO}" >/dev/null 2>&1; then
