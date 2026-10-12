@@ -95,11 +95,14 @@ Cookie 只读探测失败（my.115.com/?ct=guide&ac=status，不踢下线）
 - **minifilter 而非 FSD**：占位符本质是"NTFS 上的云视图"，Filter Manager
   挂 NTFS 卷 + 自定义 reparse point（GUID tag 需向微软申请）+ 拦截
   CREATE/READ 触发水合，ACL/CC/Mm/oplock 由 NTFS 承担。
-- **内核 C + 用户态 Rust**：`windows-drivers-rs` 不支持 minifilter（2026-10）。
-  通信走 Filter Manager message port（cldflt 同款机制）。
-- **Explorer 集成要自建**：原生云图标绑定 CfAPI 的 `IO_REPARSE_TAG_CLOUD_*`，
-  第三方 tag 不享受 —— 需自研 NSE + 图标叠加（15 上限坑）+ `IExplorerCommand`。
-- 工作量：到敢发布 **12–24 人月**；作为长期旗舰，不阻塞产品先走 CfAPI。
+- **内核也用 Rust（v1.0 方案更新）**：`windows-drivers-rs` 至今不支持 minifilter，
+  但 Rust 可用 `crate-type=["cdylib"]` **直出 `.sys`（无需 C 桩）**，已有真实
+  minifilter 先例（apriorit）。缺口在 **FltMgr 绑定**（`wdk-sys` 为零）→ 自建绑定层，
+  并保留"薄 C 壳"回退路径。**完整方案见 [../drivers/win/RUST-MINIFILTER-DESIGN.md](../drivers/win/RUST-MINIFILTER-DESIGN.md)。**
+- **"更稳定"的四条抓手**：编译期消灭缺陷类（RAII 引用/IRQL 类型/锁序/panic 源穷举）、
+  内核逻辑在用户态确定性仿真测试、引擎故障走超时+熔断+明确降级（绝不静默返回 0）、
+  崩溃后可对账恢复 + 黑匣子 triage。
+- 工作量：到敢发布 **18–30 人月**（验证占一半以上）；作为长期旗舰，不阻塞产品先走 CfAPI。
 
 ## 加密资料库（v2 可选，已降级）
 

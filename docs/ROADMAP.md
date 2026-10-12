@@ -55,8 +55,13 @@
 
 ## 长期 · 自研 Windows minifilter（drivers/win）
 
-按 KM-0..KM-5 推进（见 drivers/win/README.md），与 M2 的 CfAPI 后端并存，
-通过 `MountBackend` 切换。**不阻塞任何产品里程碑。**
+**实现方案已定稿**：[RUST-MINIFILTER-DESIGN.md](../drivers/win/RUST-MINIFILTER-DESIGN.md)
+—— 用 Rust 从零实现（cdylib 直出 `.sys`，自建 FltMgr 绑定层 + 薄 C 壳回退路径），
+含 14 项稳定机制与 S1–S6 门禁、KM-0…KM-7 里程碑（18–30 人月，验证占半）。
+
+关键结论：不再走"C 内核 + Rust 用户态"；官方两条红线（HSM 组内不得对 recall 文件
+做 targeted 缓存读写、必须处理 section 同步钩子）已写入设计；零售分发需过
+HLK/WHCP（2026 签名政策收紧）。**不阻塞任何产品里程碑。**
 
 ## 里程碑依赖
 
