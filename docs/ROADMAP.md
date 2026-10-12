@@ -80,8 +80,14 @@
 - [x] **PlaceholderSync 协调器（2026-10-12）**：远端视图变化 → 本地视图同步
       （新增投影 / 删除传播含嵌套子树 / 内容变化计数）。
       端到端测试：云端增删 → apply → 本地占位符同步 + 新文件可水合
-- [ ] 远端视图的获取接线：daemon 每轮 probe/fetch → `apply_remote_view`；
-      本地→远端（用户修改上传）接同步引擎 RDC 监视（双向写路径设计）
+- [x] **daemon 接线完成（2026-10-13）**：`cloudmountd --placeholder-mount`
+      （RemoteViewTracker：probe 短路 + 周期全量安全网 → PlaceholderSync 应用）。
+      **跨进程全链路已在本机真机验证**：daemon 挂载后，其它进程（cmd/Explorer 级）
+      能看到占位符、读文件触发按需水合。`--mock`（feature）提供免凭据自检通道
+- [x] **踩坑：Population 策略必须 ALWAYS_FULL(3)**——FULL(2) 下目录条目需
+      提供程序信号"填充完成"才对其它进程可见（表现为 dir 看不到文件 +
+      跨进程读取报"提供程序未运行"；同进程读却正常，极具迷惑性）
+- [ ] 本地→远端（用户修改上传）接同步引擎 RDC 监视（双向写路径设计）
 - [ ] 内容变化重投影：CfUpdatePlaceholders + 失效通知（当前计数跳过）
 - [ ] Tauri 壳：托盘（状态角标/菜单）+ web-ui 集成 + WebView2 引导
 - [ ] 资源管理器状态图标与右键动词（CfAPI 原生）+ MSIX 打包

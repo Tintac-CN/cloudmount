@@ -38,6 +38,67 @@ impl RemoteTree {
     }
 }
 
+/// 远端视图追踪器：为"占位符挂载"类调用方维护探测水位，
+/// 把"probe → 全量拉取/跳过"的策略收敛在一个可测试的类型里。
+///
+/// ## 与同步引擎内嵌水位的关系
+///
+/// 引擎（`engine::run_once`）的水位规则更严格（变更轮清空水位），
+/// 因为它还承担双向同步。本追踪器服务于**纯投影**场景（占位符挂载）：
+/// 远端视图变化即投影，无需担心与本地写路径的交互。
+///
+/// ## 已知边界（与引擎一致）
+///
+/// 根级探测只反映直接子项；**依赖后端在子项变更时更新父目录时间戳**
+/// （115 如此）。`full_scan_every_cycles` 提供周期性全量安全网。
+pub struct RemoteViewTracker {
+    /// 上次探测值。
+    stored: Option<ChangeProbe>,
+    /// 距上次全量拉取的轮数。
+    cycles_since_full: u32,
+    /// 每 N 轮强制全量（0 = 不强制）。
+    full_scan_every_cycles: u32,
+}
+
+impl RemoteViewTracker {
+    /// 创建追踪器。`full_scan_every_cycles` 为周期性全量安全网（0 = 关闭）。
+    pub fn new(full_scan_every_cycles: u32) -> Self {
+        Self {
+            stored: None,
+            cycles_since_full: u32::MAX / 2, // 首轮强制全量，建立基线
+            full_scan_every_cycles,
+        }
+    }
+
+    /// 获取下一轮的远端视图。
+    ///
+    /// 返回 `Ok(None)`：探测命中水位，远端未变，调用方无需投影。
+    /// 返回 `Ok(Some(view))`：远端有变化（或首次/强制全量），视图已就绪。
+    pub fn next_view(
+        &mut self,
+        provider: &dyn Provider,
+        root: &RemoteId,
+    ) -> Result<Option<HashMap<String, RemoteEntry>>> {
+        let probe = probe(provider, root)?;
+
+        // 探测命中 → 跳过全量拉取
+        if let (Some(p), Some(stored)) = (&probe, &self.stored) {
+            if p == stored
+                && (self.full_scan_every_cycles == 0
+                    || self.cycles_since_full < self.full_scan_every_cycles)
+            {
+                self.cycles_since_full += 1;
+                return Ok(None);
+            }
+        }
+
+        let tree = fetch_tree(provider, root)?;
+        self.stored = probe;
+        self.cycles_since_full = 0;
+        Ok(Some(tree.entries))
+    }
+}
+
 /// 廉价探测远端是否变化。
 ///
 /// 返回 `Ok(None)` 表示后端不支持探测（调用方应做全量扫描）。
@@ -223,6 +284,64 @@ mod tests {
         assert_eq!(decode_probe(&s), Some(p));
         assert_eq!(decode_probe("bad"), None);
         assert_eq!(decode_probe("1|"), None);
+    }
+
+    #[test]
+    fn tracker_short_circuits_then_refetches_on_change() {
+        let mut children = HashMap::new();
+        children.insert(
+            "0".to_string(),
+            vec![
+                TreeProvider::entry("f1", "a.txt", false),
+                TreeProvider::entry("f2", "b.txt", false),
+            ],
+        );
+        let mut p = TreeProvider {
+            children: Mutex::new(children),
+            probe: Some(ChangeProbe {
+                count: 2,
+                max_mtime: 100,
+            }),
+        };
+        let mut t = RemoteViewTracker::new(0);
+
+        // 首轮：无水位 → 全量
+        let v1 = t.next_view(&p, &RemoteId("0".into())).unwrap().unwrap();
+        assert_eq!(v1.len(), 2);
+
+        // 远端未变 → None（短路）
+        assert!(t.next_view(&p, &RemoteId("0".into())).unwrap().is_none());
+
+        // 远端变化（探测值变化）→ 全量拉取
+        p.probe = Some(ChangeProbe {
+            count: 3,
+            max_mtime: 200,
+        });
+        let v2 = t.next_view(&p, &RemoteId("0".into())).unwrap().unwrap();
+        assert_eq!(v2.len(), 2, "fetch_tree 走 list，条目数由 children 决定");
+    }
+
+    #[test]
+    fn periodic_full_scan_kicks_in() {
+        let mut children = HashMap::new();
+        children.insert(
+            "0".to_string(),
+            vec![TreeProvider::entry("f1", "a.txt", false)],
+        );
+        let p = TreeProvider {
+            children: Mutex::new(children),
+            probe: Some(ChangeProbe {
+                count: 1,
+                max_mtime: 100,
+            }),
+        };
+        let mut t = RemoteViewTracker::new(2);
+
+        assert!(t.next_view(&p, &RemoteId("0".into())).unwrap().is_some()); // 首轮
+        assert!(t.next_view(&p, &RemoteId("0".into())).unwrap().is_none()); // 短路
+        assert!(t.next_view(&p, &RemoteId("0".into())).unwrap().is_none()); // 短路
+                                                                            // 第 3 轮：cycles_since_full(2) >= full_scan_every_cycles(2) → 强制全量
+        assert!(t.next_view(&p, &RemoteId("0".into())).unwrap().is_some());
     }
 
     #[test]

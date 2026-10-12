@@ -10,6 +10,10 @@ repository.workspace = true
 name = "cloudmountd"
 path = "src/main.rs"
 
+[features]
+## mock：内置 MockRemote 云端（免凭据验证占位符挂载链路）
+mock = ["cloudmount-sync/testutil"]
+
 [dependencies]
 cloudmount-core = { path = "../cloudmount-core" }
 cloudmount-vfs = { path = "../cloudmount-vfs" }
