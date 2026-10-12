@@ -38,11 +38,9 @@ pub enum WatcherBackend {
     Auto,
     /// 强制轮询（可移植基线，用于诊断/对照）。
     Polling,
-    /// Windows 原生（ReadDirectoryChangesW）。
-    #[cfg(windows)]
-    Native,
-    /// Linux 原生（inotify）。
-    #[cfg(target_os = "linux")]
+    /// 强制平台原生实现（Windows: RDC / Linux: inotify / 其它: 轮询）。
+    /// 注意：必须无条件定义——用 cfg 按平台拆分会导致某些平台（如 macOS）
+    /// 上该变体不存在，而 match 分支仍然引用它，编译失败。
     Native,
 }
 
