@@ -153,7 +153,11 @@ fn event_loop(
 
     loop {
         let mut buffer = [0u8; BUFFER_SIZE];
-        match inotify.read_events(&mut buffer) {
+        // 注意：crate 的 init() 默认带 IN_NONBLOCK（fd 非阻塞），
+        // read_events 无事件时立即返回 WouldBlock —— 必须用
+        // read_events_blocking（内部临时清除 O_NONBLOCK），
+        // 否则线程会把 WouldBlock 当致命错误退出。
+        match inotify.read_events_blocking(&mut buffer) {
             Ok(events) => {
                 if shutdown.load(Ordering::SeqCst) {
                     break;
@@ -178,6 +182,11 @@ fn event_loop(
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            // 防御：万一仍是非阻塞模式（WouldBlock），短暂等待后重试而不是退出
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+                continue;
+            }
             Err(e) => {
                 tracing::debug!(error = %e, "inotify 线程退出");
                 break;
