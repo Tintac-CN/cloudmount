@@ -7,7 +7,7 @@
 //!
 //! | 平台 | 后端 | 占位符/按需 | 状态图标 | 状态 |
 //! |---|---|---|---|---|
-//! | Windows | `CfapiBackend`（Cloud Files API） | ✅ | ✅ | 计划 |
+//! | Windows | `CfapiBackend`（Cloud Files API） | ✅ | ✅ | **基座完成（真机验证）** |
 //! | Windows | `WinFspBackend` | ⚠️ 挂载盘 | ❌ | 可选/降级（注意 GPLv3） |
 //! | Windows | `CloudMountFilterBackend`（自研 minifilter） | ✅ | 需自研 Shell 扩展 | 长期目标 |
 //! | macOS | `FileProviderBackend`（NSFileProviderExtension） | ✅ | ✅ | 计划 |
@@ -23,10 +23,13 @@ pub mod backends;
 
 #[cfg(windows)]
 pub use backends::cfapi;
+#[cfg(windows)]
+pub use backends::cfapi_mount::{CfapiBackend, CfapiMount};
 
 pub use placeholder::{HydrationState, PlaceholderState};
 
-use cloudmount_core::{RangeSpec, RemoteId, Result};
+use cloudmount_core::{RangeSpec, RemoteEntry, RemoteId, Result};
+use std::collections::HashMap;
 use std::path::Path;
 
 /// 挂载点句柄：一个已挂载的云盘视图。
@@ -52,8 +55,11 @@ pub trait MountBackend: Send + Sync {
     /// 本平台是否支持资源管理器/Finder 原生状态图标。
     fn supports_status_icons(&self) -> bool;
 
-    /// 挂载到指定位置，返回句柄。
-    fn mount(&self, point: &Path) -> Result<Box<dyn Mount>>;
+    /// 把远端视图挂载到指定位置。
+    ///
+    /// `remote` 为远端目录树快照（相对路径 → 条目，来自同步引擎的
+    /// 快照合成或全量拉取），后端据此投影本地视图（Windows：占位符）。
+    fn mount(&self, point: &Path, remote: &HashMap<String, RemoteEntry>) -> Result<Box<dyn Mount>>;
 
     /// 触发一次按需水合（读取指定范围），供文件系统回调调用。
     fn hydrate(&self, id: &RemoteId, range: RangeSpec) -> Result<Vec<u8>>;

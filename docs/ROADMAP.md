@@ -71,8 +71,14 @@
     失败时以 `STATUS_UNSUCCESSFUL` 明确结束读取（不再等 60s 超时）
   - **金标准测试**：注册→占位符→连接→读文件触发 FETCH_DATA→水合→内容校验，
     本机真实 cldflt 上 5/5 通过（含嵌套子目录）
-- [ ] CfAPI 与同步引擎对接：水合回调接 115 下载（downurl+Range），
-      远端树快照→占位符投影，pin/释放空间
+- [x] **CfapiBackend（MountBackend 实现，2026-10-12）**：投影（远端视图→占位符）
+      + 水合（回调 → `Provider.open_range`，即 downurl+Range 模式）+ 增量投影
+      （`project()`：新文件出现→创建占位符→可水合；幂等）。
+      端到端测试用 MockRemote 当"云端"走完整链路——拿到 AppID 后换
+      `Open115Provider` 即为真实 115。`project` 的已知边界：已有占位符的
+      内容更新重投影需 `CfUpdatePlaceholders`（M2.5）；dehydrate（释放空间）M2.5
+- [ ] CfAPI 与同步引擎对接：引擎每轮产出远端视图 → `project()`；
+      引擎下载落盘与占位符状态的一致性（双向写路径）
 - [ ] Tauri 壳：托盘（状态角标/菜单）+ web-ui 集成 + WebView2 引导
 - [ ] 资源管理器状态图标与右键动词（CfAPI 原生）+ MSIX 打包
 - **验收**： explorer 里打开 115 目录即用，行为与 OneDrive 一致

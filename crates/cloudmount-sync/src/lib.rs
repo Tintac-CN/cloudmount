@@ -31,6 +31,10 @@ pub mod remote;
 pub mod scan;
 pub mod state;
 pub mod store;
+
+/// 内存 Mock 远端（feature = "testutil"，供跨 crate 集成测试复用）。
+#[cfg(feature = "testutil")]
+pub mod testutil;
 pub mod watcher;
 
 /// Windows 原生 watcher（ReadDirectoryChangesW）。

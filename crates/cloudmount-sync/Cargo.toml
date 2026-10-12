@@ -6,6 +6,10 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+## testutil：导出 MockRemote 内存远端（供其它 crate 的集成测试复用）
+testutil = []
+
 [dependencies]
 cloudmount-core = { path = "../cloudmount-core" }
 rusqlite.workspace = true

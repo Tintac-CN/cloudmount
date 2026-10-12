@@ -265,6 +265,7 @@ name = "cloudmount-vfs"
 version = "0.1.0"
 dependencies = [
  "cloudmount-core",
+ "cloudmount-sync",
  "thiserror",
  "tracing",
  "windows",

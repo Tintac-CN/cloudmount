@@ -14,3 +14,6 @@ tracing.workspace = true
 # Windows CfAPI 后端
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
+
+[dev-dependencies]
+cloudmount-sync = { path = "../cloudmount-sync", features = ["testutil"] }
