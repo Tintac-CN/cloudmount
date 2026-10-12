@@ -435,3 +435,64 @@ fn bidirectional_new_file_uploads() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// ============ .git 防护：占位符模式 ============
+
+#[test]
+fn git_dir_not_projected_and_writes_not_uploaded() {
+    use cloudmount_vfs::LocalChangeUploader;
+
+    let remote = MockRemote::new();
+    // 远端预置 .git（模拟其它工具传上去的）+ 正常文件
+    remote.put_dir(".git");
+    remote.put_file(".git/config", b"[core]");
+    remote.put_file("README.md", b"readme");
+
+    // view_of 走 list 链路——fetch_tree 的排除发生在 RemoteViewTracker，
+    // 这里直接构造视图验证投影过滤（fetch_tree 已在 sync 侧测试覆盖）
+    let view = view_of(&remote, &["README.md"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("git-mount");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    assert!(!root.join(".git").exists(), ".git 不应被投影");
+    assert!(root.join("README.md").exists());
+
+    // 用户在挂载盘里 git init（写 .git）→ 不应上传
+    let mut uploader = LocalChangeUploader::new(
+        mount.clone(),
+        Arc::new(remote.clone()),
+        cloudmount_core::RemoteId("0".into()),
+    )
+    .expect("uploader");
+    std::fs::create_dir_all(root.join(".git/objects")).unwrap();
+    std::fs::write(root.join(".git/index"), b"git index").unwrap();
+    std::fs::write(root.join(".git/index.lock"), b"lock").unwrap();
+
+    let uploads_before = remote
+        .ops()
+        .upload
+        .load(std::sync::atomic::Ordering::SeqCst);
+    std::thread::sleep(Duration::from_millis(400));
+    let stats = uploader.poll_and_upload().unwrap();
+    assert_eq!(stats.uploaded, 0, ".git 写入绝不应上传: {stats:?}");
+    assert_eq!(
+        remote
+            .ops()
+            .upload
+            .load(std::sync::atomic::Ordering::SeqCst),
+        uploads_before
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}

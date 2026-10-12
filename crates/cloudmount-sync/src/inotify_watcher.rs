@@ -103,6 +103,7 @@ impl LocalWatcher for InotifyWatcher {
             let dirty: Vec<DirtyEvent> = batch
                 .into_iter()
                 .filter(|e| !crate::exec::is_internal_path(&e.rel_path))
+                .filter(|e| !crate::exclude::is_excluded_path(&e.rel_path))
                 .collect();
             if !dirty.is_empty() {
                 apply_dirty(&self.root, &mut self.snapshot, &dirty)?;

@@ -85,7 +85,7 @@ pub fn scan_subtree(root: &Path, rel_prefix: &str) -> Result<HashMap<String, Loc
             };
             let path = ent.path();
             let name = ent.file_name().to_string_lossy().to_string();
-            if is_internal(&name) {
+            if is_internal(&name) || crate::exclude::is_excluded_name(&name) {
                 continue;
             }
             let meta = match std::fs::symlink_metadata(&path) {
@@ -272,5 +272,55 @@ mod tests {
         let root = std::env::temp_dir().join("cm-scan-does-not-exist-xyz");
         let _ = std::fs::remove_dir_all(&root);
         assert!(scan_tree(&root).unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod git_exclusion_tests {
+    use super::*;
+
+    fn tmpdir(tag: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "cm-scan-{tag}-{}-{:?}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn git_dir_is_invisible_to_scan() {
+        let root = tmpdir("git-scan");
+        std::fs::create_dir_all(root.join("project/.git/objects")).unwrap();
+        std::fs::write(root.join("project/.git/index"), b"git index").unwrap();
+        std::fs::write(root.join("project/.git/index.lock"), b"lock").unwrap();
+        std::fs::write(root.join("project/main.rs"), b"fn main() {}").unwrap();
+
+        let tree = scan_tree(&root).unwrap();
+        assert!(tree.contains_key("project"), "普通目录应可见");
+        assert!(tree.contains_key("project/main.rs"), "worktree 文件应可见");
+        assert!(
+            !tree.keys().any(|k| k.contains(".git")),
+            ".git 全树应不可见: {:?}",
+            tree.keys().collect::<Vec<_>>()
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn junk_files_are_invisible() {
+        let root = tmpdir("junk-scan");
+        std::fs::write(root.join(".DS_Store"), b"junk").unwrap();
+        std::fs::write(root.join("~$doc.docx"), b"office temp").unwrap();
+        std::fs::write(root.join("real.txt"), b"real").unwrap();
+        let tree = scan_tree(&root).unwrap();
+        assert!(tree.contains_key("real.txt"));
+        assert_eq!(tree.len(), 1, "垃圾文件应全部过滤: {tree:?}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

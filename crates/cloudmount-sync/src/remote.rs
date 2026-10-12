@@ -138,6 +138,10 @@ pub fn fetch_tree(provider: &dyn Provider, root: &RemoteId) -> Result<RemoteTree
             )));
         }
         for child in provider.list(&dir_id)? {
+            // 排除项（如远端已有的 .git）不进入视图：本地权威，不拉取不投影
+            if crate::exclude::is_excluded_name(&child.name) {
+                continue;
+            }
             let rel = if prefix.is_empty() {
                 child.name.clone()
             } else {

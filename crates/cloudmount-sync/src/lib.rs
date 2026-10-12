@@ -24,6 +24,7 @@
 
 pub mod cache;
 pub mod engine;
+pub mod exclude;
 pub mod exec;
 pub mod queue;
 pub mod reconcile;

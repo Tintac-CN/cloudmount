@@ -775,3 +775,40 @@ fn remote_id_root_is_used_for_parent_resolution() {
         "文件应上传到配置的远端根目录下"
     );
 }
+
+// ============ .git 防护：同步引擎视角 ============
+
+#[test]
+fn git_dir_is_fully_ignored_by_sync_engine() {
+    let ws = Workspace::new("git-protect");
+    let remote = MockRemote::new();
+    let mut engine = ws.engine(&remote, SyncPolicy::default());
+
+    // 本地建 .git（模拟用户 git init）+ worktree 文件
+    ws.write("project/.git/index", b"git internal");
+    ws.write("project/.git/index.lock", b"lock");
+    ws.write("project/main.rs", b"fn main() {}");
+    let stats = engine.run_once().unwrap();
+
+    // .git 不可见：只有 main.rs 被上传
+    assert_eq!(stats.uploaded, 1, "只应上传 worktree 文件: {stats:?}");
+    assert!(remote.read("project/main.rs").is_some());
+    assert!(
+        remote.all_paths().iter().all(|p| !p.contains(".git")),
+        "远端绝不应出现 .git: {:?}",
+        remote.all_paths()
+    );
+
+    // 远端预置一个 .git（模拟其它工具传上去的）→ 引擎也不拉取
+    remote.put_dir("evil/.git");
+    remote.put_file("evil/.git/config", b"[core]");
+    remote.put_file("evil/README.md", b"readme");
+    let stats = engine.run_once().unwrap();
+    assert_eq!(stats.downloaded, 1, "只应下载 README: {stats:?}");
+    assert!(ws.exists("evil/README.md"));
+    assert!(
+        !ws.exists("evil/.git/config"),
+        "远端的 .git 不应被拉取到本地"
+    );
+    let _ = std::fs::remove_dir_all(&ws.root);
+}
