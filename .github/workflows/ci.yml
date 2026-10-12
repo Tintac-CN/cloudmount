@@ -58,7 +58,16 @@ jobs:
         with:
           targets: aarch64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2
-      - name: Install musl tools
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      # ring（rustls 加密后端）需要目标架构的交叉 C 编译器；
+      # musl-tools 只含本机架构，故装 musl.cc 的 aarch64 工具链
+      - name: Install aarch64 musl cross toolchain
+        run: |
+          wget -q https://musl.cc/aarch64-linux-musl-cross.tgz
+          tar -xzf aarch64-linux-musl-cross.tgz
+          echo "$PWD/aarch64-linux-musl-cross/bin" >> "$GITHUB_PATH"
       - name: Build edge daemon
         run: cargo build -p cloudmount-daemon --target aarch64-unknown-linux-musl --release
+        env:
+          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
+          AR_aarch64_unknown_linux_musl: aarch64-linux-musl-ar
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-musl-gcc
