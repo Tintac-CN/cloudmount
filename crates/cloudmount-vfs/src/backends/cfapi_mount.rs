@@ -201,6 +201,147 @@ impl CfapiMount {
         }
         cfapi::create_placeholders_ordered(&self.root, &specs)
     }
+
+    /// 删除占位符（远端删除传播）。
+    ///
+    /// 目录递归删除其下全部占位符。
+    pub fn remove(&self, rel_path: &str) -> Result<()> {
+        let abs = self.abs_of(rel_path);
+        if !abs.exists() {
+            // 已不存在：顺带清账
+            self.unproject(rel_path);
+            return Ok(());
+        }
+        let meta = std::fs::symlink_metadata(&abs)?;
+        if meta.is_dir() {
+            // 目录：先清子项的投影记录（remove_dir_all 会连带删除）
+            let prefix = format!("{rel_path}/");
+            if let Ok(view) = self.state.remote.read() {
+                for key in view.keys() {
+                    if key.starts_with(&prefix) {
+                        self.unproject(key);
+                    }
+                }
+            }
+            std::fs::remove_dir_all(&abs)?;
+        } else {
+            std::fs::remove_file(&abs)?;
+        }
+        self.unproject(rel_path);
+        Ok(())
+    }
+
+    fn abs_of(&self, rel: &str) -> PathBuf {
+        if rel.is_empty() {
+            self.root.clone()
+        } else {
+            self.root.join(rel)
+        }
+    }
+
+    fn unproject(&self, rel: &str) {
+        if let Ok(mut p) = self.projected.lock() {
+            p.remove(rel);
+        }
+        if let Ok(mut v) = self.state.remote.write() {
+            v.remove(rel);
+        }
+    }
+}
+
+/// 远端视图同步的轮次结果。
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ApplyStats {
+    /// 新增投影的条目数。
+    pub added: u32,
+    /// 删除的占位符数。
+    pub removed: u32,
+    /// 检测到内容变化但尚未处理的条目数（M2.5：CfUpdatePlaceholders）。
+    pub content_changes_pending: u32,
+}
+
+/// **占位符协调器**：把远端视图的变化持续应用到挂载视图上。
+///
+/// 与同步引擎的分工：
+/// - 本协调器只管"远端 → 视图"（新增投影 / 删除传播）；
+/// - 读取水合由过滤器回调直接走 Provider（不经协调器）；
+/// - "本地 → 远端"（用户修改上传）由同步引擎的 RDC/inotify 监视负责。
+///
+/// ## 内容变化（M2.5 边界）
+///
+/// 已投影占位符的 size/mtime/sha1 变化需要 `CfUpdatePlaceholders` + 失效通知，
+/// 当前版本**跳过并计数**（`content_changes_pending`），视图记录仍更新，
+/// 下一轮不会再报。
+pub struct PlaceholderSync {
+    mount: Arc<CfapiMount>,
+    view: HashMap<String, RemoteEntry>,
+}
+
+impl PlaceholderSync {
+    /// 以初始远端视图创建协调器（视图应与挂载时一致）。
+    pub fn new(mount: Arc<CfapiMount>, initial: &HashMap<String, RemoteEntry>) -> Self {
+        Self {
+            mount,
+            view: initial.clone(),
+        }
+    }
+
+    /// 应用新的远端视图：新增投影、删除传播、内容变化计数。
+    pub fn apply_remote_view(
+        &mut self,
+        new_view: &HashMap<String, RemoteEntry>,
+    ) -> Result<ApplyStats> {
+        let mut stats = ApplyStats::default();
+
+        // 1. 删除传播：旧视图有、新视图没有。
+        //    子路径先删（倒序），避免父目录删除连带后重复删除报 NotFound。
+        let removed: Vec<String> = self
+            .view
+            .keys()
+            .filter(|k| !new_view.contains_key(*k))
+            .cloned()
+            .collect();
+        let mut removed_sorted = removed.clone();
+        removed_sorted.sort();
+        removed_sorted.reverse();
+        for rel in &removed_sorted {
+            self.mount.remove(rel)?;
+            stats.removed += 1;
+        }
+
+        // 2. 新增投影：新视图有、旧视图没有
+        let added_view: HashMap<String, RemoteEntry> = new_view
+            .iter()
+            .filter(|(k, _)| !self.view.contains_key(*k))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        if !added_view.is_empty() {
+            stats.added = self.mount.project(&added_view)?;
+        }
+
+        // 3. 内容变化计数（两边都有但 size/mtime 变化 → M2.5 处理）
+        for (k, new_entry) in new_view {
+            if let Some(old) = self.view.get(k) {
+                if old.size != new_entry.size || old.mtime != new_entry.mtime {
+                    stats.content_changes_pending += 1;
+                }
+            }
+        }
+        if stats.content_changes_pending > 0 {
+            tracing::warn!(
+                pending = stats.content_changes_pending,
+                "检测到已投影条目的内容变化；重投影需 CfUpdatePlaceholders（M2.5）"
+            );
+        }
+
+        self.view = new_view.clone();
+        Ok(stats)
+    }
+
+    /// 当前已同步的视图。
+    pub fn view(&self) -> &HashMap<String, RemoteEntry> {
+        &self.view
+    }
 }
 
 impl Mount for CfapiMount {

@@ -77,8 +77,12 @@
       端到端测试用 MockRemote 当"云端"走完整链路——拿到 AppID 后换
       `Open115Provider` 即为真实 115。`project` 的已知边界：已有占位符的
       内容更新重投影需 `CfUpdatePlaceholders`（M2.5）；dehydrate（释放空间）M2.5
-- [ ] CfAPI 与同步引擎对接：引擎每轮产出远端视图 → `project()`；
-      引擎下载落盘与占位符状态的一致性（双向写路径）
+- [x] **PlaceholderSync 协调器（2026-10-12）**：远端视图变化 → 本地视图同步
+      （新增投影 / 删除传播含嵌套子树 / 内容变化计数）。
+      端到端测试：云端增删 → apply → 本地占位符同步 + 新文件可水合
+- [ ] 远端视图的获取接线：daemon 每轮 probe/fetch → `apply_remote_view`；
+      本地→远端（用户修改上传）接同步引擎 RDC 监视（双向写路径设计）
+- [ ] 内容变化重投影：CfUpdatePlaceholders + 失效通知（当前计数跳过）
 - [ ] Tauri 壳：托盘（状态角标/菜单）+ web-ui 集成 + WebView2 引导
 - [ ] 资源管理器状态图标与右键动词（CfAPI 原生）+ MSIX 打包
 - **验收**： explorer 里打开 115 目录即用，行为与 OneDrive 一致

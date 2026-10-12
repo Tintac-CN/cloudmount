@@ -171,3 +171,101 @@ fn backend_project_adds_new_remote_files() {
     Mount::unmount(Box::new(mount)).unwrap();
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// ============ PlaceholderSync：远端视图变化 → 本地视图同步 ============
+
+#[test]
+fn placeholder_sync_applies_remote_add_and_delete() {
+    use cloudmount_vfs::backends::cfapi_mount::PlaceholderSync;
+
+    let remote = MockRemote::new();
+    remote.put_file("keep.txt", b"stays");
+    let view = view_of(&remote, &["keep.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("sync");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(root.join("keep.txt").exists());
+
+    let mut sync = PlaceholderSync::new(mount.clone(), &view);
+
+    // 云端新增两个文件（含嵌套）→ apply → 本地出现且可水合
+    remote.put_file("new.txt", b"brand new");
+    remote.put_dir("deep");
+    remote.put_file("deep/nested.txt", b"nested new");
+    let view2 = view_of(&remote, &["keep.txt", "new.txt", "deep", "deep/nested.txt"]);
+    let stats = sync.apply_remote_view(&view2).expect("apply add");
+    assert_eq!(stats.added, 3, "应新增投影 3 个条目: {stats:?}");
+    assert_eq!(stats.removed, 0);
+
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(std::fs::read(root.join("new.txt")).unwrap(), b"brand new");
+    assert_eq!(
+        std::fs::read(root.join("deep/nested.txt")).unwrap(),
+        b"nested new"
+    );
+
+    // 云端删除嵌套文件与目录 → apply → 本地消失
+    remote.remove("deep");
+    let view3 = view_of(&remote, &["keep.txt", "new.txt"]);
+    let stats = sync.apply_remote_view(&view3).expect("apply delete");
+    assert_eq!(stats.removed, 2, "嵌套目录连带子文件应删除: {stats:?}");
+    assert!(!root.join("deep").exists(), "删除的目录应消失");
+    assert!(root.join("keep.txt").exists(), "未删除的文件应保留");
+    assert!(root.join("new.txt").exists());
+
+    // 云端删除最后一个 → 本地也消失
+    remote.remove("new.txt");
+    let view4 = view_of(&remote, &["keep.txt"]);
+    let stats = sync.apply_remote_view(&view4).unwrap();
+    assert_eq!(stats.removed, 1);
+    assert!(!root.join("new.txt").exists());
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn placeholder_sync_counts_content_changes() {
+    use cloudmount_vfs::backends::cfapi_mount::PlaceholderSync;
+
+    let remote = MockRemote::new();
+    remote.put_file("doc.txt", b"v1");
+    let view = view_of(&remote, &["doc.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("sync-content");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    let mut sync = PlaceholderSync::new(mount, &view);
+
+    // 内容变化（size 变化）→ 计入 content_changes_pending（M2.5 边界）
+    remote.put_file("doc.txt", b"v2-with-more-content");
+    let stats = sync
+        .apply_remote_view(&view_of(&remote, &["doc.txt"]))
+        .unwrap();
+    assert_eq!(
+        stats.content_changes_pending, 1,
+        "内容变化应计数: {stats:?}"
+    );
+    assert_eq!(stats.added, 0);
+}
