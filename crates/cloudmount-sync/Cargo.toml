@@ -17,3 +17,11 @@ time.workspace = true
 sha1.workspace = true
 hex.workspace = true
 filetime.workspace = true
+
+# Windows 原生 watcher（ReadDirectoryChangesW）
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+# Linux 原生 watcher（inotify）
+[target.'cfg(target_os = "linux")'.dependencies]
+inotify = "0.11"

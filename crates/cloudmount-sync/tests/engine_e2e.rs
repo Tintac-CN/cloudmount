@@ -59,6 +59,9 @@ impl Workspace {
                 concurrency: 1, // 串行保证断言确定性
                 ..Default::default()
             },
+            // 测试固定轮询后端：原生 watcher 的事件是异步送达的，
+            // "写文件→立即断言"会引入竞态；原生路径由专门测试覆盖。
+            watcher_backend: cloudmount_sync::watcher::WatcherBackend::Polling,
             ..SyncEngineConfig::new(&self.root)
         };
         SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap()
@@ -366,7 +369,10 @@ fn empty_dirs_are_mirrored_both_ways() {
 fn pause_prevents_any_action() {
     let ws = Workspace::new("paused");
     let remote = MockRemote::new();
-    let cfg = SyncEngineConfig::new(&ws.root);
+    let cfg = SyncEngineConfig {
+        watcher_backend: cloudmount_sync::watcher::WatcherBackend::Polling,
+        ..SyncEngineConfig::new(&ws.root)
+    };
     let paused = cfg.scheduler.paused.clone();
     paused.store(true, std::sync::atomic::Ordering::Relaxed);
 
@@ -488,7 +494,10 @@ fn remote_change_during_pause_is_never_skipped_after_resume() {
     // 那次远端变更会被永久跳过。
     let ws = Workspace::new("pause-watermark");
     let remote = MockRemote::new();
-    let cfg = SyncEngineConfig::new(&ws.root);
+    let cfg = SyncEngineConfig {
+        watcher_backend: cloudmount_sync::watcher::WatcherBackend::Polling,
+        ..SyncEngineConfig::new(&ws.root)
+    };
     let paused = cfg.scheduler.paused.clone();
     let mut engine = SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap();
 
@@ -511,6 +520,212 @@ fn remote_change_during_pause_is_never_skipped_after_resume() {
         "恢复后必须处理暂停期间的远端变更（水位不得被暂停轮推进）: {stats:?}"
     );
     assert_eq!(ws.read("while-paused.txt"), b"must arrive");
+}
+
+// ============ M1.5：重命名检测（零传输路径） ============
+
+#[test]
+fn local_rename_moves_remote_without_duplication() {
+    let ws = Workspace::new("rename-local");
+    let remote = MockRemote::new();
+    let mut engine = ws.engine(&remote, SyncPolicy::default());
+
+    ws.write("orig.txt", b"rename-me-content");
+    engine.run_once().unwrap();
+    assert!(remote.exists("orig.txt"));
+    let uploads_before = remote
+        .ops()
+        .upload
+        .load(std::sync::atomic::Ordering::SeqCst);
+
+    // 本地改名
+    std::fs::rename(ws.path("orig.txt"), ws.path("renamed.txt")).unwrap();
+    let stats = engine.run_once().unwrap();
+
+    // 远端应改名而非"恢复旧文件 + 上传新文件"
+    assert!(
+        !remote.exists("orig.txt"),
+        "旧远端路径应消失: {:?}",
+        remote.all_paths()
+    );
+    assert_eq!(
+        remote.read("renamed.txt").unwrap(),
+        b"rename-me-content",
+        "内容应原样保留"
+    );
+    assert_eq!(
+        remote
+            .ops()
+            .upload
+            .load(std::sync::atomic::Ordering::SeqCst),
+        uploads_before,
+        "零传输改名：不应重新上传内容（stats: {stats:?}）"
+    );
+
+    // 本地也只有一个文件
+    assert!(!ws.exists("orig.txt"));
+    assert!(ws.exists("renamed.txt"));
+
+    // 下一轮应稳定（改名已入账）
+    let stats2 = engine.run_once().unwrap();
+    assert!(!stats2.has_changes(), "改名入账后应稳定: {stats2:?}");
+}
+
+#[test]
+fn remote_rename_renames_local_without_duplication() {
+    let ws = Workspace::new("rename-remote");
+    let remote = MockRemote::new();
+    let mut engine = ws.engine(&remote, SyncPolicy::default());
+
+    remote.put_file("old.txt", b"remote-rename-data");
+    engine.run_once().unwrap();
+    assert!(ws.exists("old.txt"));
+    let downloads_before = remote
+        .ops()
+        .download
+        .load(std::sync::atomic::Ordering::SeqCst);
+
+    // 远端"改名"（服务端 rename 表现为：旧路径删除 + 新路径出现，内容不变）
+    remote.remove("old.txt");
+    remote.put_file("new.txt", b"remote-rename-data");
+
+    engine.run_once().unwrap();
+
+    // 本地应改名而非"恢复旧文件 + 下载新文件"
+    assert!(!ws.exists("old.txt"), "旧本地路径应消失");
+    assert_eq!(ws.read("new.txt"), b"remote-rename-data");
+    assert_eq!(
+        remote
+            .ops()
+            .download
+            .load(std::sync::atomic::Ordering::SeqCst),
+        downloads_before,
+        "零传输改名：不应重新下载内容"
+    );
+}
+
+#[test]
+fn rename_with_content_change_falls_back_safely() {
+    // 改名的同时内容也变了：哈希二次确认失败 → 回退为"上传新路径 + 删旧远端"
+    let ws = Workspace::new("rename-modify");
+    let remote = MockRemote::new();
+    let mut engine = ws.engine(&remote, SyncPolicy::default());
+
+    ws.write("a.txt", b"original");
+    engine.run_once().unwrap();
+
+    // 改名 + 修改内容（大小恰好相同，触发配对但哈希不匹配）
+    std::fs::rename(ws.path("a.txt"), ws.path("b.txt")).unwrap();
+    std::fs::write(ws.path("b.txt"), b"modified").unwrap();
+
+    engine.run_once().unwrap();
+
+    assert!(!remote.exists("a.txt"), "旧远端应被删除（回退路径）");
+    assert_eq!(remote.read("b.txt").unwrap(), b"modified", "新内容应上传");
+    assert_eq!(ws.read("b.txt"), b"modified");
+}
+
+// ============ M1.5：内容校验通道（关闭"同秒同大小"盲区） ============
+
+#[test]
+fn content_verification_catches_same_second_same_size_edit() {
+    let ws = Workspace::new("verify-blindspot");
+    let remote = MockRemote::new();
+    // 每轮都校验、批量足够大
+    let cfg = SyncEngineConfig {
+        watcher_backend: cloudmount_sync::watcher::WatcherBackend::Polling,
+        verify_every_cycles: 1,
+        verify_batch_size: 100,
+        scheduler: cloudmount_sync::queue::SchedulerConfig {
+            concurrency: 1,
+            ..Default::default()
+        },
+        ..SyncEngineConfig::new(&ws.root)
+    };
+    let mut engine = SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap();
+
+    // 固定 mtime，制造"同秒同大小"盲区
+    let fixed_mtime = filetime::FileTime::from_unix_time(1_000_000, 0);
+    ws.write("blind.txt", b"AAAA");
+    filetime::set_file_mtime(ws.path("blind.txt"), fixed_mtime).unwrap();
+    engine.run_once().unwrap();
+    assert_eq!(remote.read("blind.txt").unwrap(), b"AAAA");
+
+    // 同秒内等大小覆盖（常规 (size, mtime) 检测必然漏检）
+    ws.write("blind.txt", b"BBBB");
+    filetime::set_file_mtime(ws.path("blind.txt"), fixed_mtime).unwrap();
+
+    let stats = engine.run_once().unwrap();
+    assert_eq!(
+        stats.uploaded, 1,
+        "内容校验通道应发现盲区修改并上传: {stats:?}"
+    );
+    assert_eq!(
+        remote.read("blind.txt").unwrap(),
+        b"BBBB",
+        "远端应更新为新内容"
+    );
+
+    // 校验通过后入账，再跑一轮应稳定
+    let stats2 = engine.run_once().unwrap();
+    assert!(!stats2.has_changes(), "校验入账后应稳定: {stats2:?}");
+}
+
+#[test]
+fn content_verification_can_be_disabled() {
+    let ws = Workspace::new("verify-off");
+    let remote = MockRemote::new();
+    let cfg = SyncEngineConfig {
+        watcher_backend: cloudmount_sync::watcher::WatcherBackend::Polling,
+        verify_every_cycles: 0, // 关闭
+        verify_batch_size: 0,
+        scheduler: cloudmount_sync::queue::SchedulerConfig {
+            concurrency: 1,
+            ..Default::default()
+        },
+        ..SyncEngineConfig::new(&ws.root)
+    };
+    let mut engine = SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap();
+
+    let fixed_mtime = filetime::FileTime::from_unix_time(1_000_000, 0);
+    ws.write("blind.txt", b"AAAA");
+    filetime::set_file_mtime(ws.path("blind.txt"), fixed_mtime).unwrap();
+    engine.run_once().unwrap();
+
+    ws.write("blind.txt", b"BBBB");
+    filetime::set_file_mtime(ws.path("blind.txt"), fixed_mtime).unwrap();
+
+    // 关闭校验 → 盲区修改不会被检测（这是文档化的行为边界）
+    let stats = engine.run_once().unwrap();
+    assert_eq!(stats.uploaded, 0, "关闭校验后盲区修改不被检测: {stats:?}");
+    assert_eq!(remote.read("blind.txt").unwrap(), b"AAAA");
+}
+
+// ============ M1.5：原生 watcher 与引擎协同（Windows/Linux） ============
+
+#[test]
+fn engine_works_with_native_watcher() {
+    let ws = Workspace::new("native-watcher");
+    let remote = MockRemote::new();
+    // Auto：Windows 用 RdcWatcher / Linux 用 inotify / 其它回退轮询
+    let cfg = SyncEngineConfig {
+        scheduler: cloudmount_sync::queue::SchedulerConfig {
+            concurrency: 1,
+            ..Default::default()
+        },
+        ..SyncEngineConfig::new(&ws.root)
+    };
+    let mut engine = SyncEngine::new(cfg, Arc::new(remote.clone())).unwrap();
+
+    ws.write("native.txt", b"via-native-watcher");
+    // 原生事件是异步送达的：等待事件到达 watcher 线程
+    std::thread::sleep(std::time::Duration::from_millis(300));
+
+    let stats = engine.run_once().unwrap();
+    assert_eq!(stats.uploaded, 1, "原生 watcher 应检测到新文件: {stats:?}");
+    assert_eq!(remote.read("native.txt").unwrap(), b"via-native-watcher");
+
+    let _ = std::fs::remove_dir_all(&ws.root);
 }
 
 /// 递归列出目录下的文件路径。

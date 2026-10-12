@@ -31,6 +31,15 @@ pub mod remote;
 pub mod scan;
 pub mod state;
 pub mod store;
+pub mod watcher;
+
+/// Windows 原生 watcher（ReadDirectoryChangesW）。
+#[cfg(windows)]
+pub mod rdc;
+
+/// Linux 原生 watcher（inotify）。
+#[cfg(target_os = "linux")]
+pub mod inotify_watcher;
 
 pub use engine::{SyncEngine, SyncEngineConfig};
 pub use reconcile::{Action, ConflictPolicy, SyncPolicy};

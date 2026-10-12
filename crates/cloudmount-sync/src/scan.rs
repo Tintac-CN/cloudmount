@@ -53,11 +53,24 @@ pub trait LocalWatcher: Send {
 /// 跳过 `.cloudmount` 内部目录与临时文件（`*.cmtmp`），避免把引擎自身的
 /// 中间产物当成用户数据同步出去。
 pub fn scan_tree(root: &Path) -> Result<HashMap<String, LocalEntry>> {
+    scan_subtree(root, "")
+}
+
+/// 扫描 `root` 下某个子目录（`rel_prefix` 为相对根的路径前缀），
+/// 返回以**完整相对路径**为键的条目。
+///
+/// 原生 watcher 收到"某子目录有变化"的事件时，只需重扫该子树而不是整棵树。
+pub fn scan_subtree(root: &Path, rel_prefix: &str) -> Result<HashMap<String, LocalEntry>> {
     let mut out = HashMap::new();
-    if !root.exists() {
+    let abs = if rel_prefix.is_empty() {
+        root.to_path_buf()
+    } else {
+        root.join(rel_prefix.replace('/', std::path::MAIN_SEPARATOR_STR))
+    };
+    if !abs.exists() {
         return Ok(out);
     }
-    let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
+    let mut stack: Vec<PathBuf> = vec![abs];
     while let Some(dir) = stack.pop() {
         let rd = match std::fs::read_dir(&dir) {
             Ok(rd) => rd,
@@ -83,10 +96,10 @@ pub fn scan_tree(root: &Path) -> Result<HashMap<String, LocalEntry>> {
                 // 不同步符号链接（避免目录环与跨设备语义差异）
                 continue;
             }
-            let rel = rel_path(root, &path)?;
+            let dir_rel = rel_path(root, &path)?;
             let is_dir = meta.is_dir();
             out.insert(
-                rel.clone(),
+                dir_rel.clone(),
                 LocalEntry {
                     is_dir,
                     size: if is_dir { 0 } else { meta.len() },
@@ -148,28 +161,7 @@ impl PollingWatcher {
 impl LocalWatcher for PollingWatcher {
     fn poll(&mut self) -> Result<Vec<LocalChange>> {
         let current = scan_tree(&self.root)?;
-        let mut changes = Vec::new();
-        for (path, entry) in &current {
-            match self.snapshot.get(path) {
-                None => changes.push(LocalChange::Created {
-                    path: path.clone(),
-                    entry: entry.clone(),
-                }),
-                Some(old) if old != entry => changes.push(LocalChange::Modified {
-                    path: path.clone(),
-                    entry: entry.clone(),
-                }),
-                Some(_) => {}
-            }
-        }
-        for (path, old) in &self.snapshot {
-            if !current.contains_key(path) {
-                changes.push(LocalChange::Removed {
-                    path: path.clone(),
-                    was_dir: old.is_dir,
-                });
-            }
-        }
+        let changes = crate::watcher::diff_snapshots(&self.snapshot, &current);
         self.snapshot = current;
         Ok(changes)
     }

@@ -115,6 +115,9 @@ pub struct EntryRecord {
     pub state: SyncState,
     /// pin 策略。
     pub pin: PinState,
+    /// 上次内容校验（哈希比对）的 Unix 秒；0 = 从未校验。
+    /// 慢速校验通道按此时间轮转选择校验对象（见 engine 的 verify 批次）。
+    pub content_check: i64,
 }
 
 /// 一次同步周期的统计。

@@ -132,6 +132,9 @@ pub enum Action {
         /// 远端 ID。
         remote_id: String,
     },
+    /// 占位：被重命名合并抵消的动作（不对外产生）。
+    #[doc(hidden)]
+    Nothing,
     /// 两端都有但从未同步过：比对内容哈希后再决定（相同→入账，不同→冲突）。
     Verify {
         /// 相对路径。
@@ -147,6 +150,30 @@ pub enum Action {
         remote: RemoteEntry,
         /// 冲突类型（用于日志与统计）。
         kind: ConflictKind,
+    },
+    /// **本地重命名**：远端同步改名（零传输）。
+    /// 执行器会先校验本地内容与旧远端一致（哈希），不一致则回退为
+    /// "上传新路径 + 删除旧远端"（内容已在本地保留，无数据丢失）。
+    MoveRemote {
+        /// 旧相对路径。
+        from: String,
+        /// 新相对路径。
+        to: String,
+        /// 旧路径的远端 ID。
+        from_remote_id: String,
+        /// 旧路径的远端 SHA1（用于内容一致性校验）。
+        expected_sha1: Option<String>,
+    },
+    /// **远端重命名**：本地同步改名（零传输）。
+    /// 执行器会先校验本地旧路径内容与新远端一致，不一致则回退为
+    /// "旧路径进回收站 + 下载新路径"。
+    RenameLocal {
+        /// 旧相对路径。
+        from: String,
+        /// 新相对路径。
+        to: String,
+        /// 新路径的远端条目。
+        remote: RemoteEntry,
     },
 }
 
@@ -293,7 +320,165 @@ pub fn plan(input: &PlanInput<'_>) -> Vec<Action> {
         }
     }
 
-    actions
+    detect_renames(actions, input)
+}
+
+/// 重命名检测：把"旧路径消失 + 新路径出现（同大小）"的动作对合并为
+/// 零传输的改名操作。
+///
+/// 动机：没有这一步时，本地一次重命名在默认保守策略下会变成
+/// "旧路径重新下载 + 新路径上传"（文件重复）；开启删除传播则是
+/// "删旧远端 + 传新内容"（浪费带宽）。配对后变成一次远端 rename/move。
+///
+/// 配对条件（保守）：
+/// - 一边是"消失"动作（Download 恢复 / DeleteRemote / Upload 复活 / DeleteLocal），
+///   另一边是"出现"动作（Upload / Download）；
+/// - 两边的**大小相等**（内容一致性由执行器用哈希二次确认，不匹配自动回退）；
+/// - 只配对文件（目录改名由子树扫描自然处理，无需此优化）。
+///
+/// 输出保持确定性：按动作顺序处理，候选按路径排序取第一个。
+fn detect_renames(actions: Vec<Action>, input: &PlanInput<'_>) -> Vec<Action> {
+    // 收集可配对的"消失方"：path -> (index, 大小, remote_id, sha1)
+    let mut vanish: Vec<(String, usize, Option<String>, Option<String>)> = Vec::new();
+    for (i, a) in actions.iter().enumerate() {
+        match a {
+            // 本地改名：旧路径的"恢复下载"或"删除远端"。
+            // 关键约束：**必须有同步记录**——Download 也可能来自"远端新文件"（无 K），
+            // 那种情况绝不是改名，不能参与配对。
+            Action::Download { path, remote } => {
+                if input.known.contains_key(path) {
+                    vanish.push((
+                        path.clone(),
+                        i,
+                        Some(remote.id.0.clone()),
+                        remote.sha1.clone(),
+                    ));
+                }
+            }
+            Action::DeleteRemote { path, remote_id } => {
+                vanish.push((path.clone(), i, Some(remote_id.clone()), None));
+            }
+            // 远端改名：旧路径的"复活上传"或"删除本地"
+            Action::Upload { path } => {
+                if let Some(k) = input.known.get(path) {
+                    vanish.push((
+                        path.clone(),
+                        i,
+                        k.remote_id.as_ref().map(|r| r.0.clone()),
+                        k.remote_sha1.clone(),
+                    ));
+                }
+            }
+            Action::DeleteLocal { path } => {
+                if let Some(k) = input.known.get(path) {
+                    vanish.push((
+                        path.clone(),
+                        i,
+                        k.remote_id.as_ref().map(|r| r.0.clone()),
+                        k.remote_sha1.clone(),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut used: Vec<usize> = Vec::new();
+    let mut replacements: Vec<(usize, Action)> = Vec::new();
+
+    for (i, a) in actions.iter().enumerate() {
+        let (target_path, new_size, is_local_side) = match a {
+            // 本地改名的新路径：Upload
+            Action::Upload { path } => (
+                path.clone(),
+                input.local.get(path).map(|l| l.size).unwrap_or(0),
+                true,
+            ),
+            // 远端改名的新路径：Download
+            Action::Download { path, remote } => (path.clone(), remote.size, false),
+            _ => continue,
+        };
+
+        // 找同大小、未使用、路径不同的"消失方"
+        let mut candidate: Option<(usize, String, Option<String>, Option<String>)> = None;
+        for (vpath, vidx, vrid, vsha) in vanish.iter() {
+            if used.contains(vidx) || *vidx == i || vpath == &target_path {
+                continue;
+            }
+            let vsize = match &actions[*vidx] {
+                Action::Download { path, remote } => {
+                    input.local.get(path).map(|l| l.size).unwrap_or(remote.size)
+                }
+                Action::DeleteRemote { path, .. } => input
+                    .known
+                    .get(path)
+                    .map(|k| k.size)
+                    .or_else(|| input.local.get(path).map(|l| l.size))
+                    .unwrap_or(0),
+                Action::Upload { path } | Action::DeleteLocal { path } => input
+                    .known
+                    .get(path)
+                    .map(|k| k.size)
+                    .or_else(|| input.local.get(path).map(|l| l.size))
+                    .unwrap_or(0),
+                _ => continue,
+            };
+            if vsize == new_size && vsize > 0 {
+                candidate = Some((*vidx, vpath.clone(), vrid.clone(), vsha.clone()));
+                break;
+            }
+        }
+        let Some((vidx, vpath, vrid, vsha)) = candidate else {
+            continue;
+        };
+
+        // 方向判定：消失方是"本地已删"（Download/DeleteRemote 恢复或删除）→ 本地改名
+        let action = match &actions[vidx] {
+            Action::Download { .. } | Action::DeleteRemote { .. } if is_local_side => {
+                Action::MoveRemote {
+                    from: vpath,
+                    to: target_path,
+                    from_remote_id: vrid.unwrap_or_default(),
+                    expected_sha1: vsha,
+                }
+            }
+            Action::Upload { .. } | Action::DeleteLocal { .. } if !is_local_side => {
+                // 消失方是"远端已删"（Upload 复活或 DeleteLocal）→ 远端改名
+                if let Some(remote) = input.remote.get(&target_path) {
+                    Action::RenameLocal {
+                        from: vpath,
+                        to: target_path,
+                        remote: remote.clone(),
+                    }
+                } else {
+                    continue;
+                }
+            }
+            _ => continue,
+        };
+
+        used.push(vidx);
+        used.push(i);
+        replacements.push((vidx, Action::Nothing));
+        replacements.push((i, action));
+    }
+
+    if replacements.is_empty() {
+        return actions;
+    }
+    let mut out = Vec::with_capacity(actions.len());
+    for (i, a) in actions.into_iter().enumerate() {
+        if let Some((_, replacement)) = replacements.iter().find(|(idx, _)| *idx == i) {
+            if matches!(replacement, Action::Nothing) {
+                continue; // 被合并掉的"消失方"
+            }
+            out.push(replacement.clone());
+        } else {
+            out.push(a);
+        }
+    }
+    tracing::debug!(renames = replacements.len() / 2, "检测到重命名");
+    out
 }
 
 #[cfg(test)]
@@ -349,6 +534,7 @@ mod tests {
             local_mtime,
             size,
             state: crate::state::SyncState::InSync,
+            content_check: 0,
             pin: crate::state::PinState::Online,
         }
     }
@@ -634,6 +820,8 @@ mod tests {
                 Action::MkdirRemote { path } => path.clone(),
                 Action::DeleteLocal { path } => path.clone(),
                 Action::DeleteRemote { path, .. } => path.clone(),
+                Action::MoveRemote { to, .. } | Action::RenameLocal { to, .. } => to.clone(),
+                Action::Nothing => String::new(),
             })
             .collect();
         assert_eq!(paths, vec!["a.txt", "m.txt", "z.txt"]);

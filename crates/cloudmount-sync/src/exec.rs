@@ -95,6 +95,7 @@ impl<'a> Executor<'a> {
                     local_mtime: mtime,
                     size: 0,
                     state: SyncState::InSync,
+                    content_check: 0,
                     pin: PinState::Online,
                 });
                 Ok(())
@@ -115,6 +116,14 @@ impl<'a> Executor<'a> {
             }
             Action::Verify { path, remote } => self.verify(path, remote),
             Action::Conflict { path, remote, kind } => self.conflict(path, remote, *kind),
+            Action::Nothing => Ok(()),
+            Action::MoveRemote {
+                from,
+                to,
+                from_remote_id,
+                expected_sha1,
+            } => self.move_remote(from, to, from_remote_id, expected_sha1.as_deref()),
+            Action::RenameLocal { from, to, remote } => self.rename_local(from, to, remote),
         }
     }
 
@@ -145,6 +154,7 @@ impl<'a> Executor<'a> {
             local_mtime,
             size: meta.len(),
             state: SyncState::InSync,
+            content_check: 0,
             pin: PinState::Online,
         });
         self.bump(|s| s.uploaded += 1);
@@ -234,6 +244,7 @@ impl<'a> Executor<'a> {
             local_mtime,
             size,
             state: SyncState::InSync,
+            content_check: 0,
             pin: PinState::Online,
         });
         self.bump(|s| s.downloaded += 1);
@@ -271,6 +282,7 @@ impl<'a> Executor<'a> {
                 local_mtime: mtime,
                 size,
                 state: SyncState::InSync,
+                content_check: 0,
                 pin: PinState::Online,
             });
             tracing::info!(path, "内容一致，直接入账");
@@ -278,6 +290,116 @@ impl<'a> Executor<'a> {
         } else {
             tracing::warn!(path, "两端内容不一致且无同步记录，按冲突处理");
             self.conflict(path, remote, ConflictKind::BothCreated)
+        }
+    }
+
+    // ---------- 重命名（零传输路径） ----------
+
+    /// 本地重命名 → 远端同步改名。
+    ///
+    /// 先用哈希二次确认"新路径内容 == 旧远端内容"（配对只看了大小）；
+    /// 不一致则回退为"上传新路径 + 删除旧远端"——内容已在本地保留，无数据丢失。
+    fn move_remote(
+        &self,
+        from: &str,
+        to: &str,
+        from_remote_id: &str,
+        expected_sha1: Option<&str>,
+    ) -> Result<()> {
+        let abs_to = self.abs(to);
+        let content_matches = match expected_sha1 {
+            Some(sha) => match hash_file(&abs_to) {
+                Ok(local_sha) => sha.eq_ignore_ascii_case(&local_sha),
+                Err(_) => false,
+            },
+            // 无 SHA1 可校验：仅凭大小配对，直接执行（后端无哈希能力的场景）
+            None => true,
+        };
+
+        if content_matches {
+            let (parent_rel, name) = split_parent(to);
+            let parent_id = self.ensure_remote_dir(&parent_rel)?;
+            let id = RemoteId(from_remote_id.to_string());
+            self.provider.move_entry(&id, &parent_id)?;
+            self.provider.rename(&id, &name)?;
+            let remote = self.provider.stat(&id)?;
+            let (local_mtime, size) = self.local_meta(to);
+            self.mark_removed(from);
+            self.push_record(EntryRecord {
+                rel_path: to.to_string(),
+                is_dir: false,
+                remote_id: Some(remote.id.clone()),
+                remote_sha1: remote.sha1.clone(),
+                remote_mtime: remote.mtime,
+                local_mtime,
+                size,
+                state: SyncState::InSync,
+                content_check: 0,
+                pin: PinState::Online,
+            });
+            tracing::info!(from, to, "远端已同步重命名（零传输）");
+            Ok(())
+        } else {
+            tracing::warn!(from, to, "重命名配对的内容校验失败，回退为上传+删除");
+            self.upload(to)?;
+            self.provider
+                .delete(&RemoteId(from_remote_id.to_string()))?;
+            self.mark_removed(from);
+            Ok(())
+        }
+    }
+
+    /// 远端重命名 → 本地同步改名。
+    ///
+    /// 先校验"本地旧路径内容 == 新远端内容"；不一致则回退为
+    /// "旧路径进回收站 + 下载新路径"。
+    fn rename_local(
+        &self,
+        from: &str,
+        to: &str,
+        remote: &cloudmount_core::RemoteEntry,
+    ) -> Result<()> {
+        let abs_from = self.abs(from);
+        let content_matches = if abs_from.exists() {
+            match &remote.sha1 {
+                Some(sha) => match hash_file(&abs_from) {
+                    Ok(local_sha) => sha.eq_ignore_ascii_case(&local_sha),
+                    Err(_) => false,
+                },
+                None => std::fs::metadata(&abs_from).map(|m| m.len()).unwrap_or(0) == remote.size,
+            }
+        } else {
+            false
+        };
+
+        if content_matches {
+            let abs_to = self.abs(to);
+            if let Some(parent) = abs_to.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::rename(&abs_from, &abs_to)?;
+            let (local_mtime, size) = self.local_meta(to);
+            self.mark_removed(from);
+            self.push_record(EntryRecord {
+                rel_path: to.to_string(),
+                is_dir: false,
+                remote_id: Some(remote.id.clone()),
+                remote_sha1: remote.sha1.clone(),
+                remote_mtime: remote.mtime,
+                local_mtime,
+                size,
+                state: SyncState::InSync,
+                content_check: 0,
+                pin: PinState::Online,
+            });
+            tracing::info!(from, to, "本地已同步重命名（零传输）");
+            Ok(())
+        } else {
+            tracing::warn!(from, to, "重命名配对的内容校验失败，回退为回收站+下载");
+            if abs_from.exists() {
+                self.trash_local(from)?;
+            }
+            self.download(to, remote)
         }
     }
 
@@ -468,6 +590,15 @@ fn split_parent(rel: &str) -> (String, String) {
 
 /// 流式计算文件 SHA1（大写十六进制）。
 fn hash_file(path: &Path) -> Result<String> {
+    hash_file_impl(path)
+}
+
+/// [`hash_file`] 的公开入口（engine 的内容校验通道复用）。
+pub fn hash_file_pub(path: &Path) -> Result<String> {
+    hash_file_impl(path)
+}
+
+fn hash_file_impl(path: &Path) -> Result<String> {
     let mut f = std::fs::File::open(path)?;
     let mut h = Sha1::new();
     let mut buf = vec![0u8; STREAM_BUF];

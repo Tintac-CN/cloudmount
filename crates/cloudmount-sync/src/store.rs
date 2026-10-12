@@ -75,7 +75,30 @@ impl MetaStore {
                 CREATE INDEX IF NOT EXISTS idx_entries_state     ON entries(state);
                 "#,
             )
-            .map_err(db_err)
+            .map_err(db_err)?;
+        // 增量迁移：v0.2 增加 content_check（旧库补列）
+        self.migrate_v02_content_check()
+    }
+
+    /// 旧库补 `content_check` 列（幂等）。
+    fn migrate_v02_content_check(&self) -> Result<()> {
+        let has_column: i64 = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('entries') WHERE name = 'content_check'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(db_err)?;
+        if has_column == 0 {
+            self.conn
+                .execute_batch(
+                    "ALTER TABLE entries ADD COLUMN content_check INTEGER NOT NULL DEFAULT 0;",
+                )
+                .map_err(db_err)?;
+            tracing::info!("已为 entries 表补充 content_check 列");
+        }
+        Ok(())
     }
 
     /// 读水位。
@@ -106,18 +129,19 @@ impl MetaStore {
             .execute(
                 r#"INSERT INTO entries
                      (rel_path, is_dir, remote_id, remote_sha1, remote_mtime, local_mtime,
-                      size, state, pin, updated_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                      size, state, pin, updated_at, content_check)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                    ON CONFLICT(rel_path) DO UPDATE SET
-                     is_dir       = excluded.is_dir,
-                     remote_id    = excluded.remote_id,
-                     remote_sha1  = excluded.remote_sha1,
-                     remote_mtime = excluded.remote_mtime,
-                     local_mtime  = excluded.local_mtime,
-                     size         = excluded.size,
-                     state        = excluded.state,
-                     pin          = excluded.pin,
-                     updated_at   = excluded.updated_at"#,
+                     is_dir        = excluded.is_dir,
+                     remote_id     = excluded.remote_id,
+                     remote_sha1   = excluded.remote_sha1,
+                     remote_mtime  = excluded.remote_mtime,
+                     local_mtime   = excluded.local_mtime,
+                     size          = excluded.size,
+                     state         = excluded.state,
+                     pin           = excluded.pin,
+                     updated_at    = excluded.updated_at,
+                     content_check = excluded.content_check"#,
                 params![
                     rec.rel_path,
                     rec.is_dir as i64,
@@ -129,6 +153,7 @@ impl MetaStore {
                     rec.state.as_str(),
                     rec.pin.as_str(),
                     now_unix(),
+                    rec.content_check,
                 ],
             )
             .map_err(db_err)?;
@@ -143,18 +168,19 @@ impl MetaStore {
                 .prepare(
                     r#"INSERT INTO entries
                          (rel_path, is_dir, remote_id, remote_sha1, remote_mtime, local_mtime,
-                          size, state, pin, updated_at)
-                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                          size, state, pin, updated_at, content_check)
+                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                        ON CONFLICT(rel_path) DO UPDATE SET
-                         is_dir       = excluded.is_dir,
-                         remote_id    = excluded.remote_id,
-                         remote_sha1  = excluded.remote_sha1,
-                         remote_mtime = excluded.remote_mtime,
-                         local_mtime  = excluded.local_mtime,
-                         size         = excluded.size,
-                         state        = excluded.state,
-                         pin          = excluded.pin,
-                         updated_at   = excluded.updated_at"#,
+                         is_dir        = excluded.is_dir,
+                         remote_id     = excluded.remote_id,
+                         remote_sha1   = excluded.remote_sha1,
+                         remote_mtime  = excluded.remote_mtime,
+                         local_mtime   = excluded.local_mtime,
+                         size          = excluded.size,
+                         state         = excluded.state,
+                         pin           = excluded.pin,
+                         updated_at    = excluded.updated_at,
+                         content_check = excluded.content_check"#,
                 )
                 .map_err(db_err)?;
             let ts = now_unix();
@@ -170,6 +196,7 @@ impl MetaStore {
                     rec.state.as_str(),
                     rec.pin.as_str(),
                     ts,
+                    rec.content_check,
                 ])
                 .map_err(db_err)?;
             }
@@ -183,7 +210,7 @@ impl MetaStore {
         self.conn
             .query_row(
                 r#"SELECT rel_path, is_dir, remote_id, remote_sha1, remote_mtime,
-                          local_mtime, size, state, pin
+                          local_mtime, size, state, pin, content_check
                    FROM entries WHERE rel_path = ?1"#,
                 params![rel_path],
                 map_row,
@@ -198,7 +225,7 @@ impl MetaStore {
             .conn
             .prepare(
                 r#"SELECT rel_path, is_dir, remote_id, remote_sha1, remote_mtime,
-                          local_mtime, size, state, pin
+                          local_mtime, size, state, pin, content_check
                    FROM entries"#,
             )
             .map_err(db_err)?;
@@ -249,6 +276,7 @@ impl MetaStore {
 fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<EntryRecord> {
     let state_str: String = row.get(7)?;
     let pin_str: String = row.get(8)?;
+    let content_check: i64 = row.get(9)?;
     Ok(EntryRecord {
         rel_path: row.get(0)?,
         is_dir: row.get::<_, i64>(1)? != 0,
@@ -259,6 +287,7 @@ fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<EntryRecord> {
         size: row.get::<_, i64>(6)? as u64,
         state: SyncState::from_str_lossy(&state_str),
         pin: PinState::from_str_lossy(&pin_str),
+        content_check,
     })
 }
 
@@ -289,6 +318,7 @@ mod tests {
             size: 42,
             state,
             pin: PinState::Online,
+            content_check: 0,
         }
     }
 

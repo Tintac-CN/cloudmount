@@ -30,9 +30,10 @@ use crate::exec::Executor;
 use crate::queue::{run_jobs, SchedulerConfig};
 use crate::reconcile::{plan, Action, PlanInput, SyncPolicy};
 use crate::remote::{self, RemoteTree};
-use crate::scan::{scan_tree, LocalWatcher, PollingWatcher};
+use crate::scan::{scan_tree, LocalWatcher};
 use crate::state::{EntryRecord, SyncState, SyncStats};
 use crate::store::{MetaStore, META_LAST_SCAN, META_PROBE_ROOT};
+use crate::watcher::{build_watcher, WatcherBackend};
 use cloudmount_core::{ChangeProbe, EntryKind, Error, Provider, RemoteEntry, RemoteId, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -59,6 +60,15 @@ pub struct SyncEngineConfig {
     pub full_scan_every_cycles: u32,
     /// 距上次全量扫描超过该秒数则强制全量（0 = 不按时间强制）。默认 1 小时。
     pub full_scan_max_age_secs: i64,
+    /// 本地 watcher 后端（Auto = 平台原生优先，失败回退轮询）。
+    pub watcher_backend: WatcherBackend,
+    /// 慢速内容校验：每 N 轮执行一次（0 = 关闭）。默认 5。
+    ///
+    /// 这是 (size, mtime) 秒级粒度检测的兜底：抽样比对本地内容哈希与远端 SHA1，
+    /// 关闭"同秒内等大小修改"的漏检盲区。
+    pub verify_every_cycles: u32,
+    /// 每轮校验的文件数（轮转选择，0 = 关闭）。默认 32。
+    pub verify_batch_size: usize,
 }
 
 impl SyncEngineConfig {
@@ -76,6 +86,9 @@ impl SyncEngineConfig {
             scheduler: SchedulerConfig::default(),
             full_scan_every_cycles: 20,
             full_scan_max_age_secs: 3600,
+            watcher_backend: WatcherBackend::Auto,
+            verify_every_cycles: 5,
+            verify_batch_size: 32,
         }
     }
 }
@@ -86,9 +99,11 @@ pub struct SyncEngine {
     provider: Arc<dyn Provider>,
     store: MetaStore,
     cache: BlockCache,
-    watcher: PollingWatcher,
+    watcher: Box<dyn LocalWatcher>,
     /// 距上次全量远端扫描的轮数。
     cycles_since_full: u32,
+    /// 总轮数（内容校验的调度依据）。
+    cycles: u32,
     last_stats: SyncStats,
 }
 
@@ -99,7 +114,7 @@ impl SyncEngine {
         std::fs::create_dir_all(cfg.local_root.join(".cloudmount"))?;
         let store = MetaStore::open(&cfg.db_path)?;
         let cache = BlockCache::open(&cfg.cache_dir, cfg.cache_limit_bytes)?;
-        let watcher = PollingWatcher::new(&cfg.local_root)?;
+        let watcher = build_watcher(&cfg.local_root, cfg.watcher_backend)?;
         Ok(Self {
             cfg,
             provider,
@@ -107,6 +122,7 @@ impl SyncEngine {
             cache,
             watcher,
             cycles_since_full: u32::MAX / 2, // 首轮强制全量，建立基线
+            cycles: 0,
             last_stats: SyncStats::default(),
         })
     }
@@ -136,6 +152,7 @@ impl SyncEngine {
     /// 执行一轮同步。
     pub fn run_once(&mut self) -> Result<SyncStats> {
         let mut stats = SyncStats::default();
+        self.cycles += 1;
 
         // 1. 本地扫描
         self.watcher.poll()?;
@@ -156,7 +173,14 @@ impl SyncEngine {
             (Some(p), Some(old)) => p == old,
             _ => false,
         };
-        let local_changed = local_differs_from_snapshot(&local, &known);
+        // 3.5 慢速内容校验（短路判定之前：发现不一致即视为本地有变化）
+        let (verify_mismatches, verified_records) = if self.verify_due() {
+            self.verify_batch(&local, &known)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        let local_changed =
+            local_differs_from_snapshot(&local, &known) || !verify_mismatches.is_empty();
         let has_pending = known.values().any(|r| {
             matches!(
                 r.state,
@@ -167,6 +191,10 @@ impl SyncEngine {
 
         // 4. 短路：远端未变 + 本地未变 + 无遗留任务 + 未到强制全量
         if remote_unchanged && !local_changed && !has_pending && !full_scan_due {
+            // 校验通过的记录仍需落账（推进 content_check 轮转水位）
+            if !verified_records.is_empty() {
+                self.store.upsert_entries(&verified_records)?;
+            }
             stats.remote_unchanged = true;
             self.last_stats = stats;
             tracing::debug!("远端与本地均无变化，跳过本轮");
@@ -188,12 +216,24 @@ impl SyncEngine {
         };
 
         // 6. 三向对比
-        let actions = plan(&PlanInput {
+        let mut actions = plan(&PlanInput {
             remote: &remote_map,
             local: &local,
             known: &known,
             policy: &self.cfg.policy,
         });
+        // 注入内容校验发现的不一致（plan 只看 size/mtime，同秒同大小修改会漏检）
+        for path in &verify_mismatches {
+            let already = actions.iter().any(|a| match a {
+                Action::Upload { path: p } => p == path,
+                Action::Conflict { path: p, .. } => p == path,
+                _ => false,
+            });
+            if !already {
+                tracing::warn!(path = %path, "内容校验发现不一致（同秒等大小修改），补入上传");
+                actions.push(Action::Upload { path: path.clone() });
+            }
+        }
         tracing::debug!(count = actions.len(), "本轮计划操作数");
 
         // 7. 执行
@@ -227,8 +267,18 @@ impl SyncEngine {
         //    （未完成的工作由下一轮重新计划）。
 
         // 10. 持久化
-        if !outcome.records.is_empty() {
-            self.store.upsert_entries(&outcome.records)?;
+        let mut records_to_write = outcome.records.clone();
+        for verified in &verified_records {
+            // 执行器本轮已重写该路径的记录时以执行器为准
+            if !records_to_write
+                .iter()
+                .any(|r| r.rel_path == verified.rel_path)
+            {
+                records_to_write.push(verified.clone());
+            }
+        }
+        if !records_to_write.is_empty() {
+            self.store.upsert_entries(&records_to_write)?;
         }
         for path in &outcome.removed {
             remove_with_children(&self.store, path)?;
@@ -280,6 +330,58 @@ impl SyncEngine {
             }
         }
         false
+    }
+
+    /// 是否到了内容校验轮。
+    fn verify_due(&self) -> bool {
+        self.cfg.verify_batch_size > 0
+            && self.cfg.verify_every_cycles > 0
+            && self.cycles.is_multiple_of(self.cfg.verify_every_cycles)
+    }
+
+    /// 慢速内容校验批次：按 content_check 升序取 N 个文件，
+    /// 哈希本地内容并与快照中的远端 SHA1 比对。
+    ///
+    /// 返回 (不一致路径列表, 校验通过的记录（content_check 已推进)）。
+    fn verify_batch(
+        &self,
+        local: &HashMap<String, crate::scan::LocalEntry>,
+        known: &HashMap<String, EntryRecord>,
+    ) -> (Vec<String>, Vec<EntryRecord>) {
+        let now = crate::store::now_unix();
+        let mut candidates: Vec<&EntryRecord> = known
+            .values()
+            .filter(|r| !r.is_dir && r.state == SyncState::InSync)
+            .filter(|r| r.remote_sha1.is_some())
+            .filter(|r| local.contains_key(&r.rel_path))
+            .collect();
+        candidates.sort_by_key(|r| r.content_check);
+
+        let mut mismatches = Vec::new();
+        let mut verified = Vec::new();
+        for rec in candidates.into_iter().take(self.cfg.verify_batch_size) {
+            let abs = self
+                .cfg
+                .local_root
+                .join(rec.rel_path.replace('/', std::path::MAIN_SEPARATOR_STR));
+            let sha = match crate::exec::hash_file_pub(&abs) {
+                Ok(sha) => sha,
+                Err(_) => continue, // 读取失败（权限/竞态）：跳过，下轮再试
+            };
+            let remote_sha = rec.remote_sha1.clone().unwrap_or_default();
+            if sha.eq_ignore_ascii_case(&remote_sha) {
+                let mut updated = rec.clone();
+                updated.content_check = now;
+                verified.push(updated);
+            } else {
+                tracing::warn!(
+                    path = %rec.rel_path,
+                    "内容校验不一致：本地哈希与远端 SHA1 不匹配"
+                );
+                mismatches.push(rec.rel_path.clone());
+            }
+        }
+        (mismatches, verified)
     }
 
     /// 一次性扫描（不含网络的最小本地视图，供 UI/诊断）。
@@ -384,6 +486,9 @@ fn action_label(action: &Action) -> String {
         Action::DeleteRemote { path, .. } => format!("delete-remote:{path}"),
         Action::Verify { path, .. } => format!("verify:{path}"),
         Action::Conflict { path, .. } => format!("conflict:{path}"),
+        Action::MoveRemote { from, to, .. } => format!("move-remote:{from}->{to}"),
+        Action::RenameLocal { from, to, .. } => format!("rename-local:{from}->{to}"),
+        Action::Nothing => String::new(),
     }
 }
 
@@ -418,6 +523,7 @@ mod tests {
             local_mtime,
             size,
             state: SyncState::InSync,
+            content_check: 0,
             pin: crate::state::PinState::Online,
         }
     }
