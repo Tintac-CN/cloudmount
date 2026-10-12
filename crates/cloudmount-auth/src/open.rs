@@ -108,6 +108,17 @@ impl OpenApiAuth {
         auth
     }
 
+    /// 用既有的 token 集合创建认证器（用于测试，或从其它工具导入凭据）。
+    pub fn from_token_set(
+        app_id: impl Into<String>,
+        store: Arc<dyn SecretStore>,
+        tokens: TokenSet,
+    ) -> Self {
+        let auth = Self::new(app_id, store);
+        *auth.tokens.lock().expect("lock") = Some(tokens);
+        auth
+    }
+
     /// 当前 Unix 秒。
     fn now() -> i64 {
         std::time::SystemTime::now()

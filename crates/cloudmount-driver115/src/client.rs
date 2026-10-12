@@ -26,11 +26,18 @@ pub struct ApiClient {
     pub limiter: RateLimiter,
     /// 认证器（提供 access_token，必要时刷新）。
     pub auth: Arc<OpenApiAuth>,
+    /// API 基础地址（生产为 proapi.115.com；测试可注入 mock 服务端）。
+    pub base_url: String,
 }
 
 impl ApiClient {
-    /// 创建客户端。
+    /// 创建客户端（生产地址）。
     pub fn new(auth: Arc<OpenApiAuth>) -> Self {
+        Self::with_base_url(auth, PROAPI_BASE)
+    }
+
+    /// 指定 API 基础地址创建客户端（用于集成测试的 mock 服务端）。
+    pub fn with_base_url(auth: Arc<OpenApiAuth>, base_url: impl Into<String>) -> Self {
         Self {
             agent: ureq::Agent::config_builder()
                 .user_agent(cloudmount_core::DEFAULT_USER_AGENT)
@@ -41,7 +48,14 @@ impl ApiClient {
                 .into(),
             limiter: RateLimiter::conservative(),
             auth,
+            base_url: base_url.into().trim_end_matches('/').to_string(),
         }
+    }
+
+    /// 调整限速（测试用；生产请保持保守默认值）。
+    pub fn with_rate_limit(mut self, rate_per_sec: f64, capacity: f64) -> Self {
+        self.limiter = RateLimiter::new(rate_per_sec, capacity);
+        self
     }
 
     /// 尊重限速的等待（同步阻塞式，适合 CLI 与服务端后台线程）。
@@ -64,7 +78,7 @@ impl ApiClient {
         path: &str,
         query: &[(&str, String)],
     ) -> Result<T> {
-        let url = format!("{PROAPI_BASE}{path}");
+        let url = format!("{}{path}", self.base_url);
         let text = self.with_token_retry(|token| {
             self.pace()?;
             let mut req = self
@@ -92,7 +106,7 @@ impl ApiClient {
         path: &str,
         fields: &[(&str, String)],
     ) -> Result<T> {
-        let url = format!("{PROAPI_BASE}{path}");
+        let url = format!("{}{path}", self.base_url);
         let text = self.with_token_retry(|token| {
             self.pace()?;
             let resp = self
@@ -108,7 +122,7 @@ impl ApiClient {
 
     /// GET 原始 JSON（保留顶层字段，用于 `ufile/files` 这类分页字段在 data 之外的响应）。
     pub fn get_raw(&self, path: &str, query: &[(&str, String)]) -> Result<serde_json::Value> {
-        let url = format!("{PROAPI_BASE}{path}");
+        let url = format!("{}{path}", self.base_url);
         let text = self.with_token_retry(|token| {
             self.pace()?;
             let mut req = self
