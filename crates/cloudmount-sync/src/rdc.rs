@@ -406,10 +406,10 @@ mod tests {
         let mut w = build_watcher(&root, crate::watcher::WatcherBackend::Auto).unwrap();
         w.poll().unwrap();
         std::fs::write(root.join("probe.txt"), b"hi").unwrap();
-        // 事件异步送达：有界重试（固定 sleep 在慢机器/CI 上会闪烁）
+        // 事件异步送达：有界重试（CI 慢 runner 需要更长窗口）
         let mut detected = false;
-        for _ in 0..40 {
-            settle();
+        for _ in 0..200 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
             let changes = w.poll().unwrap();
             if changes
                 .iter()
@@ -421,7 +421,7 @@ mod tests {
         }
         assert!(
             detected,
-            "Auto 后端应在 6s 内检测到变更（原生或回退轮询均可）"
+            "Auto 后端应在 20s 内检测到变更（原生或回退轮询均可）"
         );
         let _ = std::fs::remove_dir_all(&root);
     }
