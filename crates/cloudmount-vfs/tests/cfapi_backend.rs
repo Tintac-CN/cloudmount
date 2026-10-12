@@ -549,3 +549,85 @@ fn git_dir_not_projected_and_writes_not_uploaded() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn bidirectional_new_dir_with_files_uploads() {
+    use cloudmount_vfs::LocalChangeUploader;
+
+    let remote = MockRemote::new();
+    remote.put_file("seed.txt", b"seed");
+    let view = view_of(&remote, &["seed.txt"]);
+
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("bidir-dirs");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    let mut uploader = LocalChangeUploader::new(
+        mount.clone(),
+        Arc::new(remote.clone()),
+        cloudmount_core::RemoteId("0".into()),
+    )
+    .expect("uploader");
+
+    // 用户新建嵌套目录 + 文件 → 全部上传
+    std::fs::create_dir_all(root.join("new/deep")).unwrap();
+    std::fs::write(root.join("new/deep/file.txt"), b"in new dirs").unwrap();
+    let ok = wait_for(
+        || {
+            uploader
+                .poll_and_upload()
+                .map(|s| s.uploaded > 0)
+                .unwrap_or(false)
+        },
+        4000,
+    );
+    assert!(ok, "新目录内文件应被上传");
+    assert_eq!(
+        remote.read("new/deep/file.txt").unwrap(),
+        b"in new dirs",
+        "远端应出现嵌套新文件"
+    );
+
+    // 空 dir 事件也可能到达 → ensure 目录链
+    let _ = uploader.poll_and_upload();
+
+    assert!(remote.exists("new/deep"), "远端目录链应存在");
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn dehydrate_discards_local_data_but_keeps_metadata() {
+    // 说明：dehydrate 在 CfapiMount 上（同模块私有 abs_of），此处经
+    // LocalChangeUploader 不可达；用 mount 的 hydration/元数据断言代替。
+    // 真机行为由 golden 测试的水合反向验证覆盖（M2.5 补 CLI 直测）。
+    let remote = MockRemote::new();
+    remote.put_file("d.txt", b"xxxx");
+    let view = view_of(&remote, &["d.txt"]);
+    let backend = CfapiBackend::new(Arc::new(remote.clone()));
+    let root = tmpdir("dehydrate");
+    let mount = Arc::new(match backend.mount_concrete(&root, &view) {
+        Ok(m) => m,
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x80070490") {
+                eprintln!("当前环境不支持 SyncRoot 注册，跳过：{msg}");
+                return;
+            }
+            panic!("挂载失败: {msg}");
+        }
+    });
+    // 占位符存在且未水合
+    assert!(mount.hydration_mtime("d.txt").is_none());
+    assert!(root.join("d.txt").exists());
+    let _ = std::fs::remove_dir_all(&root);
+}

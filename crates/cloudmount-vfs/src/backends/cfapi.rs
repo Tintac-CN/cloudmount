@@ -41,13 +41,14 @@ use std::sync::{Arc, Mutex};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
 use windows::Win32::Storage::CloudFilters::{
-    CfConnectSyncRoot, CfCreatePlaceholders, CfDisconnectSyncRoot, CfExecute, CfRegisterSyncRoot,
-    CfSetInSyncState, CfUnregisterSyncRoot, CfUpdatePlaceholder, CF_CALLBACK_INFO,
-    CF_CALLBACK_PARAMETERS, CF_CALLBACK_REGISTRATION, CF_CALLBACK_TYPE_CANCEL_FETCH_DATA,
-    CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE, CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE,
-    CF_CREATE_FLAGS, CF_CREATE_FLAG_NONE, CF_FS_METADATA, CF_HARDLINK_POLICY_NONE,
-    CF_HYDRATION_POLICY, CF_HYDRATION_POLICY_FULL, CF_HYDRATION_POLICY_MODIFIER,
-    CF_INSYNC_POLICY_NONE, CF_IN_SYNC_STATE_IN_SYNC, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
+    CfConnectSyncRoot, CfCreatePlaceholders, CfDehydratePlaceholder, CfDisconnectSyncRoot,
+    CfExecute, CfRegisterSyncRoot, CfSetInSyncState, CfUnregisterSyncRoot, CfUpdatePlaceholder,
+    CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS, CF_CALLBACK_REGISTRATION,
+    CF_CALLBACK_TYPE_CANCEL_FETCH_DATA, CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE,
+    CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE, CF_CREATE_FLAGS, CF_CREATE_FLAG_NONE,
+    CF_DEHYDRATE_FLAG_NONE, CF_FS_METADATA, CF_HARDLINK_POLICY_NONE, CF_HYDRATION_POLICY,
+    CF_HYDRATION_POLICY_FULL, CF_HYDRATION_POLICY_MODIFIER, CF_INSYNC_POLICY_NONE,
+    CF_IN_SYNC_STATE_IN_SYNC, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
     CF_OPERATION_PARAMETERS_0_0, CF_OPERATION_TYPE_TRANSFER_DATA, CF_PLACEHOLDER_CREATE_FLAGS,
     CF_PLACEHOLDER_CREATE_FLAG_DISABLE_ON_DEMAND_POPULATION,
     CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC, CF_PLACEHOLDER_CREATE_INFO,
@@ -162,6 +163,43 @@ pub fn update_placeholder(abs_path: &Path, size: u64, mtime: i64, identity: &[u8
         )
     }
     .map_err(|e| cloudmount_core::Error::Other(format!("CfUpdatePlaceholder 失败: {e}")));
+    unsafe {
+        let _ = windows::Win32::Foundation::CloseHandle(handle);
+    }
+    result
+}
+
+/// 释放空间：把已水合的占位符文件脱水（本地数据丢弃，保留元数据）。
+///
+/// `offset/length = 0/0` 表示整个文件；指定范围可部分脱水（M2.5 可选）。
+///
+/// **约束**（官方文档）：文件必须无其它写入句柄（本函数句柄之外）；
+/// 若文件被独占打开会失败（共享冲突），调用方应提示用户关闭程序后重试。
+pub fn dehydrate(abs_path: &Path) -> Result<()> {
+    let wide = to_wide(&abs_path.to_string_lossy());
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            windows::Win32::Storage::FileSystem::FILE_SHARE_READ
+                | windows::Win32::Storage::FileSystem::FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
+            None,
+        )
+    }
+    .map_err(|e| cloudmount_core::Error::Other(format!("打开占位符失败: {e}")))?;
+    let result = unsafe {
+        CfDehydratePlaceholder(
+            handle,
+            0,
+            0,
+            windows::Win32::Storage::CloudFilters::CF_DEHYDRATE_FLAGS(CF_DEHYDRATE_FLAG_NONE.0),
+            None,
+        )
+    }
+    .map_err(|e| cloudmount_core::Error::Other(format!("CfDehydratePlaceholder 失败: {e}")));
     unsafe {
         let _ = windows::Win32::Foundation::CloseHandle(handle);
     }

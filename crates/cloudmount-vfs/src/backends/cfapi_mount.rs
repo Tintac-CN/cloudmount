@@ -462,6 +462,8 @@ use cloudmount_core::Provider;
 pub struct UploadStats {
     /// 成功上传的文件数。
     pub uploaded: u32,
+    /// 为用户新建目录创建的远端目录数。
+    pub dirs_uploaded: u32,
     /// 因"过滤器水合写入"跳过的修改数（非用户修改，正确行为）。
     pub skipped_hydration: u32,
     /// 因"我们自己的投影"跳过的创建数（投影不是用户新建）。
@@ -541,8 +543,14 @@ impl LocalChangeUploader {
 
     fn handle_created(&self, path: &str, entry: &LocalEntryView, stats: &mut UploadStats) {
         if entry.is_dir {
-            // TODO(M2.5)：新本地目录 → 创建远端目录链后上传其下文件
-            stats.skipped_dirs += 1;
+            // 用户新建目录 → 远端建目录链（保留空目录语义）
+            match self.ensure_remote_dir(path) {
+                Ok(_) => stats.dirs_uploaded += 1,
+                Err(e) => {
+                    tracing::error!(path, error = %e, "创建远端目录失败");
+                    stats.errors += 1;
+                }
+            }
             return;
         }
         if self.mount.is_projected(path) {
@@ -589,20 +597,8 @@ impl LocalChangeUploader {
             None => ("", rel),
         };
 
-        // 解析父目录远端 ID（根用 remote_root；子目录须已在视图中）
-        let parent_id = if parent_rel.is_empty() {
-            self.remote_root.clone()
-        } else {
-            self.mount
-                .remote_entry(parent_rel)
-                .filter(|e| e.kind == EntryKind::Directory)
-                .map(|e| e.id)
-                .ok_or_else(|| {
-                    Error::Other(format!(
-                        "父目录 {parent_rel} 不在远端视图（新本地目录上传待 M2.5 支持）"
-                    ))
-                })?
-        };
+        // 解析父目录远端 ID（用户新建的目录链自动在远端创建）
+        let parent_id = self.ensure_remote_dir(parent_rel)?;
 
         let result =
             self.provider
@@ -617,6 +613,43 @@ impl LocalChangeUploader {
         }
         tracing::info!(rel, "本地变更已上传");
         Ok(())
+    }
+}
+
+impl LocalChangeUploader {
+    /// 确保远端目录链存在，返回最末端目录 ID。
+    ///
+    /// 逐级检查视图（已投影的目录直接复用），缺失的经 Provider 创建并
+    /// 写入视图/投影集合（防 PlaceholderSync 重复投影）。
+    fn ensure_remote_dir(&self, parent_rel: &str) -> Result<RemoteId> {
+        if parent_rel.is_empty() {
+            return Ok(self.remote_root.clone());
+        }
+        if let Some(e) = self.mount.remote_entry(parent_rel) {
+            if e.kind == EntryKind::Directory {
+                return Ok(e.id);
+            }
+        }
+        let mut prefix = String::new();
+        let mut current = self.remote_root.clone();
+        for comp in parent_rel.split('/').filter(|c| !c.is_empty()) {
+            prefix = if prefix.is_empty() {
+                comp.to_string()
+            } else {
+                format!("{prefix}/{comp}")
+            };
+            if let Some(e) = self.mount.remote_entry(&prefix) {
+                if e.kind == EntryKind::Directory {
+                    current = e.id.clone();
+                    continue;
+                }
+            }
+            let created = self.provider.create_dir(&current, comp)?;
+            let entry = self.provider.stat(&created.id)?;
+            self.mount.upsert_view_entry(&prefix, entry);
+            current = created.id;
+        }
+        Ok(current)
     }
 }
 
