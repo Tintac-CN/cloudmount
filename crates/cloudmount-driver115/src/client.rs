@@ -18,12 +18,19 @@ use std::time::Duration;
 /// 单次限速等待上限，避免 CLI 卡太久。
 const MAX_RATE_WAIT_MS: u64 = 5_000;
 
+/// CDN 并发水合参数（8 并发流，下载器常规量级）。
+const CDN_RATE_PER_SEC: f64 = 8.0;
+const CDN_BURST: f64 = 8.0;
+
 /// 资源域客户端。
 pub struct ApiClient {
     /// HTTP 客户端（ureq 同步 + rustls）。
     pub agent: ureq::Agent,
     /// 全局限速器。
     pub limiter: RateLimiter,
+    /// CDN 直链限速器（宽松：CDN 为海量并发设计；**勿与 API 共用**——
+    /// 并发水合时共用会把多文件读取串行化到 1 r/s）。
+    cdn_limiter: RateLimiter,
     /// 认证器（提供 access_token，必要时刷新）。
     pub auth: Arc<OpenApiAuth>,
     /// API 基础地址（生产为 proapi.115.com；测试可注入 mock 服务端）。
@@ -47,6 +54,7 @@ impl ApiClient {
                 .build()
                 .into(),
             limiter: RateLimiter::conservative(),
+            cdn_limiter: RateLimiter::new(CDN_RATE_PER_SEC, CDN_BURST),
             auth,
             base_url: base_url.into().trim_end_matches('/').to_string(),
         }
@@ -62,6 +70,20 @@ impl ApiClient {
     fn pace(&self) -> Result<()> {
         loop {
             match self.limiter.try_acquire() {
+                Ok(()) => return Ok(()),
+                Err(Error::RateLimited { retry_after_ms }) => {
+                    let wait = retry_after_ms.min(MAX_RATE_WAIT_MS);
+                    std::thread::sleep(Duration::from_millis(wait));
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// CDN 直链的限速等待（宽松档）。
+    fn cdn_pace(&self) -> Result<()> {
+        loop {
+            match self.cdn_limiter.try_acquire() {
                 Ok(()) => return Ok(()),
                 Err(Error::RateLimited { retry_after_ms }) => {
                     let wait = retry_after_ms.min(MAX_RATE_WAIT_MS);
@@ -150,7 +172,8 @@ impl ApiClient {
         direct_url: &str,
         range: RangeSpec,
     ) -> Result<Box<dyn Read + Send>> {
-        self.pace()?;
+        // CDN 直链走宽松限速（并发水合不串行化；API 仍保守）
+        self.cdn_pace()?;
         let resp = self
             .agent
             .get(direct_url)

@@ -408,3 +408,72 @@ fn download_resolves_pick_code_then_streams_range_from_direct_url() {
         "直链为 CDN 地址，不应带 Authorization"
     );
 }
+
+// ============ 并发水合（M5）：CDN 限速与 API 拆分 ============
+
+/// **并发水合**：多线程同时 get_range_stream，CDN 宽松限速（8 并发）
+/// 不应把请求串行化。
+///
+/// mock 服务端每个直链请求延迟 300ms；4 线程并行下载若被串行化
+/// （共用 API 1 r/s 限速器）耗时 ≥ 3s；并行应 < 1.5s。
+#[test]
+fn concurrent_cdn_downloads_are_not_serialized() {
+    use std::time::Instant;
+
+    let (listener, addr) = bind_ephemeral();
+    let addr_str = addr.to_string();
+    // 直链响应延迟 300ms（模拟 CDN 传输耗时）；API 响应即时
+    let records = serve_on(listener, move |req: &Recorded| match req.path_only() {
+        "/open/folder/get_info" => (
+            200,
+            r#"{"state":true,"code":0,"data":{
+                "file_id":"42","file_name":"f.bin","size_byte":8,
+                "sha1":"X","pick_code":"PC42","folder_count":null}}"#
+                .to_string(),
+        ),
+        "/open/ufile/downurl" => (
+            200,
+            format!(
+                r#"{{"state":true,"code":0,"data":{{"42":{{"file_name":"f.bin","file_size":8,
+                    "pick_code":"PC42","url":{{"url":"http://{addr_str}/direct/concurrent","client":"1"}}}}}}}}"#
+            ),
+        ),
+        "/direct/concurrent" => {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            (206, "concurrent".to_string())
+        }
+        other => panic!("mock 收到未预期路径: {other}"),
+    });
+    let _ = records;
+
+    let start = Instant::now();
+    let mut handles = Vec::new();
+    for _ in 0..4 {
+        let p = provider_for(addr);
+        handles.push(std::thread::spawn(move || {
+            let mut reader = p
+                .open_range(
+                    &RemoteId("42".into()),
+                    RangeSpec {
+                        start: 0,
+                        end: Some(7),
+                    },
+                )
+                .expect("open_range");
+            let mut got = Vec::new();
+            reader.read_to_end(&mut got).expect("read");
+            got
+        }));
+    }
+    for h in handles {
+        let got = h.join().expect("线程完成");
+        assert_eq!(got, b"concurrent");
+    }
+    let elapsed = start.elapsed();
+    // 4 × 300ms 并行 ≈ 300-600ms；串行（1 r/s 限速）≥ 3s。
+    // 阈值 1.5s 留 CI 慢机器余量。
+    assert!(
+        elapsed.as_secs_f64() < 1.5,
+        "4 并发下载应并行（< 1.5s），实际 {elapsed:?}——CDN 限速未与 API 拆分？"
+    );
+}
