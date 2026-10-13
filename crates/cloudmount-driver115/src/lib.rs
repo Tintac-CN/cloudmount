@@ -15,6 +15,7 @@
 
 pub mod client;
 pub mod cookie;
+pub mod ec115;
 pub mod hash;
 pub mod m115;
 pub mod models;

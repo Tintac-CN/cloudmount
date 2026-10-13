@@ -20,3 +20,13 @@ base64.workspace = true
 time.workspace = true
 # m115 协议加密（固定 1024-bit RSA 模数的 modpow）
 num-bigint = "0.4"
+# ec115 协议加密（上传 initupload 的 ECDH P-224 + AES-CBC + LZ4）
+p224 = { version = "0.14.0-rc.15", default-features = false, features = ["ecdh", "std"] }
+aes = "0.8"
+lz4_flex = "0.11"
+# 上传 token（MD5）与 OSS V1 签名（HMAC-SHA1）
+md-5 = "0.10"
+hmac = "0.12"
+# ECDH 私钥的 OS 随机源（rand_core 0.10 与 elliptic-curve 同版本）
+rand_core = "0.10"
+getrandom = "0.3"

@@ -15,6 +15,8 @@
 //!   （上传需秒传 + OSS 直传链路，M3 v2）；引擎在 Cookie 通道下
 //!   挂载浏览/读取可用，本地修改上传会得到明确错误。
 
+use crate::ec115::{self, EcdhCipher};
+use crate::hash::{hashes_for, read_source_range, sha1_hex_upper};
 use crate::m115;
 use crate::ratelimit::RateLimiter;
 use cloudmount_auth::cookie::{CookieAuth, CookiePolicy};
@@ -32,6 +34,17 @@ pub const PROAPI_BASE: &str = "https://proapi.115.com";
 
 /// 列表分页大小（web 接口上限约 1150，保守取 1000）。
 const PAGE_LIMIT: i64 = 1000;
+
+/// 上传初始化端点（ECDH 加密通道）。
+const UPLOAD_INIT_URL: &str = "https://uplb.115.com/4.0/initupload.php";
+/// OSS STS token 端点。
+const UPLOAD_TOKEN_URL: &str = "https://uplb.115.com/3.0/gettoken.php";
+/// OSS 默认端点（115driver 常量：双栈域名）。
+const OSS_ENDPOINT: &str = "cn-shenzhen.oss.aliyuncs.com";
+/// 上传 app 版本（协议常量）。
+const APP_VER: &str = "27.0.5.7";
+/// sign_check 重试上限。
+const MAX_SIGN_ATTEMPTS: u32 = 3;
 
 /// 分页保护上限。
 const MAX_PAGES: u32 = 200;
@@ -324,10 +337,393 @@ impl Cookie115Provider {
         Ok(url)
     }
 
+    /// 上传后验证：列父目录按 SHA1（或名称）找到新文件，返回其 ID。
+    fn verify_upload(
+        &self,
+        dir_id: &str,
+        sha1: &str,
+        name: &str,
+        rapid: bool,
+    ) -> Result<UploadResult> {
+        let entries = self.list(&RemoteId(dir_id.to_string()))?;
+        let found = entries.iter().find(|e| {
+            e.sha1
+                .as_deref()
+                .map(|s| s.eq_ignore_ascii_case(sha1))
+                .unwrap_or(false)
+                || e.name == name
+        });
+        match found {
+            Some(e) => {
+                tracing::info!(%name, rapid, "上传完成（已验证）");
+                Ok(UploadResult {
+                    id: e.id.clone(),
+                    rapid_upload: rapid,
+                })
+            }
+            None => Err(Error::Other(format!(
+                "上传回执验证失败：目录 {dir_id} 未找到 {name}"
+            ))),
+        }
+    }
+
     /// 只读探测（不踢下线）；失效返回 Ok(false)。
     pub fn probe(&self) -> Result<bool> {
         self.auth.probe_readonly()
     }
+
+    // ---------- 上传（M3 v2） ----------
+
+    /// 上传上下文（uploadinfo 一次性获取，随上传缓存）。
+    fn upload_info(&self) -> Result<UploadCtx> {
+        let url = format!("{}/app/uploadinfo", self.proapi_base);
+        let value = self.post_form_json(&url, &[])?;
+        let env = Envelope::from_value(value)?;
+        if !env.is_ok() {
+            return Err(Error::Remote {
+                code: env.code(),
+                message: "uploadinfo 失败".into(),
+            });
+        }
+        let data = env.into_value()?;
+        let user_id = data
+            .get("user_id")
+            .and_then(|v| {
+                v.as_i64()
+                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            })
+            .unwrap_or(0);
+        let userkey = data
+            .get("userkey")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        if user_id == 0 || userkey.is_empty() {
+            return Err(Error::Auth(
+                "uploadinfo 缺少 user_id/userkey（Cookie 可能失效）".into(),
+            ));
+        }
+        Ok(UploadCtx { user_id, userkey })
+    }
+
+    /// ECDH 加密的 initupload 请求（含 sign_check 区间的自动计算）。
+    #[allow(clippy::too_many_arguments)]
+    fn init_upload(
+        &self,
+        ctx: &UploadCtx,
+        dir_id: &str,
+        name: &str,
+        size: u64,
+        fileid: &str,
+        preid: &str,
+        sign: &Option<(String, String)>,
+        source: &cloudmount_core::provider::UploadSource<'_>,
+    ) -> Result<InitUploadResp> {
+        let cipher = EcdhCipher::new()?;
+        let target = format!("U_1_{dir_id}");
+        let t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let (sign_key, sign_val) = match sign {
+            Some((k, v)) => (k.clone(), v.clone()),
+            None => (String::new(), String::new()),
+        };
+
+        let mut form: Vec<(String, String)> = vec![
+            ("appid".into(), "0".into()),
+            ("appversion".into(), APP_VER.into()),
+            ("userid".into(), ctx.user_id.to_string()),
+            ("filename".into(), name.to_string()),
+            ("filesize".into(), size.to_string()),
+            ("fileid".into(), fileid.to_string()),
+            ("target".into(), target.clone()),
+            (
+                "sig".into(),
+                ec115::generate_signature(&ctx.user_id.to_string(), &ctx.userkey, fileid, &target),
+            ),
+            ("topupload".into(), "true".into()),
+            ("t".into(), t.to_string()),
+            (
+                "token".into(),
+                ec115::generate_token(
+                    &ctx.user_id.to_string(),
+                    fileid,
+                    preid,
+                    &t.to_string(),
+                    &size.to_string(),
+                    &sign_key,
+                    &sign_val,
+                ),
+            ),
+        ];
+        if !sign_key.is_empty() && !sign_val.is_empty() {
+            form.push(("sign_key".into(), sign_key));
+            form.push(("sign_val".into(), sign_val));
+        }
+
+        // ECDH 加密表单体
+        let body = form
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, urlencode_component(v)))
+            .collect::<Vec<_>>()
+            .join("&");
+        let encrypted = cipher.encrypt(body.as_bytes());
+        let k_ec = cipher.encode_token(t as i64);
+
+        let cookie = self.auth.cookie_header()?;
+        self.pace()?;
+        let url = format!("{UPLOAD_INIT_URL}?k_ec={k_ec}");
+        let resp = self
+            .agent
+            .post(&url)
+            .header("Cookie", &cookie)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .send(&encrypted)
+            .map_err(|e| Error::Transport(format!("initupload 失败: {e}")))?;
+        let raw = resp
+            .into_body()
+            .read_to_vec()
+            .map_err(|e| Error::Transport(format!("读取 initupload 响应失败: {e}")))?;
+        let plain = cipher.decrypt(&raw)?;
+        let mut resp: InitUploadResp = serde_json::from_slice(&plain)
+            .map_err(|e| Error::Other(format!("initupload 响应解析失败: {e}")))?;
+
+        // sign_check（status 7）：按区间计算 SHA1 填入 sign_val（调用方重试）
+        if resp.status == 7 {
+            if let Some(check) = resp.sign_check.clone() {
+                if let Some((start, end)) = parse_range(&check) {
+                    let bytes = read_source_range(source, start, end)?;
+                    resp.sign_val = Some(sha1_hex_upper(&bytes));
+                }
+            }
+        }
+        Ok(resp)
+    }
+
+    /// OSS 直传（STS token + V1 签名 + 回调头）。
+    fn oss_put(
+        &self,
+        init: &InitUploadResp,
+        source: &cloudmount_core::provider::UploadSource<'_>,
+    ) -> Result<()> {
+        // STS token
+        let cookie = self.auth.cookie_header()?;
+        self.pace()?;
+        let resp = self
+            .agent
+            .get(UPLOAD_TOKEN_URL)
+            .header("Cookie", &cookie)
+            .call()
+            .map_err(|e| Error::Transport(format!("gettoken 失败: {e}")))?;
+        let text = resp
+            .into_body()
+            .read_to_string()
+            .map_err(|e| Error::Transport(format!("读取 token 响应失败: {e}")))?;
+        let token: OssStsToken = serde_json::from_str(&text)
+            .map_err(|e| Error::Other(format!("token 响应解析失败: {e}")))?;
+        if token.status_code != "200" {
+            return Err(Error::Auth(format!(
+                "OSS token 获取失败: {}",
+                token.status_code
+            )));
+        }
+
+        let bucket = init
+            .bucket
+            .as_deref()
+            .ok_or_else(|| Error::Other("initupload 缺少 bucket".into()))?;
+        let object = init
+            .object
+            .as_deref()
+            .ok_or_else(|| Error::Other("initupload 缺少 object".into()))?;
+        let callback = init
+            .callback
+            .as_ref()
+            .ok_or_else(|| Error::Other("initupload 缺少 callback".into()))?;
+        let callback_str = callback.callback.as_str();
+        let callback_var = callback.callback_var.as_str();
+
+        use base64::Engine;
+        let b64 = |s: &str| base64::engine::general_purpose::STANDARD.encode(s.as_bytes());
+        let cb_b64 = b64(callback_str);
+        let cbv_b64 = b64(callback_var);
+
+        // OSS V1 签名（CanonicalizedOSSHeaders 按名称排序）
+        let date = http_date_now();
+        let string_to_sign = format!(
+            "PUT\n\n\n{date}\nx-oss-callback:{cb_b64}\nx-oss-callback-var:{cbv_b64}\nx-oss-security-token:{}\n/{bucket}/{object}",
+            token.security_token
+        );
+        let signature = {
+            use hmac::{Hmac, Mac};
+            use sha1::Sha1;
+            let mut mac = Hmac::<Sha1>::new_from_slice(token.access_key_secret.as_bytes())
+                .expect("HMAC 接受任意长度密钥");
+            mac.update(string_to_sign.as_bytes());
+            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes())
+        };
+
+        let url = format!("https://{bucket}.{OSS_ENDPOINT}/{object}");
+        self.pace()?;
+        let req = self
+            .agent
+            .put(&url)
+            .header("Date", &date)
+            .header("x-oss-security-token", &token.security_token)
+            .header("x-oss-callback", &cb_b64)
+            .header("x-oss-callback-var", &cbv_b64)
+            .header(
+                "Authorization",
+                &format!("OSS {}:{}", token.access_key_id, signature),
+            )
+            .header("User-Agent", "aliyun-sdk-android/2.9.1");
+        let resp = match source {
+            cloudmount_core::provider::UploadSource::Bytes(b) => req
+                .send(b.as_ref())
+                .map_err(|e| Error::Transport(format!("OSS 直传失败: {e}")))?,
+            cloudmount_core::provider::UploadSource::Path(p) => {
+                let f = std::fs::File::open(p).map_err(|e| {
+                    Error::Io(std::io::Error::new(e.kind(), format!("打开失败: {e}")))
+                })?;
+                req.send(f)
+                    .map_err(|e| Error::Transport(format!("OSS 直传失败: {e}")))?
+            }
+        };
+        let _ = resp
+            .into_body()
+            .read_to_string()
+            .map_err(|e| Error::Transport(format!("读取上传回执失败: {e}")))?;
+        Ok(())
+    }
+}
+
+/// 上传上下文。
+struct UploadCtx {
+    user_id: i64,
+    userkey: String,
+}
+
+/// initupload 响应（ECDH 解密后的明文 JSON）。
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+struct InitUploadResp {
+    /// 2=秒传命中 1=未命中（走 OSS） 7=需 sign_check。
+    #[serde(default)]
+    status: i64,
+    /// 服务端错误码（0 或 701 为正常）。
+    #[serde(default, rename = "statuscode")]
+    status_code: i64,
+    #[serde(default, rename = "statusmsg")]
+    status_msg: String,
+    /// 诊断字段（验证走列表，不读 pickcode）。
+    #[serde(default)]
+    #[allow(dead_code)]
+    pickcode: Option<String>,
+    #[serde(default)]
+    bucket: Option<String>,
+    #[serde(default)]
+    object: Option<String>,
+    #[serde(default)]
+    callback: Option<CallbackInfo>,
+    #[serde(default, rename = "sign_key")]
+    sign_key: Option<String>,
+    /// sign_check 区间（"start-end"）。
+    #[serde(default, rename = "sign_check")]
+    sign_check: Option<String>,
+    /// 计算出的 sign_val（本端填充）。
+    #[serde(skip)]
+    sign_val: Option<String>,
+}
+
+/// initupload 的回调信息（嵌套对象）。
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+struct CallbackInfo {
+    #[serde(default)]
+    callback: String,
+    #[serde(default, rename = "callback_var")]
+    callback_var: String,
+}
+
+/// OSS STS token 响应。
+#[derive(Debug, serde::Deserialize)]
+struct OssStsToken {
+    #[serde(rename = "AccessKeyID")]
+    access_key_id: String,
+    #[serde(rename = "AccessKeySecret")]
+    access_key_secret: String,
+    #[serde(rename = "SecurityToken")]
+    security_token: String,
+    #[serde(rename = "StatusCode")]
+    status_code: String,
+}
+
+/// 解析 sign_check 区间（"start-end"）。
+fn parse_range(spec: &str) -> Option<(u64, u64)> {
+    let (s, e) = spec.split_once('-')?;
+    Some((s.parse().ok()?, e.parse().ok()?))
+}
+
+/// RFC 1123 GMT 时间（OSS 签名用）。
+fn http_date_now() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64;
+    // 手工格式化（避免 time crate 的格式描述符构造）
+    let days = now.div_euclid(86400);
+    let secs_of_day = now.rem_euclid(86400);
+    let (h, m, s) = (
+        secs_of_day / 3600,
+        (secs_of_day % 3600) / 60,
+        secs_of_day % 60,
+    );
+    // 1970-01-01 是周四
+    const WD: [&str; 7] = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+    let wd = WD[(days % 7) as usize];
+    // 儒略日算法（civil_from_days）
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let mth = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if mth <= 2 { y + 1 } else { y };
+    const MON: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    format!(
+        "{wd}, {d:02} {mon} {y:04} {h:02}:{m:02}:{s:02} GMT",
+        mon = MON[(mth - 1) as usize]
+    )
+}
+
+/// 校验 web 写操作响应信封。
+fn check_ok(value: serde_json::Value, what: &str) -> Result<()> {
+    let env = Envelope::from_value(value)?;
+    if !env.is_ok() {
+        return Err(Error::Remote {
+            code: env.code(),
+            message: format!("{what}: {}", env.message.clone().unwrap_or_default()),
+        });
+    }
+    Ok(())
+}
+
+/// 表单值百分号编码（initupload 的 ECDH 明文体）。
+fn urlencode_component(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 impl Provider for Cookie115Provider {
@@ -426,36 +822,156 @@ impl Provider for Cookie115Provider {
         })
     }
 
-    fn create_dir(&self, _parent: &RemoteId, _name: &str) -> Result<RemoteEntry> {
-        Err(Error::Unimplemented("cookie create_dir（M3 v2）".into()))
+    fn create_dir(&self, parent: &RemoteId, name: &str) -> Result<RemoteEntry> {
+        let pid = if parent.0.is_empty() { "0" } else { &parent.0 };
+        let url = format!("{}/files/add", self.webapi_base);
+        let value = self.post_form_json(&url, &[("pid", pid), ("cname", name)])?;
+        let env = Envelope::from_value(value)?;
+        if !env.is_ok() {
+            return Err(Error::Remote {
+                code: env.code(),
+                message: format!("创建目录失败: {}", env.message.clone().unwrap_or_default()),
+            });
+        }
+        let cid = env
+            .into_value()?
+            .get("cid")
+            .and_then(|v| {
+                v.as_str()
+                    .map(|s| s.to_string())
+                    .or_else(|| v.as_i64().map(|n| n.to_string()))
+            })
+            .ok_or_else(|| Error::Other("创建目录响应缺少 cid".into()))?;
+        Ok(RemoteEntry {
+            id: RemoteId(cid),
+            parent_id: parent.clone(),
+            name: name.to_string(),
+            kind: EntryKind::Directory,
+            size: 0,
+            mtime: 0,
+            sha1: None,
+            pick_code: None,
+            deleted: false,
+        })
     }
 
     fn upload(
         &self,
-        _parent: &RemoteId,
-        _name: &str,
-        _source: cloudmount_core::provider::UploadSource<'_>,
-        _size: u64,
+        parent: &RemoteId,
+        name: &str,
+        source: cloudmount_core::provider::UploadSource<'_>,
+        size: u64,
     ) -> Result<UploadResult> {
-        Err(Error::Unimplemented(
-            "cookie upload（M3 v2：秒传+OSS 直传）".into(),
-        ))
+        let hashes = hashes_for(&source)?;
+        if hashes.size != size {
+            tracing::warn!(
+                expected = size,
+                actual = hashes.size,
+                "大小不一致，以实际为准"
+            );
+        }
+        let ctx = self.upload_info()?;
+        let dir_id = if parent.0.is_empty() { "0" } else { &parent.0 };
+
+        let mut sign: Option<(String, String)> = None;
+        for _ in 1..=MAX_SIGN_ATTEMPTS {
+            let init = self.init_upload(
+                &ctx,
+                dir_id,
+                name,
+                hashes.size,
+                &hashes.fileid,
+                &hashes.preid,
+                &sign,
+                &source,
+            )?;
+            match init.status {
+                // 秒传命中：零传输
+                2 => return self.verify_upload(dir_id, &hashes.fileid, name, true),
+                // sign_check 二次认证：回传区间 SHA1 后重试
+                7 => {
+                    let key = init
+                        .sign_key
+                        .clone()
+                        .filter(|k| !k.is_empty())
+                        .ok_or_else(|| Error::Other("sign_check 缺少 sign_key".into()))?;
+                    let val = init
+                        .sign_val
+                        .clone()
+                        .ok_or_else(|| Error::Other("sign_check 区间计算失败".into()))?;
+                    tracing::info!(%name, "115 要求上传二次认证，回传区间 SHA1 后重试");
+                    sign = Some((key, val));
+                }
+                // 未命中：OSS 直传
+                1 => {
+                    self.oss_put(&init, &source)?;
+                    return self.verify_upload(dir_id, &hashes.fileid, name, false);
+                }
+                other => {
+                    return Err(Error::Remote {
+                        code: init.status_code,
+                        message: format!("initupload status={other}: {}", init.status_msg),
+                    })
+                }
+            }
+        }
+        Err(Error::Other(format!(
+            "sign_check 重试超过 {MAX_SIGN_ATTEMPTS} 次"
+        )))
     }
 
-    fn rename(&self, _id: &RemoteId, _new_name: &str) -> Result<()> {
-        Err(Error::Unimplemented("cookie rename（M3 v2）".into()))
+    fn rename(&self, id: &RemoteId, new_name: &str) -> Result<()> {
+        let url = format!("{}/files/batch_rename", self.webapi_base);
+        let key = format!("files_new_name[{}]", id.0);
+        let value = self.post_form_json(
+            &url,
+            &[
+                ("fid", id.0.as_str()),
+                ("file_name", new_name),
+                (key.as_str(), new_name),
+            ],
+        )?;
+        check_ok(value, "重命名失败")
     }
 
-    fn move_entry(&self, _id: &RemoteId, _new_parent: &RemoteId) -> Result<()> {
-        Err(Error::Unimplemented("cookie move（M3 v2）".into()))
+    fn move_entry(&self, id: &RemoteId, new_parent: &RemoteId) -> Result<()> {
+        let pid = if new_parent.0.is_empty() {
+            "0"
+        } else {
+            &new_parent.0
+        };
+        let url = format!("{}/files/move", self.webapi_base);
+        let value = self.post_form_json(&url, &[("pid", pid), ("fid[0]", id.0.as_str())])?;
+        check_ok(value, "移动失败")
     }
 
     fn copy(&self, _id: &RemoteId, _new_parent: &RemoteId) -> Result<RemoteId> {
-        Err(Error::Unimplemented("cookie copy（M3 v2）".into()))
+        let pid = if _new_parent.0.is_empty() {
+            "0"
+        } else {
+            &_new_parent.0
+        };
+        let url = format!("{}/files/copy", self.webapi_base);
+        let value = self.post_form_json(&url, &[("pid", pid), ("fid[0]", _id.0.as_str())])?;
+        check_ok(value, "复制失败")?;
+        // 复制是异步的：列表查找新副本（同名）
+        let entries = self.list(_new_parent)?;
+        let name = self.stat(_id).ok().map(|e| e.name);
+        if let Some(name) = name {
+            if let Some(found) = entries.iter().find(|e| e.name == name && e.id.0 != _id.0) {
+                return Ok(found.id.clone());
+            }
+        }
+        Err(Error::Other(
+            "复制已提交但未找到新副本（异步生效中）".into(),
+        ))
     }
 
-    fn delete(&self, _id: &RemoteId) -> Result<()> {
-        Err(Error::Unimplemented("cookie delete（M3 v2）".into()))
+    fn delete(&self, id: &RemoteId) -> Result<()> {
+        // 进回收站（与官方通道语义一致：可恢复）
+        let url = format!("{}/rb/delete", self.webapi_base);
+        let value = self.post_form_json(&url, &[("fid[0]", id.0.as_str())])?;
+        check_ok(value, "删除失败")
     }
 }
 
@@ -477,6 +993,59 @@ mod tests {
         assert_eq!(web_mtime("", 12345), 12345);
         assert_eq!(web_mtime("bad", 12345), 12345);
         assert_eq!(web_mtime("2026-10-13T15:04:05", 99), 99);
+    }
+
+    #[test]
+    fn http_date_now_format() {
+        let d = http_date_now();
+        // RFC 1123 形态："Thu, 02 Jan 2026 03:04:05 GMT"
+        assert!(d.ends_with(" GMT"), "应以 GMT 结尾: {d}");
+        let parts: Vec<&str> = d.split(' ').collect();
+        assert_eq!(parts.len(), 6);
+        assert!(parts[0].ends_with(','));
+        assert_eq!(parts[5], "GMT");
+        assert!(["Mon,", "Tue,", "Wed,", "Thu,", "Fri,", "Sat,", "Sun,"].contains(&parts[0]));
+        assert!(parts[1].len() == 2 && parts[1].chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn parse_range_spec() {
+        assert_eq!(parse_range("0-131071"), Some((0, 131071)));
+        assert_eq!(parse_range("bad"), None);
+        assert_eq!(parse_range("1-"), None);
+    }
+
+    #[test]
+    fn urlencode_component_safe() {
+        assert_eq!(urlencode_component("abc-1_2.3~"), "abc-1_2.3~");
+        assert_eq!(urlencode_component("a b/c"), "a%20b%2Fc");
+        // 中文文件名
+        assert_eq!(urlencode_component("文件"), "%E6%96%87%E4%BB%B6");
+    }
+
+    #[test]
+    fn init_upload_resp_parsing() {
+        let r: InitUploadResp = serde_json::from_str(
+            r#"{"status":2,"statuscode":0,"pickcode":"PC1","bucket":"b","object":"o",
+                "callback":{"callback":"cb","callback_var":"cv"},
+                "sign_key":"k","sign_check":"0-99"}"#,
+        )
+        .unwrap();
+        assert_eq!(r.status, 2);
+        assert_eq!(r.bucket.as_deref(), Some("b"));
+        assert_eq!(r.callback.as_ref().unwrap().callback, "cb");
+        assert_eq!(r.callback.as_ref().unwrap().callback_var, "cv");
+        assert_eq!(r.sign_check.as_deref(), Some("0-99"));
+    }
+
+    #[test]
+    fn oss_sts_token_parsing() {
+        let t: OssStsToken = serde_json::from_str(
+            r#"{"AccessKeyID":"id","AccessKeySecret":"sec","SecurityToken":"tok","StatusCode":"200"}"#,
+        )
+        .unwrap();
+        assert_eq!(t.access_key_id, "id");
+        assert_eq!(t.status_code, "200");
     }
 
     #[test]
