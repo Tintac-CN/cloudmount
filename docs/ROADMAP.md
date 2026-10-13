@@ -121,8 +121,16 @@
       扫描不可见 / 引擎不传不拉 / 占位符不投影 / .git 写入零上传。
       强制同步排除项的规则（静默期门控+.git 内禁冲突副本）设计存档于
       exclude.rs 模块文档（M2.5）
-- [ ] Tauri 壳：托盘（状态角标/菜单）+ web-ui 集成 + WebView2 引导
-- [ ] 资源管理器状态图标与右键动词（CfAPI 原生）+ MSIX 打包
+- [x] **Tauri 壳（2026-10-13 真机 GUI 手测通过）**：托盘（菜单/关窗隐藏/
+      暂停恢复文本切换）+ web-ui 集成（内嵌 frontendDist，内存 23.8MB）。
+      手测修复两个 bug：① custom-protocol feature 缺失（裸 cargo build
+      的 exe 加载 devUrl 白窗）；② StatusSnapshot 序列化 camelCase 契约
+      （队列 ↑undefined / lastMessage 丢失）。
+- [x] **资源管理器状态图标与右键动词（2026-10-13 真机验证）**：导航栏
+      'CloudMount 云挂'（与 OneDrive 并排）；状态列'在此设备上可用'/
+      '联机时可用'；右键原生动词'释放空间'+'始终保留在此设备上'，
+      释放空间实测脱水成功（OFFLINE 置位、再读内容正确回）。
+- [ ] MSIX 打包（可选：GitHub 分发 MSI+NSIS 已覆盖，MSIX 仅 Store 渠道需要）
 - **验收**： explorer 里打开 115 目录即用，行为与 OneDrive 一致
 
 ## M3 · Cookie 补充通道（2–3 周）
