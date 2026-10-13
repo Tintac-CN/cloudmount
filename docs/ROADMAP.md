@@ -162,8 +162,11 @@
       web-ui 静态托管（穿越防护）；--mock 自检。4 项集成测试 +
       curl 实测（OPTIONS/GET/PUT/回读/PROPFIND）双平台通过。
       v1 为 HTTP（TLS 见后续）。
-- [ ] musl 静态交叉编译（aarch64/armv7/x86_64）+ 多架构 Docker
-- [ ] 低内存预设 + systemd unit + Tailscale 集成文档
+- [x] **musl 静态交叉 + TLS + 打包（2026-10-13）**：CI 双目标
+      （aarch64/x86_64 musl，含 daemon+CLI+冒烟）；**rustls TLS**
+      （--tls-cert/--tls-key，自签证书 curl 实测 HTTPS）；systemd
+      unit（内存上限+安全加固）；Dockerfile 多架构 + release workflow
+      （GHCR）；docs/edge.md 部署手册（低内存预设/Tailscale/安全）。
 - **验收**：512MB 内存设备稳定运行 48h；局域网设备经 WebDAV 挂载读写
 
 ## M5 · 打磨（持续）
