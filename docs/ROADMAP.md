@@ -156,7 +156,12 @@
 
 ## M4 · 边缘网关（2–3 周）
 
-- [ ] `cloudmountd` 服务模式：WebDAV 出口（rustls）+ web-ui 托管
+- [x] **WebDAV 出口 + web-ui 托管（2026-10-13，curl 实测）**：
+      `cloudmountd --serve`——/dav/ 走 ProviderFs（路径↔ID 解析+TTL
+      缓存、PUT spool 上传、MKCOL/DELETE/MOVE/COPY）；Basic 认证；
+      web-ui 静态托管（穿越防护）；--mock 自检。4 项集成测试 +
+      curl 实测（OPTIONS/GET/PUT/回读/PROPFIND）双平台通过。
+      v1 为 HTTP（TLS 见后续）。
 - [ ] musl 静态交叉编译（aarch64/armv7/x86_64）+ 多架构 Docker
 - [ ] 低内存预设 + systemd unit + Tailscale 集成文档
 - **验收**：512MB 内存设备稳定运行 48h；局域网设备经 WebDAV 挂载读写
