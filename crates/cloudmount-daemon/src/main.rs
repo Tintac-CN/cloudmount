@@ -220,6 +220,7 @@ fn build_launch_args(cli: &Cli) -> Vec<String> {
 }
 
 /// 以 AppID 构造 Provider（供服务模式/占位符模式的非 mock 通道）。
+#[cfg(windows)]
 fn build_provider_from_app_id(app_id: &str) -> anyhow::Result<Arc<dyn Provider>> {
     let store = cloudmount_auth::store::default_store()?;
     let auth = Arc::new(OpenApiAuth::new(app_id, store));
@@ -230,6 +231,7 @@ fn build_provider_from_app_id(app_id: &str) -> anyhow::Result<Arc<dyn Provider>>
 }
 
 /// 阻塞式构建 Provider（无 mock 时走官方 OpenAPI）。
+#[cfg(windows)]
 fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
     let app_id = cli
         .app_id
@@ -238,7 +240,8 @@ fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
     build_provider_from_app_id(&app_id)
 }
 
-/// 服务模式引擎循环（阻塞直到 SCM 停止）。
+/// 服务模式引擎循环（阻塞直到 SCM 停止；仅 Windows 服务模式）。
+#[cfg(windows)]
 fn run_service_engine_blocking(
     cfg: SyncEngineConfig,
     provider: Arc<dyn Provider>,
@@ -441,4 +444,10 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
         cloudmount_vfs::Mount::unmount(Box::new(m)).ok();
     }
     Ok(())
+}
+
+/// 非 Windows：占位符挂载不可用（cldflt 为 Windows 组件）。
+#[cfg(not(windows))]
+fn run_placeholder_mount(_cli: &Cli, _sync_root: &std::path::Path) -> anyhow::Result<()> {
+    anyhow::bail!("占位符挂载当前仅支持 Windows（macOS FileProvider / Linux 方案见 ROADMAP）")
 }
