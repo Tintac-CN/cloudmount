@@ -108,7 +108,7 @@ jobs:
             cloudmountd --placeholder-mount --sync-root D:\Cloud
             ```
 
-            Docker：`docker run -p 8384:8384 ghcr.io/${{ github.repository_owner }}/cloudmount:${{ github.ref_name }}`
+            Docker：`docker run -p 8384:8384 ghcr.io/tintac-cn/cloudmount:${{ github.ref_name }}`
 
             详见 [部署手册](https://github.com/${{ github.repository }}/blob/main/docs/edge.md)。
 
@@ -133,6 +133,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      # GHCR 要求小写仓库名（owner 可能含大写）
+      - name: 镜像名（小写）
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/cloudmount" >> "$GITHUB_OUTPUT"
       # release 干净构建：不用 rust-cache（缓存恢复的宿主构建脚本曾在
       # cross 容器里 glibc 不兼容连坐失败）
       - uses: taiki-e/install-action@cross
@@ -165,7 +169,7 @@ jobs:
           context: .
           file: packaging/docker/Dockerfile
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/cloudmount,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
 
       - name: 导出 digest
         run: |
@@ -205,7 +209,8 @@ jobs:
       - name: 创建并推送合并清单
         working-directory: /tmp/digests
         run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/cloudmount"
           docker buildx imagetools create \
-            -t ghcr.io/${{ github.repository_owner }}/cloudmount:${{ github.ref_name }} \
-            -t ghcr.io/${{ github.repository_owner }}/cloudmount:latest \
-            $(printf 'ghcr.io/${{ github.repository_owner }}/cloudmount@sha256:%s ' *)
+            -t "$IMAGE:${{ github.ref_name }}" \
+            -t "$IMAGE:latest" \
+            $(printf "$IMAGE@sha256:%s " *)
