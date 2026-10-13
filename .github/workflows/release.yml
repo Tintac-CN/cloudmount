@@ -1,4 +1,4 @@
-name: Release（多架构 Docker 镜像）
+name: Release（二进制 + 多架构 Docker 镜像）
 
 on:
   push:
@@ -8,8 +8,113 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ============ 二进制产物（GitHub Release 附件） ============
+
+  binaries-linux:
+    name: Linux musl 静态二进制（${{ matrix.target }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cross
+      - name: 交叉编译
+        run: |
+          cross build -p cloudmount-daemon -p cloudmount-cli \
+            --target ${{ matrix.target }} --release
+      - name: 打包 tarball（含 README 与部署手册）
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/cloudmountd dist/
+          cp target/${{ matrix.target }}/release/cloudmount dist/
+          cp README.md docs/edge.md packaging/systemd/cloudmountd.service \
+             packaging/systemd/cloudmountd.default dist/ 2>/dev/null || true
+          cd dist && tar czf ../cloudmount-linux-${{ matrix.target }}.tar.gz .
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudmount-linux-${{ matrix.target }}
+          path: cloudmount-linux-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  binaries-windows:
+    name: Windows 二进制（x64）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: 编译
+        run: cargo build -p cloudmount-daemon -p cloudmount-cli --release
+      - name: 打包 zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path `
+            target\release\cloudmountd.exe, `
+            target\release\cloudmount.exe, `
+            README.md `
+            -DestinationPath cloudmount-windows-x64.zip
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudmount-windows-x64
+          path: cloudmount-windows-x64.zip
+          if-no-files-found: error
+
+  # ============ GitHub Release ============
+
+  release:
+    name: 创建 GitHub Release
+    needs: [binaries-linux, binaries-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate-release-notes: true
+          body: |
+            ## CloudMount ${{ github.ref_name }}
+
+            115 网盘同步盘（占位符挂载 + 边缘网关），AGPL-3.0。
+
+            ### 产物
+            | 文件 | 平台 | 内容 |
+            |---|---|---|
+            | `cloudmount-linux-*-musl.tar.gz` | Linux x64 / arm64 | 静态二进制（daemon + CLI）+ systemd unit + 部署手册 |
+            | `cloudmount-windows-x64.zip` | Windows x64 | cloudmountd.exe + cloudmount.exe |
+
+            ### 快速开始
+            ```bash
+            # Linux 边缘网关（WebDAV 出口）
+            ./cloudmountd --serve --listen 0.0.0.0:8384 --auth user:pass
+
+            # Windows 占位符挂载（OneDrive 式按需）
+            cloudmountd --placeholder-mount --sync-root D:\Cloud
+            ```
+
+            Docker：`docker run -p 8384:8384 ghcr.io/${{ github.repository_owner }}/cloudmount:${{ github.ref_name }}`
+
+            详见 [部署手册](https://github.com/${{ github.repository }}/blob/main/docs/edge.md)。
+
+  # ============ Docker 多架构镜像（GHCR） ============
+
   docker:
-    name: 构建并推送多架构镜像（GHCR）
+    name: Docker 镜像（${{ matrix.platform }}）
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -44,6 +149,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 构建并推送（按架构）
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
