@@ -190,6 +190,7 @@ dependencies = [
  "cloudmount-auth",
  "cloudmount-core",
  "cloudmount-driver115",
+ "cloudmount-vfs",
  "qrcode",
  "time",
  "tracing",

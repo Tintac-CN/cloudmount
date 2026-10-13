@@ -35,8 +35,8 @@ use cloudmount_core::{Provider, RemoteId};
 use cloudmount_driver115::Open115Provider;
 #[cfg(windows)]
 use cloudmount_sync::remote::RemoteViewTracker;
-#[cfg(all(feature = "mock", not(windows)))]
-use cloudmount_sync::testutil::MockRemote as _;
+#[cfg(all(feature = "mock", windows))]
+use cloudmount_sync::testutil::MockRemote;
 use cloudmount_sync::{SyncEngine, SyncEngineConfig};
 #[cfg(windows)]
 use cloudmount_vfs::LocalChangeUploader;
@@ -230,9 +230,22 @@ fn build_provider_from_app_id(app_id: &str) -> anyhow::Result<Arc<dyn Provider>>
     Ok(Arc::new(Open115Provider::new(auth)))
 }
 
-/// 阻塞式构建 Provider（无 mock 时走官方 OpenAPI）。
+/// 阻塞式构建 Provider（mock 通道或官方 OpenAPI）。
 #[cfg(windows)]
 fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
+    #[cfg(feature = "mock")]
+    if cli.mock {
+        tracing::warn!("使用 MockRemote 云端（演示/自检；内容为内置示例）");
+        let mock = MockRemote::new();
+        mock.put_file(
+            "welcome.txt",
+            b"Welcome to CloudMount! This file is hydrated on demand.",
+        );
+        mock.put_dir("docs");
+        mock.put_file("docs/demo.txt", b"Nested placeholder hydration works.");
+        return Ok(Arc::new(mock));
+    }
+
     let app_id = cli
         .app_id
         .clone()

@@ -79,6 +79,13 @@ enum Commands {
         /// 本地输出路径。
         out: std::path::PathBuf,
     },
+    /// [仅 Windows] 释放空间：把已水合的占位符文件脱水（保留元数据）。
+    #[cfg(windows)]
+    Dehydrate {
+        /// 本地文件路径（须在已挂载的同步根下）。
+        path: std::path::PathBuf,
+    },
+
     /// （边缘设备）以服务模式运行：WebDAV 出口 + 后台同步。
     Serve {
         /// 监听地址。
@@ -114,6 +121,8 @@ fn main() -> anyhow::Result<()> {
         Commands::Quota => cmd_quota(&cli.app_id),
         Commands::Upload { path, to, name } => cmd_upload(&cli.app_id, path, to, name),
         Commands::Download { id, out } => cmd_download(&cli.app_id, id, out),
+        #[cfg(windows)]
+        Commands::Dehydrate { path } => cmd_dehydrate(path),
         Commands::Serve { listen } => {
             let _ = listen;
             anyhow::bail!("serve: 待 M4 实现（dav-server-rs WebDAV 出口）")
@@ -389,6 +398,39 @@ fn format_time(secs: i64) -> String {
             dt.second()
         ),
         Err(_) => "-".to_string(),
+    }
+}
+
+#[cfg(windows)]
+fn cmd_dehydrate(path: std::path::PathBuf) -> anyhow::Result<()> {
+    use cloudmount_vfs::cfapi;
+
+    let path = path
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("文件不存在或不可访问 {}: {e}", path.display()))?;
+    let meta = std::fs::metadata(&path)?;
+    if !meta.is_file() {
+        anyhow::bail!("仅支持文件（目录请逐个处理）: {}", path.display());
+    }
+
+    println!("释放空间: {} ({})", path.display(), human_size(meta.len()));
+    match cfapi::dehydrate(&path) {
+        Ok(()) => {
+            println!("✅ 已脱水（本地数据已丢弃，元数据保留；下次读取时重新水合）");
+            Ok(())
+        }
+        Err(e) => {
+            let msg = format!("{e}");
+            if msg.contains("0x8007016A") {
+                anyhow::bail!(
+                    "脱水需要由同步提供方（daemon）执行——CLI 独立进程无法调用此 API。
+                     替代方案：
+  ① 资源管理器右键 →「释放空间」（Shell 原生支持）
+  ② cloudmountd 内置命令（待 M3）"
+                );
+            }
+            Err(anyhow::anyhow!("脱水失败: {e}"))
+        }
     }
 }
 
