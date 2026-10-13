@@ -1,0 +1,36 @@
+[package]
+name = "cloudmount-desktop"
+description = "CloudMount 桌面应用（纯 Rust：egui + wgpu + rfd，无 WebView）"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/Tintac-CN/cloudmount"
+
+# 独立项目：不参与 cloudmount workspace（根 Cargo.toml exclude）
+
+[dependencies]
+# GUI：eframe（egui 框架）+ wgpu 渲染后端
+eframe = { version = "0.31", features = ["wgpu"] }
+# 原生文件/目录选择对话框
+rfd = "0.15"
+# 二维码渲染（登录页）
+qrcode = { version = "0.14", default-features = false }
+# 引擎（同进程库链接）
+cloudmount-core = { path = "../../crates/cloudmount-core" }
+cloudmount-auth = { path = "../../crates/cloudmount-auth" }
+cloudmount-driver115 = { path = "../../crates/cloudmount-driver115" }
+cloudmount-sync = { path = "../../crates/cloudmount-sync" }
+# 系统托盘
+tray-icon = "0.21"
+# 日志
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+serde_json = "1"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"

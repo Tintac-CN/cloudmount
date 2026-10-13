@@ -1,4 +1,3 @@
-import { hostKind } from "./platform";
 import {
   clearCache,
   exportLogs,
@@ -221,11 +220,7 @@ async function render(tab: Tab = "status"): Promise<void> {
   root.replaceChildren();
 
   root.append(el("h1", "CloudMount 云挂"));
-  const host = el("p", "");
-  host.textContent =
-    hostKind() === "desktop"
-      ? "桌面模式（Tauri 壳 · 本机挂载）"
-      : "边缘网关模式（浏览器远程管理）";
+  const host = el("p", "边缘网关模式（浏览器远程管理）");
   host.className = "muted";
   root.append(host);
 
