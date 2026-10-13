@@ -30,7 +30,6 @@
 
 use anyhow::Context;
 use clap::Parser;
-#[cfg(windows)]
 use cloudmount_auth::cookie::CookieAuth;
 use cloudmount_auth::open::OpenApiAuth;
 use cloudmount_core::{Provider, RemoteId};
@@ -94,9 +93,9 @@ struct Cli {
     #[arg(long)]
     propagate_local_deletes: bool,
 
-    /// 数据通道：open（官方 OpenAPI，默认）/ cookie（补充通道，须已
-    /// `cloudmount login --with-cookie-channel` 登录；只读能力）。
-    #[arg(long, default_value = "open")]
+    /// 数据通道：auto（官方为主，Cookie 兜底，默认）/ open（仅官方）/
+    /// cookie（仅补充通道，须已 `cloudmount login --with-cookie-channel`）。
+    #[arg(long, default_value = "auto")]
     channel: String,
 
     /// [仅 mock feature] 使用内置 MockRemote 云端（免凭据自检/演示）。
@@ -227,14 +226,18 @@ fn build_launch_args(cli: &Cli) -> Vec<String> {
 }
 
 /// 以 AppID 构造 Provider（供服务模式/占位符模式的非 mock 通道）。
-#[cfg(windows)]
 fn build_provider_from_app_id(app_id: &str) -> anyhow::Result<Arc<dyn Provider>> {
+    Ok(Arc::new(build_open_provider(app_id)?))
+}
+
+/// 构造官方通道 Provider（具体类型，供路由器装箱）。
+fn build_open_provider(app_id: &str) -> anyhow::Result<Open115Provider> {
     let store = cloudmount_auth::store::default_store()?;
     let auth = Arc::new(OpenApiAuth::new(app_id, store));
     if !auth.is_logged_in() {
         anyhow::bail!("未登录：请先执行 `cloudmount login` 完成扫码授权");
     }
-    Ok(Arc::new(Open115Provider::new(auth)))
+    Ok(Open115Provider::new(auth))
 }
 
 /// 阻塞式构建 Provider（mock 通道或官方 OpenAPI）。
@@ -253,10 +256,19 @@ fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
         return Ok(Arc::new(mock));
     }
 
-    // Cookie 补充通道（显式 opt-in；知情同意已在 login 时完成）
+    build_channel_provider(cli)
+}
+
+/// 按通道选择构建 Provider（open/cookie/auto；跨平台，同步与挂载共用）。
+///
+/// - `cookie`：仅补充通道（显式 opt-in；知情同意已在 login 时完成）；
+/// - `auto`（默认）：官方为主，Cookie 兜底——官方**认证失效**时无感
+///   切换（tracing::warn 可见 + `last_switch` 供 UI 常驻提示）；
+/// - `open`：仅官方。
+fn build_channel_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
     if cli.channel == "cookie" {
         tracing::warn!(
-            "使用 Cookie 补充通道（违反 115 服务协议；只读能力，上传未实现）。             失效探测只读不踢线，失效时请重新扫码。"
+            "使用 Cookie 补充通道（违反 115 服务协议）。失效探测只读不踢线，失效时请重新扫码。"
         );
         let policy = cloudmount_auth::cookie::CookiePolicy {
             enabled: true,
@@ -272,7 +284,36 @@ fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
         .app_id
         .clone()
         .ok_or_else(|| anyhow::anyhow!("缺少 AppID：请设置 CLOUDMOUNT_APP_ID 或传 --app-id"))?;
+
+    // auto：官方为主，Cookie 兜底
+    if cli.channel == "auto" {
+        if let Some(cookie) = try_cookie_provider() {
+            let open = build_open_provider(&app_id)?;
+            tracing::info!("双通道路由就绪：官方为主，Cookie 兜底（认证失效时自动切换）");
+            return Ok(Arc::new(cloudmount_driver115::ProviderRouter::new(
+                Box::new(open),
+                Some(Box::new(cookie)),
+            )));
+        }
+    }
+
     build_provider_from_app_id(&app_id)
+}
+
+/// 尝试构造 Cookie 补充通道 Provider（未登录/未启用时 None）。
+///
+/// Cookie 未登录/未启用时返回 None（纯官方通道）。
+/// 路由器语义：官方**认证失效**自动切 Cookie（tracing::warn 可见 +
+/// `last_switch` 供 UI 常驻提示）；Cookie 失效回退官方；频控/网络错误
+/// 不切换。
+fn try_cookie_provider() -> Option<cloudmount_driver115::Cookie115Provider> {
+    let policy = cloudmount_auth::cookie::CookiePolicy {
+        enabled: true,
+        consent_acknowledged: true,
+    };
+    let store = cloudmount_auth::store::default_store().ok()?;
+    let auth = CookieAuth::new(policy, store);
+    cloudmount_driver115::Cookie115Provider::try_new(policy, auth).ok()
 }
 
 /// 服务模式引擎循环（阻塞直到 SCM 停止；仅 Windows 服务模式）。
@@ -325,17 +366,7 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
     }
 
     // ---- 同步模式（默认）----
-    let app_id = cli.app_id.clone().ok_or_else(|| {
-        anyhow::anyhow!(
-            "缺少 AppID：请设置 CLOUDMOUNT_APP_ID 或传 --app-id（申请入口 https://open.115.com/）"
-        )
-    })?;
-    let store = cloudmount_auth::store::default_store()?;
-    let auth = Arc::new(OpenApiAuth::new(app_id, store));
-    if !auth.is_logged_in() {
-        anyhow::bail!("未登录：请先执行 `cloudmount login` 完成扫码授权");
-    }
-    let provider: Arc<dyn Provider> = Arc::new(Open115Provider::new(auth));
+    let provider = build_channel_provider(&cli)?;
 
     let mut cfg = SyncEngineConfig::new(&sync_root);
     cfg.remote_root = RemoteId(cli.remote_root.clone());

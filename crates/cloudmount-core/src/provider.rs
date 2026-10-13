@@ -23,6 +23,7 @@ pub struct UploadResult {
 }
 
 /// 上传数据来源。小文件可直接给内存缓冲，大文件给文件路径以支持分片。
+#[derive(Clone)]
 pub enum UploadSource<'a> {
     /// 内存缓冲。
     Bytes(&'a [u8]),
