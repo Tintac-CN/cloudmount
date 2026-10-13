@@ -12,7 +12,7 @@
 # 登录（交互式，一次性）：
 #   docker run -it --rm -e CLOUDMOUNT_APP_ID=xxx tintac/cloudmount:latest cloudmount login
 
-# ---- 静态产物层（buildx 会按目标架构选择对应阶段）----
+# ---- 静态产物层（每架构一个）----
 FROM scratch AS binary-amd64
 COPY target/x86_64-unknown-linux-musl/release/cloudmountd /out/cloudmountd
 COPY target/x86_64-unknown-linux-musl/release/cloudmount /out/cloudmount
@@ -21,12 +21,16 @@ FROM scratch AS binary-arm64
 COPY target/aarch64-unknown-linux-musl/release/cloudmountd /out/cloudmountd
 COPY target/aarch64-unknown-linux-musl/release/cloudmount /out/cloudmount
 
+# ---- 架构选择层 ----
+# buildx 不支持 COPY --from=${VAR} 的变量展开；ARG 在 FROM 中是支持的
+# ——经此中间阶段间接选择产物层。
+ARG TARGETARCH
+FROM binary-${TARGETARCH} AS binaries
+
 # ---- 运行层 ----
 FROM alpine:3.20
-# TARGETARCH：amd64 / arm64（buildx 注入）——选择对应产物层
-ARG TARGETARCH
-COPY --from=binary-${TARGETARCH} /out/cloudmountd /usr/local/bin/cloudmountd
-COPY --from=binary-${TARGETARCH} /out/cloudmount /usr/local/bin/cloudmount
+COPY --from=binaries /out/cloudmountd /usr/local/bin/cloudmountd
+COPY --from=binaries /out/cloudmount /usr/local/bin/cloudmount
 COPY web-ui/dist /opt/cloudmount/web-ui
 
 # ca-certificates：HTTPS 通道；tzdata：时间戳
