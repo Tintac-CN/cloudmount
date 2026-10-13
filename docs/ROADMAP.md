@@ -179,7 +179,9 @@
       （16,330 条/秒）**——CfCreatePlaceholders 每父目录一次内核批量
       调用已足够，无需优化。
 - [ ] macOS File Provider 扩展（Swift 薄桥 + core staticlib）
-- [ ] 并发水合（多文件同时读取的并行 FETCH_DATA）
+- [x] **并发水合（2026-10-13，0fb1c4e）**：CDN 限速与 API 拆分
+      （8 并发流）——原共用 1 r/s 限速器把多文件读取串行化；
+      实测 4 并行下载 0.31s（修复前 ≥ 3s）。
 
 ## 长期 · 自研 Windows minifilter（drivers/win）
 
