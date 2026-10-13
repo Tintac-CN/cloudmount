@@ -8,6 +8,13 @@ repository = "https://github.com/zhonghaoxi/cloudmount"
 
 # 独立项目：不参与 cloudmount workspace（已在根 Cargo.toml exclude）。
 
+[features]
+# 生产构建走内嵌 frontendDist 资产；缺此 feature 时 WebView 会转而加载
+# devUrl（localhost:5173）→ 裸 cargo build --release 的 exe 启动即
+# ERR_CONNECTION_REFUSED。cargo tauri build 会自动传该 feature。
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

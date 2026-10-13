@@ -24,7 +24,12 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{Manager, WindowEvent};
 
 /// 命令面与引擎线程共享的状态快照。
+///
+/// 序列化为 camelCase——与 web-ui `src/api.ts` 的 `StatusInfo` 契约对齐
+/// （snake_case 会让前端读到 undefined：队列显示 ↑undefined、
+/// lastMessage 静默丢失）。
 #[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatusSnapshot {
     pub version: String,
     pub logged_in: bool,
