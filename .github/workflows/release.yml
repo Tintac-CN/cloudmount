@@ -174,7 +174,7 @@ jobs:
       - name: 导出 digest
         run: |
           mkdir -p /tmp/digests
-          digest="${{ fromJSON(steps.build.outputs.metadata).imageJSON.digest }}"
+          digest="${{ steps.build.outputs.digest }}"
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: 上传 digest（供合并清单）
