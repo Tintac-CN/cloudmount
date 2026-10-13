@@ -135,8 +135,15 @@
 
 ## M3 · Cookie 补充通道（2–3 周）
 
-- [ ] 扫码换 Cookie（独立加密容器）+ 知情同意流程（默认关闭）
-- [ ] 只读失效探测（不踢下线）+ 自动回退官方通道
+- [x] **M3 v1（2026-10-13）：扫码换 Cookie + 只读驱动**——扫码登录
+      （qrcodeapi token → 短轮询 → passportapi 换 Cookie，真实 API 实测）；
+      独立容器存储（与官方 token 物理隔离）；知情同意流程
+      （login --with-cookie-channel，四条风险逐项列出）；只读失效探测
+      （my.115.com status 不踢线）；m115 协议加密（下载直链必需，
+      移植 115driver）；list/stat/open_range/quota 只读能力；
+      `cloudmountd --channel cookie` 挂载读取**不等 AppID 即可用**。
+- [ ] M3 v2：上传（秒传 + OSS 直传）+ 写操作
+- [ ] 自动回退官方通道（ProviderRouter 接线）
 - [ ] Cookie 独有能力：分享/转存/批量操作（二级入口 + 常驻风险提示）
 - **验收**：拔掉官方 token 能无感切到 Cookie 并回退；无静默行为
 
