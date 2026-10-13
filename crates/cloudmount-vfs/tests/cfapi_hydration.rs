@@ -61,6 +61,50 @@ fn platform_check_or_skip() {
     }
 }
 
+/// **万级目录投影基准**（真机）：10,000 文件 + 100 目录的投影耗时。
+///
+/// CfCreatePlaceholders 单次调用可带任意数量条目（内核批量建占位符），
+/// 每父目录一次调用。基准断言 < 30s（CI 慢机器余量；本机实测见输出）。
+#[test]
+fn project_10k_entries_benchmark() {
+    if !cfapi::platform_available() {
+        return;
+    }
+    let Some(root) = setup_or_skip("bench-10k") else {
+        return;
+    };
+
+    // 构造 100 目录 × 100 文件
+    let mut specs: Vec<cfapi::PlaceholderSpec> = Vec::with_capacity(10_100);
+    for d in 0..100 {
+        specs.push(cfapi::PlaceholderSpec::dir(
+            format!("d{d:03}"),
+            1_700_000_000,
+        ));
+        for f in 0..100 {
+            specs.push(cfapi::PlaceholderSpec::file(
+                format!("d{d:03}/f{f:03}.dat"),
+                1024,
+                1_700_000_001,
+            ));
+        }
+    }
+    let start = std::time::Instant::now();
+    let created = cfapi::create_placeholders_ordered(&root, &specs).expect("万级投影");
+    let elapsed = start.elapsed();
+    eprintln!(
+        "万级投影基准：{} / {} 条目，耗时 {:?}（{:.0} 条/秒）",
+        created,
+        specs.len(),
+        elapsed,
+        specs.len() as f64 / elapsed.as_secs_f64()
+    );
+    assert_eq!(created, 10_100, "全部条目应创建");
+    assert!(elapsed.as_secs() < 30, "万级投影应 < 30s，实际 {elapsed:?}");
+
+    cleanup(&root);
+}
+
 #[test]
 fn register_unregister_roundtrip() {
     if !cfapi::platform_available() {

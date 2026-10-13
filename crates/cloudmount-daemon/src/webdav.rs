@@ -641,6 +641,8 @@ pub async fn serve(
     web_ui_dir: Option<PathBuf>,
     tls: Option<TlsConfig>,
 ) -> anyhow::Result<()> {
+    // 网关状态（/api/* 数据源；与 Tauri 壳的 StatusSnapshot 同构）
+    let gateway = Arc::new(GatewayState::new(provider.clone()));
     let addr: std::net::SocketAddr = listen
         .parse()
         .map_err(|e| anyhow::anyhow!("监听地址不合法 {listen}: {e}"))?;
@@ -661,12 +663,16 @@ pub async fn serve(
         let dav = dav.clone();
         let ui_dir = ui_dir.clone();
         let auth = auth.clone();
+        let gateway = gateway.clone();
         hyper::service::service_fn(move |req: hyper::Request<hyper::Body>| {
             let dav = dav.clone();
             let ui_dir = ui_dir.clone();
             let auth = auth.clone();
+            let gateway = gateway.clone();
             async move {
-                Ok::<_, std::convert::Infallible>(handle_request(req, dav, ui_dir, auth).await)
+                Ok::<_, std::convert::Infallible>(
+                    handle_request(req, dav, ui_dir, auth, gateway).await,
+                )
             }
         })
     };
@@ -763,6 +769,7 @@ async fn handle_request(
     dav: Arc<DavHandler>,
     ui_dir: Option<Arc<PathBuf>>,
     auth: Option<(String, String)>,
+    gateway: Arc<GatewayState>,
 ) -> hyper::Response<hyper::Body> {
     // Basic 认证
     if let Some((user, pass)) = &auth {
@@ -790,6 +797,10 @@ async fn handle_request(
     }
 
     let path = req.uri().path().to_string();
+    // /api/*：web-ui 的 REST 面（与 Tauri 命令同名）
+    if path == "/api" || path.starts_with("/api/") {
+        return handle_api(req, gateway).await;
+    }
     if path == "/dav" || path.starts_with("/dav/") {
         let resp = dav.handle(req).await;
         let (parts, body) = resp.into_parts();
@@ -805,6 +816,105 @@ async fn handle_request(
                 "CloudMount 边缘网关。WebDAV 出口: /dav/（web-ui 未配置）",
             ))
             .unwrap(),
+    }
+}
+
+/// 网关状态（/api/* 数据源）。
+///
+/// 与 Tauri 壳的 AppState 同构：provider 直查（quota）、暂停标志、
+/// 日志环形缓冲。边缘模式无本地引擎（WebDAV 直通 Provider），
+/// 缓存统计返回"不可用"占位（v2 接入边缘缓存后填充）。
+struct GatewayState {
+    provider: Arc<dyn Provider>,
+    paused: std::sync::atomic::AtomicBool,
+    logs: Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+impl GatewayState {
+    fn new(provider: Arc<dyn Provider>) -> Self {
+        Self {
+            provider,
+            paused: std::sync::atomic::AtomicBool::new(false),
+            logs: Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+}
+
+/// `/api/*` 处理（与 Tauri 命令同名同参；POST JSON）。
+async fn handle_api(
+    req: hyper::Request<hyper::Body>,
+    gateway: Arc<GatewayState>,
+) -> hyper::Response<hyper::Body> {
+    use std::sync::atomic::Ordering;
+    let path = req.uri().path().trim_start_matches("/api/").to_string();
+    let method = req.method().as_str().to_string();
+    let json = |v: serde_json::Value| {
+        hyper::Response::builder()
+            .status(200)
+            .header("Content-Type", "application/json")
+            .body(hyper::Body::from(v.to_string()))
+            .unwrap()
+    };
+    let err = |msg: &str, code: u16| {
+        hyper::Response::builder()
+            .status(code)
+            .header("Content-Type", "application/json")
+            .body(hyper::Body::from(
+                serde_json::json!({ "error": msg }).to_string(),
+            ))
+            .unwrap()
+    };
+
+    // 读请求体（set_sync_root 的 {path}）
+    let body = hyper::body::to_bytes(req.into_body())
+        .await
+        .unwrap_or_default();
+    let _args: serde_json::Value = serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null);
+
+    match (method.as_str(), path.as_str()) {
+        ("POST", "get_status") => json(serde_json::json!({
+            "version": cloudmount_core::VERSION,
+            "loggedIn": true,
+            "syncing": true,
+            "paused": gateway.paused.load(Ordering::SeqCst),
+            "pendingUploads": 0,
+            "pendingDownloads": 0,
+            "conflicts": 0,
+            "errors": 0,
+            "lastMessage": "边缘网关模式（WebDAV 直通）",
+            "totalUploaded": 0,
+            "totalDownloads": 0,
+        })),
+        ("POST", "get_cache_stats") => {
+            // 边缘模式无本地内容缓存（WebDAV 直通）——占位
+            err("边缘网关模式无本地缓存统计", 501)
+        }
+        ("POST", "clear_cache") => err("边缘网关模式无本地缓存", 501),
+        ("POST", "get_quota") => {
+            let provider = gateway.provider.clone();
+            match tokio::task::spawn_blocking(move || provider.quota()).await {
+                Ok(Ok(q)) => json(serde_json::json!({
+                    "total": q.total, "used": q.used, "remaining": q.remaining,
+                })),
+                Ok(Err(e)) => err(&format!("{e}"), 500),
+                Err(e) => err(&format!("{e}"), 500),
+            }
+        }
+        ("POST", "toggle_pause") => {
+            // 边缘模式暂停 = 拒绝写操作（v2：WebDAV 只读切换）
+            let was = gateway.paused.fetch_xor(true, Ordering::SeqCst);
+            json(serde_json::json!(!was))
+        }
+        ("POST", "set_sync_root") => {
+            // 边缘模式无本地同步根（WebDAV 直通云端）
+            err("边缘网关模式无本地同步根", 501)
+        }
+        ("POST", "open_sync_folder") => err("边缘网关模式无本地目录", 501),
+        ("POST", "export_logs") => {
+            let logs = gateway.logs.lock().map(|v| v.clone()).unwrap_or_default();
+            json(serde_json::json!(logs))
+        }
+        _ => err("未知 API", 404),
     }
 }
 

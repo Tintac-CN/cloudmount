@@ -233,6 +233,58 @@ async fn request_auth(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn api_endpoints_respond() {
+    let remote = Arc::new(MockRemote::new());
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let provider: Arc<dyn cloudmount_core::Provider> = remote.clone();
+    let listen = format!("127.0.0.1:{port}");
+    tokio::spawn(async move {
+        webdav::serve(provider, &listen, None, None, None)
+            .await
+            .ok();
+    });
+    for _ in 0..50 {
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    // get_status：JSON 契约（camelCase）
+    let (status, body) = request(port, "POST", "/api/get_status", Some(Vec::new())).await;
+    assert_eq!(status, 200);
+    let text = String::from_utf8_lossy(&body).to_string();
+    assert!(text.contains("\"version\""), "应含 version: {text}");
+    assert!(text.contains("\"lastMessage\""), "camelCase 契约: {text}");
+    assert!(text.contains("\"paused\":false"), "paused 字段: {text}");
+
+    // get_quota：MockRemote 的配额
+    let (status, body) = request(port, "POST", "/api/get_quota", Some(Vec::new())).await;
+    assert_eq!(status, 200);
+    let text = String::from_utf8_lossy(&body).to_string();
+    assert!(text.contains("\"total\""), "配额字段: {text}");
+
+    // toggle_pause：切换
+    let (status, body) = request(port, "POST", "/api/toggle_pause", Some(Vec::new())).await;
+    assert_eq!(status, 200);
+    assert_eq!(String::from_utf8_lossy(&body), "true");
+
+    // 未知 API：404
+    let (status, _) = request(port, "POST", "/api/no_such", Some(Vec::new())).await;
+    assert_eq!(status, 404);
+
+    // export_logs：JSON 数组
+    let (status, body) = request(port, "POST", "/api/export_logs", Some(Vec::new())).await;
+    assert_eq!(status, 200);
+    assert!(
+        String::from_utf8_lossy(&body).starts_with("["),
+        "日志应为数组"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn web_ui_static_serving() {
     // 临时 web-ui 目录
     let dir = std::env::temp_dir().join(format!("cm-webui-test-{}", std::process::id()));

@@ -128,6 +128,16 @@ impl SyncEngine {
     }
 
     /// 最近一轮统计。
+    /// Provider 引用（命令面查询 quota 等）。
+    pub fn provider(&self) -> &Arc<dyn Provider> {
+        &self.provider
+    }
+
+    /// 缓存引用（命令面统计/清理）。
+    pub fn cache(&self) -> &BlockCache {
+        &self.cache
+    }
+
     pub fn last_stats(&self) -> &SyncStats {
         &self.last_stats
     }

@@ -23,6 +23,7 @@
 //!   避免下轮被误判为"本地已改"。
 
 pub mod cache;
+pub use cache::CacheStats;
 pub mod engine;
 pub mod exclude;
 pub mod exec;

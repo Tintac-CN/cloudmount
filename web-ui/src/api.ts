@@ -17,11 +17,52 @@ export interface StatusInfo {
   conflicts: number;
   errors: number;
   lastMessage: string;
+  /** 累计上传（引擎线程累加）。 */
+  totalUploaded?: number;
+  /** 累计下载。 */
+  totalDownloads?: number;
+}
+
+/** 内容块缓存统计。 */
+export interface CacheInfo {
+  bytes: number;
+  limitBytes: number;
+  hits: number;
+  misses: number;
+  inserts: number;
+  evictions: number;
+}
+
+/** 云端配额。 */
+export interface QuotaInfo {
+  total: number;
+  used: number;
+  remaining: number;
 }
 
 /** 查询同步与账号状态（托盘/主界面共用）。 */
 export function getStatus(): Promise<StatusInfo> {
   return call<StatusInfo>("get_status");
+}
+
+/** 缓存统计（占用/命中率/写入/淘汰）。 */
+export function getCacheStats(): Promise<CacheInfo> {
+  return call<CacheInfo>("get_cache_stats");
+}
+
+/** 清空内容缓存（一键清理；元数据不受影响）。 */
+export function clearCache(): Promise<void> {
+  return call("clear_cache");
+}
+
+/** 云端配额。 */
+export function getQuota(): Promise<QuotaInfo> {
+  return call<QuotaInfo>("get_quota");
+}
+
+/** 导出最近日志（行数组）。 */
+export function exportLogs(): Promise<string[]> {
+  return call<string[]>("export_logs");
 }
 
 /** 设置同步根目录（设置页）。 */
@@ -31,7 +72,7 @@ export function setSyncRoot(path: string): Promise<void> {
 
 /** 暂停/恢复同步（返回新状态：true = 已暂停）。 */
 export function togglePause(): Promise<boolean> {
-  return call("toggle_pause");
+  return call<boolean>("toggle_pause");
 }
 
 /** 打开同步目录（资源管理器）。 */
