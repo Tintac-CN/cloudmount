@@ -22,7 +22,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+      # release 干净构建（同 docker job 注释）
       - uses: taiki-e/install-action@cross
       - name: 交叉编译
         run: |
@@ -133,12 +133,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+      # release 干净构建：不用 rust-cache（缓存恢复的宿主构建脚本曾在
+      # cross 容器里 glibc 不兼容连坐失败）
       - uses: taiki-e/install-action@cross
       - name: 交叉编译静态产物
         run: |
           cross build -p cloudmount-daemon -p cloudmount-cli \
             --target ${{ matrix.target }} --release
+      # web-ui 静态资产（Dockerfile COPY web-ui/dist）
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-ui/package-lock.json
+      - name: 构建 web-ui
+        run: cd web-ui && (npm ci || npm install) && npm run build
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
