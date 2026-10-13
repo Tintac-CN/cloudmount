@@ -23,7 +23,7 @@ authors = ["zhonghaoxi"]
 
 [workspace.dependencies]
 # --- async runtime: 默认 current_thread 省内存 ---
-tokio = { version = "1.47", default-features = false, features = ["rt", "macros", "sync", "time", "fs", "io-util"] }
+tokio = { version = "1.47", default-features = false, features = ["rt", "macros", "sync", "time", "fs", "io-util", "net", "rt-multi-thread"] }
 # --- HTTP: 核心传输层用同步 ureq，依赖最浅（表单用 form-urlencoded） ---
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 # --- TLS: 纯 Rust，ARM 交叉编译友好 ---

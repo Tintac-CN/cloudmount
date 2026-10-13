@@ -292,9 +292,10 @@ impl Provider for MockRemote {
             .nodes
             .get(&id.0)
             .ok_or_else(|| Error::NotFound(id.0.clone()))?;
+        // 钳制到文件长度（调用方可能传 u64::MAX 表示"读到尾"）
         let end = range
             .end
-            .map(|e| (e as usize + 1).min(n.data.len()))
+            .map(|e| (e.min(n.data.len() as u64) as usize + 1).min(n.data.len()))
             .unwrap_or(n.data.len());
         let start = (range.start as usize).min(end);
         Ok(Box::new(std::io::Cursor::new(n.data[start..end].to_vec())))

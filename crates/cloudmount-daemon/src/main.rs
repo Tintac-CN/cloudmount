@@ -103,6 +103,22 @@ struct Cli {
     #[arg(long)]
     mock: bool,
 
+    /// [M4] 边缘网关模式：WebDAV 出口（/dav/）+ web-ui 静态托管。
+    #[arg(long)]
+    serve: bool,
+
+    /// [serve] 监听地址。
+    #[arg(long, default_value = "127.0.0.1:8384")]
+    listen: String,
+
+    /// [serve] HTTP Basic 认证（"user:pass"；缺省无认证，仅建议内网）。
+    #[arg(long)]
+    auth: Option<String>,
+
+    /// [serve] web-ui 静态目录（缺省不托管 UI）。
+    #[arg(long)]
+    web_ui_dir: Option<std::path::PathBuf>,
+
     /// [仅 Windows] 服务管理子命令（install/start/stop/uninstall/run）。
     #[cfg(windows)]
     #[command(subcommand)]
@@ -266,6 +282,20 @@ fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
 ///   切换（tracing::warn 可见 + `last_switch` 供 UI 常驻提示）；
 /// - `open`：仅官方。
 fn build_channel_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
+    // mock 通道（自检/演示；与占位符挂载模式同一套示例数据）
+    #[cfg(feature = "mock")]
+    if cli.mock {
+        tracing::warn!("使用 MockRemote 云端（演示/自检；内容为内置示例）");
+        let mock = cloudmount_sync::testutil::MockRemote::new();
+        mock.put_file(
+            "welcome.txt",
+            b"Welcome to CloudMount! This file is hydrated on demand.",
+        );
+        mock.put_dir("docs");
+        mock.put_file("docs/demo.txt", b"Nested placeholder hydration works.");
+        return Ok(Arc::new(mock));
+    }
+
     if cli.channel == "cookie" {
         tracing::warn!(
             "使用 Cookie 补充通道（违反 115 服务协议）。失效探测只读不踢线，失效时请重新扫码。"
@@ -356,6 +386,22 @@ fn run_service_engine_blocking(
 }
 
 async fn async_main(cli: Cli) -> anyhow::Result<()> {
+    // 边缘网关模式（M4）：WebDAV 出口 + web-ui 托管（不需要本地同步根）
+    if cli.serve {
+        let provider = build_channel_provider(&cli)?;
+        let auth = cli.auth.as_deref().and_then(|s| {
+            s.split_once(':')
+                .map(|(u, p)| (u.to_string(), p.to_string()))
+        });
+        return cloudmount_daemon::webdav::serve(
+            provider,
+            &cli.listen,
+            auth,
+            cli.web_ui_dir.clone(),
+        )
+        .await;
+    }
+
     let sync_root = cli.sync_root.clone().ok_or_else(|| {
         anyhow::anyhow!("缺少本地同步根目录：请设置 CLOUDMOUNT_SYNC_ROOT 或传 --sync-root")
     })?;

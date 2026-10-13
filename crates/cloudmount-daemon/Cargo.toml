@@ -15,6 +15,12 @@ path = "src/main.rs"
 mock = ["cloudmount-sync/testutil"]
 
 [dependencies]
+# WebDAV 出口（M4 边缘网关；hyper 为承载 HTTP 服务）
+dav-server = "0.5"
+hyper = { version = "0.14", features = ["http1", "server", "runtime", "stream", "client"] }
+futures-util = "0.3"
+bytes = "1"
+base64.workspace = true
 cloudmount-core = { path = "../cloudmount-core" }
 cloudmount-vfs = { path = "../cloudmount-vfs" }
 cloudmount-auth = { path = "../cloudmount-auth" }
@@ -30,3 +36,6 @@ serde_json.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.7"
+
+[dev-dependencies]
+cloudmount-sync = { path = "../cloudmount-sync", features = ["testutil"] }
