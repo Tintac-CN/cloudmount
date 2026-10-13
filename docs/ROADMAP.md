@@ -171,9 +171,15 @@
 
 ## M5 · 打磨（持续）
 
-- 缓存可视化（占用/命中率/一键清理）、设置页、日志导出
-- macOS File Provider 扩展（Swift 薄桥 + core staticlib）
-- 性能：万级文件目录投影、并发水合
+- [x] **缓存可视化/设置页/日志导出（2026-10-13，42ab2c9）**：web-ui
+      完整化（标签页 + 占用/命中率进度条 + 一键清理 + 日志 Blob 导出，
+      零框架 2.48KB gzip）；Tauri 壳 8 命令（引擎 Arc 共享 + 日志环形
+      缓冲）；daemon serve /api/* REST 同名同参（同一 UI 双宿主）。
+- [x] **万级投影基准（2026-10-13 真机）**：10,100 条目 **618ms
+      （16,330 条/秒）**——CfCreatePlaceholders 每父目录一次内核批量
+      调用已足够，无需优化。
+- [ ] macOS File Provider 扩展（Swift 薄桥 + core staticlib）
+- [ ] 并发水合（多文件同时读取的并行 FETCH_DATA）
 
 ## 长期 · 自研 Windows minifilter（drivers/win）
 
