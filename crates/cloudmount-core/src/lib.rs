@@ -10,6 +10,7 @@
 //!   同一个 [`Provider`] trait，上层同步引擎与 VFS 无感知。
 //! - **极简依赖**：只依赖 serde / thiserror / time / tracing，保持轻量。
 
+pub mod config;
 pub mod envelope;
 pub mod error;
 pub mod paths;

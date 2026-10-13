@@ -2,23 +2,92 @@
 
 > 把 115 网盘变成你所有设备上的"同步盘"—— OneDrive 式体验、Rust 极致轻量、全开源。
 >
-> **状态：M0 + M1 实现完成**（114 个测试通过，CI 三平台绿）。
-> - **M0**：官方 OpenAPI 全链路 —— 扫码登录 / 列目录 / 秒传上传 / Range 下载 / 配额
-> - **M1**：双向同步引擎 —— SQLite 快照、三向对比、冲突保留两者、队列重试退避、
->   块缓存、`cloudmountd` 常驻服务；端到端由内存 Mock 远端覆盖验证
->
-> 待 115 开放平台 AppID 审核通过后即可端到端实测真实网盘；
-> 里程碑见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> **状态：v0.1.0 已发布**（M0–M5 完成，真实 115 端到端验证通过）。
+
+## 安装
+
+| 平台 | 方式 |
+|---|---|
+| Linux（x64/arm64） | [Release](https://github.com/Tintac-CN/cloudmount/releases) 下载 tarball（静态 musl 二进制 + systemd unit） |
+| Windows | Release 下载 zip（`cloudmountd.exe` + `cloudmount.exe`） |
+| Docker（多架构） | `docker pull ghcr.io/tintac-cn/cloudmount:v0.1.0` |
+
+## 快速开始
+
+### 1. 登录（三选一）
+
+```bash
+# 官方 OpenAPI（推荐；AppID 申请 https://open.115.com/ ）
+cloudmount login
+
+# Cookie 补充通道（无需 AppID；扫码 + 知情确认）
+cloudmount login --with-cookie-channel
+
+# 浏览器 Cookie 直接注入（F12 → 应用 → Cookie 复制）
+cloudmount login --cookie "UID=..;CID=..;SEID=..;KID=.."
+```
+
+### 2. Windows：OneDrive 式占位符挂载
+
+```powershell
+cloudmountd --placeholder-mount --sync-root D:\Cloud
+# 资源管理器出现"CloudMount 云挂"（与 OneDrive 并排）：
+#   - 文件显示为占位符（不占磁盘），双击按需从云端拉取
+#   - 状态列："在此设备上可用" / "联机时可用"
+#   - 右键："释放空间"、"始终保留在此设备上"
+```
+
+### 3. Linux / NAS / 树莓派：WebDAV 边缘网关
+
+```bash
+cloudmountd --serve --listen 0.0.0.0:8384 --auth user:pass
+# 局域网设备挂载 http://<ip>:8384/dav/（资源管理器/Finder/davfs/rclone）
+# 浏览器打开 http://<ip>:8384/ 进入管理页（状态/缓存/设置/日志）
+```
+
+Docker 一条命令：
+
+```bash
+docker run -d -p 8384:8384 -v cm-data:/var/lib/cloudmount \
+  ghcr.io/tintac-cn/cloudmount:v0.1.0 \
+  --serve --listen 0.0.0.0:8384 --auth user:pass
+```
+
+### 4. 配置文件（可选——所有参数都有合理默认）
+
+```
+%APPDATA%\cloudmount\config.toml（Windows）
+~/.local/share/cloudmount/config.toml（Linux）
+```
+
+```toml
+app_id = "你的AppID"          # 官方通道
+sync_root = "D:\\Cloud"        # 同步根
+channel = "auto"               # auto（官方+Cookie兜底）/ open / cookie
+listen = "0.0.0.0:8384"        # serve 监听
+
+[serve]
+auth = "user:pass"             # WebDAV Basic 认证
+# tls_cert = "/path/cert.pem"  # HTTPS（与 tls_key 成对）
+# tls_key = "/path/key.pem"
+
+[sync]
+propagate_remote_deletes = false   # 安全默认：删除不传播
+propagate_local_deletes = false
+```
+
+优先级：CLI flag > 环境变量 > 配置文件 > 内置默认。
 
 ## 是什么
 
-- **Windows**：把 115 挂成"类 OneDrive"的同步盘 —— 占位符、按需下载、
-  资源管理器状态图标、"始终保留/释放空间"。
-- **macOS**：File Provider 扩展（Apple 官方云盘机制，Finder 原生体验）。*计划*
-- **Linux / 边缘设备**：FUSE 挂载 + WebDAV 出口，NAS/树莓派（512MB 内存）可跑。
-- **一套前端**：桌面壳（Tauri）与边缘网关（浏览器）共用同一个 Web UI。
-- **双通道登录**：115 官方 OpenAPI 为主（合规稳定）；Cookie 通道为**默认关闭**的
-  兜底补充（见[风险声明](#cookie-通道风险声明)）。
+- **Windows**：CfAPI 占位符挂载——按需下载、资源管理器状态图标、
+  "始终保留/释放空间"右键动词（真机验证：与 OneDrive 行为一致）
+- **Linux / 边缘设备**：WebDAV 出口 + web-ui 管理页，512MB 内存设备可跑
+  （空闲 RSS 10–20MB；musl 静态二进制 4MB）
+- **双通道**：官方 OpenAPI 为主；Cookie 通道为默认关闭的兜底（自动降级，
+  见[风险声明](#cookie-通道风险声明)）
+- **一套前端**：桌面壳（Tauri 2）与边缘网关共用同一个 web-ui（零框架 2.5KB gzip）
+- **全开源** AGPL-3.0
 
 ## 架构一图
 
@@ -27,11 +96,11 @@
 │  UI：web-ui（共享 SPA）→ Tauri 桌面壳 / 边缘浏览器管理页      │
 ├────────────────────────────────────────────────────────────┤
 │  挂载后端（cloudmount-vfs::MountBackend，可插拔）             │
-│   Windows: CfAPI(M2) → 自研 minifilter(长期)                 │
-│   macOS: FileProvider *计划*   Linux/边缘: FUSE + WebDAV     │
+│   Windows: CfAPI ✅ → 自研 minifilter(长期)                 │
+│   macOS: FileProvider *计划*   Linux/边缘: WebDAV ✅        │
 ├────────────────────────────────────────────────────────────┤
-│  同步引擎（Rust）：USN/FSEvents/inotify 本地监控             │
-│   + usertime 轮询远端 + 队列/限速/冲突处理                    │
+│  同步引擎（Rust）：RDC/FSEvents/inotify 本地监控             │
+│   + usertime 轮询远端 + 队列/限速/冲突处理 + .git 防护       │
 ├────────────────────────────────────────────────────────────┤
 │  驱动（cloudmount-driver115）：官方 OpenAPI 主通道           │
 │   + Cookie 兜底通道（默认关）+ ProviderRouter 自动降级        │
@@ -41,83 +110,71 @@
 └────────────────────────────────────────────────────────────┘
 ```
 
-详细设计：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ｜
-完整探索过程：[docs/design/](docs/design/)
+## 性能（真机实测）
+
+| 指标 | 值 |
+|---|---|
+| 万级目录投影（10,100 条目） | 618ms（16,330 条/秒） |
+| 并发水合（4 文件并行下载） | CDN 8 并发流（原 1 r/s 串行） |
+| 空闲内存（边缘网关） | 10–20MB RSS |
+| 静态二进制 | ~4MB（musl） |
 
 ## 仓库结构
 
 ```
 crates/
-  cloudmount-core        核心抽象：Provider trait / 类型 / 错误 / 同步状态机
-  cloudmount-vfs         挂载层抽象：占位符语义 + MountBackend 可插拔接口
-  cloudmount-auth        认证：官方 PKCE + Cookie 通道（带合规边界）+ 凭据存储
-  cloudmount-driver115   115 驱动：官方 OpenAPI / Cookie / 路由降级
-  cloudmount-cli         CLI（M0 验证工具）：login/ls/upload/download/quota
-  cloudmount-daemon      cloudmountd 常驻服务：同步引擎 + WebDAV 边缘出口
-apps/
-  desktop                Tauri 2 桌面壳（三端共用，托盘 + 平台挂载集成）
-  shell-macos            macOS File Provider 扩展（占位，计划）
-drivers/win             自研 Windows minifilter（长期目标，设计文档就绪）
-web-ui/                  共享前端 SPA（Tauri 与边缘 Web 复用，零框架）
-edge/                   边缘部署（Docker / systemd / 低内存预设）
-docs/                   架构、路线图、设计探索记录
+  cloudmount-core        Provider trait / 类型 / 错误 / 配置(TOML)
+  cloudmount-vfs         挂载层：CfAPI 后端 + WebDAV 出口
+  cloudmount-auth        PKCE 官方登录 + Cookie 通道 + 凭据存储
+  cloudmount-driver115   官方 OpenAPI / Cookie / 路由降级
+  cloudmount-sync        同步引擎（快照/三向对比/队列/缓存/.git 防护）
+  cloudmount-cli         CLI：login/ls/upload/download/quota/dehydrate
+  cloudmount-daemon      cloudmountd：同步/挂载/serve 三模式
+apps/desktop                Tauri 2 桌面壳（托盘 + web-ui）
+drivers/win             自研 minifilter（设计文档就绪，长期目标）
+web-ui/                  共享前端 SPA（零框架）
+packaging/               systemd / Dockerfile / 发布配置
+docs/                    架构、路线图、边缘部署手册
 ```
+
+## 开发者
+
+```bash
+cargo test --workspace               # 214 个测试（Windows）/ 185（Linux）
+cargo clippy --workspace --all-targets -- -D warnings
+cd web-ui && npm run build           # 前端（typecheck + vite）
+
+# 真机 CfAPI 测试（需要本地 NTFS + cldflt；CI 自动跳过）
+cargo test -p cloudmount-vfs
+
+# 桌面壳
+cd apps/desktop && cargo tauri dev
+```
+
+- [架构文档](docs/ARCHITECTURE.md) ｜ [路线图](docs/ROADMAP.md) ｜
+  [边缘部署手册](docs/edge.md) ｜ [设计探索记录](docs/design/)
+- 数据目录：`CLOUDMOUNT_DATA_DIR` 可覆盖（凭据/配置/缓存/元数据）
 
 ## 平台能力矩阵（诚实版）
 
 | 平台 | 机制 | 占位符/按需 | 状态图标 |
 |---|---|---|---|
-| Windows | CfAPI（M2）→ 自研 minifilter（长期） | ✅ | ✅（CfAPI 原生；自研需自建 Shell 扩展） |
-| macOS | File Provider 扩展 | ✅ | ✅ |
-| Linux/边缘 | FUSE + 本地缓存 | ⚠️ 挂载盘 | ❌（平台限制，无占位符机制） |
-| 全平台 | WebDAV 出口 | ⚠️ | ❌ |
-
-## 快速开始（开发者）
-
-```bash
-# 工具链：Rust stable + Node.js 18+
-cargo check --workspace      # 核心 Rust 全部编译通过
-cargo test --workspace       # 34 个单元测试（含 RFC 7636 PKCE 向量、真实报文样本）
-
-# 115 官方 API 全链路（需要开放平台 AppID，https://open.115.com/ ）
-export CLOUDMOUNT_APP_ID=<你的 AppID>
-cargo run -p cloudmount-cli -- login     # 终端二维码，用 115 App 扫码
-cargo run -p cloudmount-cli -- status    # 登录状态
-cargo run -p cloudmount-cli -- ls 0      # 列出根目录
-cargo run -p cloudmount-cli -- quota     # 空间配额
-cargo run -p cloudmount-cli -- upload ./report.pdf --to 0
-cargo run -p cloudmount-cli -- download <file_id> ./report.pdf
-
-# M1：双向同步服务（无头常驻）
-export CLOUDMOUNT_SYNC_ROOT=/path/to/local/folder
-cargo run -p cloudmount-daemon -- --once        # 只跑一轮，便于验证
-# 或：cloudmountd --interval 30                 # 每 30 秒一轮
-
-# 前端
-cd web-ui && npm install && npm run dev
-
-# 桌面壳（需 tauri-cli）
-cd apps/desktop && cargo tauri dev
-```
-
-凭据存放：Windows 凭据管理器 / macOS Keychain / Linux 下 `<data_dir>/secrets`（0600）。
-数据目录可用 `CLOUDMOUNT_DATA_DIR` 覆盖。
-
-## 路线图
-
-[docs/ROADMAP.md](docs/ROADMAP.md) —— M0 打通 115 官方 API → M1 同步引擎 →
-M2 Windows 挂载 → M3 Cookie 通道 → M4 边缘网关 → M5 打磨 → （长期）自研内核。
+| Windows | CfAPI ✅ → 自研 minifilter（长期） | ✅ | ✅ |
+| macOS | File Provider 扩展 | 计划 | 计划 |
+| Linux/边缘 | WebDAV 出口 ✅ | ⚠️ 挂载盘 | ❌ |
 
 ## 许可
 
 AGPL-3.0-or-later（见 [LICENSE](LICENSE)）。
-自研 Windows 驱动的许可在 KM 阶段单独评估（倾向允许被更广泛项目复用）。
+自研 Windows 驱动的许可在 KM 阶段单独评估。
 
 ## Cookie 通道风险声明
 
 115 官方 OpenAPI 是本项目的主通道与推荐方式。仓库内包含的 Cookie 通道代码
 （`cloudmount-auth::cookie` / `cloudmount-driver115::cookie`）**默认关闭**，
 仅作官方 API 不可用时的兜底。该通道使用 115 网页/客户端协议，**可能违反
-《115 生活用户服务协议》**（3.2.3(4) 非授权接口、4.2(11) 非授权工具、5.4
-反向工程），存在账号被冻结/限速/数据访问受限的风险，并可能导致多端登录互踢。
-启用需用户显式开启并确认知情同意；本项目不做任何主动风控规避。
+《115 生活用户服务协议》**（3.2.3(4) / 4.2(11) / 5.4 条），存在账号冻结、
+限速、多端互踢风险。启用前的知情同意流程会逐条展示这些风险。
+
+若你不同意上述风险，请不要启用该通道——官方 OpenAPI 已覆盖同步盘全部核心
+能力（申请入口 https://open.115.com/ ，个人开发者可申请）。

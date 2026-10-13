@@ -618,7 +618,7 @@ impl Cookie115Provider {
             .header("User-Agent", "aliyun-sdk-android/2.9.1");
         let resp = match source {
             cloudmount_core::provider::UploadSource::Bytes(b) => req
-                .send(b.as_ref())
+                .send(*b)
                 .map_err(|e| Error::Transport(format!("OSS 直传失败: {e}")))?,
             cloudmount_core::provider::UploadSource::Path(p) => {
                 let f = std::fs::File::open(p).map_err(|e| {

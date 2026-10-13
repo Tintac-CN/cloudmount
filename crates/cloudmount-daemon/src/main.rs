@@ -29,7 +29,7 @@
 //! - 发布构建 `opt-level="z" + lto + panic="abort"`。
 
 use anyhow::Context;
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches, Parser};
 use cloudmount_auth::cookie::CookieAuth;
 use cloudmount_auth::open::OpenApiAuth;
 use cloudmount_core::{Provider, RemoteId};
@@ -157,7 +157,14 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let cli = Cli::parse();
+    // 配置文件 → clap 默认值（优先级：CLI flag > 环境变量 > 配置文件 > 内置默认；
+    // clap 的 env 属性天然高于 default，文件值替换 default 即插入正确层级）
+    let file_cfg = cloudmount_core::config::load().unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "配置文件加载失败（回退默认值）");
+        cloudmount_core::config::Config::default()
+    });
+    let cli =
+        Cli::from_arg_matches(&apply_config_defaults(&file_cfg).get_matches()).expect("clap 解析");
 
     // Windows 服务子命令（安装/启停在 SCM 层，无需 tokio）
     #[cfg(windows)]
@@ -189,8 +196,11 @@ fn main() -> anyhow::Result<()> {
                 let provider = build_provider(&cli)?;
                 let mut cfg = SyncEngineConfig::new(&sync_root);
                 cfg.remote_root = RemoteId(cli.remote_root.clone());
-                cfg.policy.propagate_remote_deletes = cli.propagate_remote_deletes;
-                cfg.policy.propagate_local_deletes = cli.propagate_local_deletes;
+                // flag（本次运行显式开启）或文件持久值，任一为真即生效
+                cfg.policy.propagate_remote_deletes =
+                    cli.propagate_remote_deletes || file_cfg.sync.propagate_remote_deletes;
+                cfg.policy.propagate_local_deletes =
+                    cli.propagate_local_deletes || file_cfg.sync.propagate_local_deletes;
                 let interval = cli.interval.max(1);
                 // cfg/provider 会被闭包捕获，先克隆供 SCM 执行体用
                 let cfg_for_closure = cfg.clone();
@@ -221,7 +231,62 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!(version = cloudmount_core::VERSION, "cloudmountd starting");
 
-    rt.block_on(async_main(cli))
+    rt.block_on(async_main(cli, file_cfg))
+}
+
+/// 配置文件值注入 clap 默认值（优先级：CLI > env > 文件 > 内置）。
+///
+/// clap 的 env 属性高于 default_value——把文件值替换 default 即自然插入
+/// "env 之下、内置之上"的层级。布尔安全开关（propagate_*）不走此路径
+/// （flag 无 default 概念），在引擎配置处用 `flag || 文件值` 合并。
+fn apply_config_defaults(cfg: &cloudmount_core::config::Config) -> clap::Command {
+    // mut_arg 闭包要求 'static——全部克隆为 owned 后 move 捕获
+    let mut cmd = Cli::command();
+    if let Some(v) = cfg.app_id.clone() {
+        cmd = cmd.mut_arg("app_id", move |a| a.default_value(v));
+    }
+    if let Some(v) = cfg.sync_root.clone() {
+        cmd = cmd.mut_arg("sync_root", move |a| {
+            a.default_value(std::ffi::OsString::from(v))
+        });
+    }
+    let v = cfg.remote_root.clone();
+    cmd = cmd.mut_arg("remote_root", move |a| {
+        a.default_value(std::ffi::OsString::from(v))
+    });
+    let v = cfg.interval.to_string();
+    cmd = cmd.mut_arg("interval", move |a| {
+        a.default_value(std::ffi::OsString::from(v))
+    });
+    let v = cfg.channel.clone();
+    cmd = cmd.mut_arg("channel", move |a| {
+        a.default_value(std::ffi::OsString::from(v))
+    });
+    let v = cfg.listen.clone();
+    cmd = cmd.mut_arg("listen", move |a| {
+        a.default_value(std::ffi::OsString::from(v))
+    });
+    if let Some(v) = cfg.serve.auth.clone() {
+        cmd = cmd.mut_arg("auth", move |a| {
+            a.default_value(std::ffi::OsString::from(v))
+        });
+    }
+    if let Some(v) = cfg.serve.web_ui_dir.clone() {
+        cmd = cmd.mut_arg("web_ui_dir", move |a| {
+            a.default_value(std::ffi::OsString::from(v))
+        });
+    }
+    if let Some(v) = cfg.serve.tls_cert.clone() {
+        cmd = cmd.mut_arg("tls_cert", move |a| {
+            a.default_value(std::ffi::OsString::from(v))
+        });
+    }
+    if let Some(v) = cfg.serve.tls_key.clone() {
+        cmd = cmd.mut_arg("tls_key", move |a| {
+            a.default_value(std::ffi::OsString::from(v))
+        });
+    }
+    cmd
 }
 
 /// 从 Cli 提取服务启动参数（install 时烘焙进 binPath）。
@@ -393,7 +458,7 @@ fn run_service_engine_blocking(
     }
 }
 
-async fn async_main(cli: Cli) -> anyhow::Result<()> {
+async fn async_main(cli: Cli, file_cfg: cloudmount_core::config::Config) -> anyhow::Result<()> {
     // 边缘网关模式（M4）：WebDAV 出口 + web-ui 托管（不需要本地同步根）
     if cli.serve {
         let provider = build_channel_provider(&cli)?;
@@ -433,8 +498,10 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
 
     let mut cfg = SyncEngineConfig::new(&sync_root);
     cfg.remote_root = RemoteId(cli.remote_root.clone());
-    cfg.policy.propagate_remote_deletes = cli.propagate_remote_deletes;
-    cfg.policy.propagate_local_deletes = cli.propagate_local_deletes;
+    cfg.policy.propagate_remote_deletes =
+        cli.propagate_remote_deletes || file_cfg.sync.propagate_remote_deletes;
+    cfg.policy.propagate_local_deletes =
+        cli.propagate_local_deletes || file_cfg.sync.propagate_local_deletes;
 
     // 同步引擎是阻塞实现：放进专用阻塞线程，避免占用 tokio 工作线程
     let interval = Duration::from_secs(cli.interval.max(1));

@@ -32,6 +32,8 @@ rustls-platform-verifier = "0.7"
 # --- 序列化 ---
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# --- 配置文件（TOML）---
+toml = "0.8"
 # --- 本地元数据 DB ---
 rusqlite = { version = "0.37", features = ["bundled"] }
 # --- 错误 ---
@@ -59,7 +61,7 @@ windows = { version = "0.62", features = [
         "Storage_Search", "Storage_FileProperties", "Foundation",
     ] }
 # --- CLI ---
-clap = { version = "4", features = ["derive", "env"] }
+clap = { version = "4", features = ["derive", "env", "string"] }
 
 [profile.release]
 opt-level = "z"
