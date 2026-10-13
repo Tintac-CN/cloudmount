@@ -607,9 +607,6 @@ fn bidirectional_new_dir_with_files_uploads() {
 
 #[test]
 fn dehydrate_discards_local_data_but_keeps_metadata() {
-    // 说明：dehydrate 在 CfapiMount 上（同模块私有 abs_of），此处经
-    // LocalChangeUploader 不可达；用 mount 的 hydration/元数据断言代替。
-    // 真机行为由 golden 测试的水合反向验证覆盖（M2.5 补 CLI 直测）。
     let remote = MockRemote::new();
     remote.put_file("d.txt", b"xxxx");
     let view = view_of(&remote, &["d.txt"]);
@@ -626,9 +623,33 @@ fn dehydrate_discards_local_data_but_keeps_metadata() {
             panic!("挂载失败: {msg}");
         }
     });
-    // 占位符存在且未水合
-    assert!(mount.hydration_mtime("d.txt").is_none());
-    assert!(root.join("d.txt").exists());
+    std::thread::sleep(Duration::from_millis(200));
+
+    // 水合 → 请求脱水（异步）→ 有界等待完成 → 元数据保留、可再读
+    assert_eq!(std::fs::read(root.join("d.txt")).unwrap(), b"xxxx");
+    mount.dehydrate_rel("d.txt").expect("脱水请求");
+    let dehydrated = wait_for(
+        || {
+            use std::os::windows::fs::MetadataExt;
+            let a = std::fs::metadata(root.join("d.txt"))
+                .map(|m| m.file_attributes())
+                .unwrap_or(0);
+            eprintln!("attrs during wait: {a:#x}");
+            a & 0x0040_0000 != 0
+        },
+        8000,
+    );
+    assert!(dehydrated, "脱水应在数秒内完成（RECALL 属性置位）");
+    assert_eq!(
+        std::fs::metadata(root.join("d.txt")).unwrap().len(),
+        4,
+        "元数据（逻辑大小）应保留"
+    );
+    assert_eq!(
+        std::fs::read(root.join("d.txt")).unwrap(),
+        b"xxxx",
+        "脱水后再读应取回内容（重新水合或缓存命中）"
+    );
     let _ = std::fs::remove_dir_all(&root);
 }
 

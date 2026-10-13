@@ -41,20 +41,23 @@ use std::sync::{Arc, Mutex};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{GENERIC_READ, GENERIC_WRITE};
 use windows::Win32::Storage::CloudFilters::{
-    CfConnectSyncRoot, CfCreatePlaceholders, CfDehydratePlaceholder, CfDisconnectSyncRoot,
-    CfExecute, CfRegisterSyncRoot, CfSetInSyncState, CfUnregisterSyncRoot, CfUpdatePlaceholder,
-    CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS, CF_CALLBACK_REGISTRATION,
+    CfConnectSyncRoot, CfConvertToPlaceholder, CfCreatePlaceholders, CfDisconnectSyncRoot,
+    CfExecute, CfRegisterSyncRoot, CfSetInSyncState, CfSetPinState, CfUnregisterSyncRoot,
+    CfUpdatePlaceholder, CF_CALLBACK_INFO, CF_CALLBACK_PARAMETERS, CF_CALLBACK_REGISTRATION,
     CF_CALLBACK_TYPE_CANCEL_FETCH_DATA, CF_CALLBACK_TYPE_FETCH_DATA, CF_CALLBACK_TYPE_NONE,
-    CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE, CF_CREATE_FLAGS, CF_CREATE_FLAG_NONE,
-    CF_DEHYDRATE_FLAG_NONE, CF_FS_METADATA, CF_HARDLINK_POLICY_NONE, CF_HYDRATION_POLICY,
-    CF_HYDRATION_POLICY_FULL, CF_HYDRATION_POLICY_MODIFIER, CF_INSYNC_POLICY_NONE,
-    CF_IN_SYNC_STATE_IN_SYNC, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
-    CF_OPERATION_PARAMETERS_0_0, CF_OPERATION_TYPE_TRANSFER_DATA, CF_PLACEHOLDER_CREATE_FLAGS,
-    CF_PLACEHOLDER_CREATE_FLAG_DISABLE_ON_DEMAND_POPULATION,
+    CF_CALLBACK_TYPE_NOTIFY_DEHYDRATE, CF_CONNECTION_KEY, CF_CONNECT_FLAG_NONE, CF_CONVERT_FLAGS,
+    CF_CONVERT_FLAG_DEHYDRATE, CF_CONVERT_FLAG_MARK_IN_SYNC, CF_CREATE_FLAGS, CF_CREATE_FLAG_NONE,
+    CF_FS_METADATA, CF_HARDLINK_POLICY_NONE, CF_HYDRATION_POLICY, CF_HYDRATION_POLICY_FULL,
+    CF_HYDRATION_POLICY_MODIFIER, CF_INSYNC_POLICY_NONE, CF_IN_SYNC_STATE_IN_SYNC,
+    CF_OPERATION_ACK_DEHYDRATE_FLAGS, CF_OPERATION_INFO, CF_OPERATION_PARAMETERS,
+    CF_OPERATION_PARAMETERS_0, CF_OPERATION_PARAMETERS_0_0, CF_OPERATION_PARAMETERS_0_5,
+    CF_OPERATION_TYPE_ACK_DEHYDRATE, CF_OPERATION_TYPE_TRANSFER_DATA, CF_PIN_STATE_UNPINNED,
+    CF_PLACEHOLDER_CREATE_FLAGS, CF_PLACEHOLDER_CREATE_FLAG_DISABLE_ON_DEMAND_POPULATION,
     CF_PLACEHOLDER_CREATE_FLAG_MARK_IN_SYNC, CF_PLACEHOLDER_CREATE_INFO,
     CF_PLACEHOLDER_MANAGEMENT_POLICY_DEFAULT, CF_POPULATION_POLICY,
     CF_POPULATION_POLICY_ALWAYS_FULL, CF_POPULATION_POLICY_MODIFIER, CF_REGISTER_FLAG_NONE,
-    CF_SET_IN_SYNC_FLAG_NONE, CF_SYNC_POLICIES, CF_SYNC_REGISTRATION, CF_UPDATE_FLAG_DEHYDRATE,
+    CF_SET_IN_SYNC_FLAG_NONE, CF_SET_PIN_FLAGS, CF_SYNC_POLICIES, CF_SYNC_REGISTRATION,
+    CF_UPDATE_FLAG_DEHYDRATE,
 };
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_BASIC_INFO,
@@ -171,11 +174,23 @@ pub fn update_placeholder(abs_path: &Path, size: u64, mtime: i64, identity: &[u8
 
 /// 释放空间：把已水合的占位符文件脱水（本地数据丢弃，保留元数据）。
 ///
-/// `offset/length = 0/0` 表示整个文件；指定范围可部分脱水（M2.5 可选）。
+/// **文档化路径**（两步）：
+/// ① `CfSetPinState(UNPINNED)`——用户意图"在线-only"（Explorer 云图标
+///    语义；unpin 本身不脱水，实测平台不会主动跟进）；
+/// ② `CfUpdatePlaceholder` + `CF_UPDATE_FLAG_DEHYDRATE`——文档明示
+///    "更新成功后平台脱水文件"，同步生效。
 ///
-/// **约束**（官方文档）：文件必须无其它写入句柄（本函数句柄之外）；
-/// 若文件被独占打开会失败（共享冲突），调用方应提示用户关闭程序后重试。
-pub fn dehydrate(abs_path: &Path) -> Result<()> {
+/// **勿用 `CfDehydratePlaceholder`**：它是 cldapi.dll 的未文档化导出
+/// （不在 cfapi.h 文档函数列表中）——实测（Win11 26300）返回成功但
+/// 数据不释放：文件停留在中间态（稀疏标志已置、数据仍在）。
+///
+/// `identity` 须传该占位符的现有身份（本项目 = rel_path 字节）——
+/// CfUpdatePlaceholder 会回写身份，传错会破坏水合寻址。
+///
+/// **约束**（官方文档）：文件必须无其它写入句柄（独占语义由调用方
+/// 保证，平台不校验）；若文件被独占打开会失败（共享冲突）。
+pub fn dehydrate(abs_path: &Path, identity: &[u8]) -> Result<()> {
+    // ① 用户意图：UNPINNED
     let wide = to_wide(&abs_path.to_string_lossy());
     let handle = unsafe {
         CreateFileW(
@@ -190,16 +205,59 @@ pub fn dehydrate(abs_path: &Path) -> Result<()> {
         )
     }
     .map_err(|e| cloudmount_core::Error::Other(format!("打开占位符失败: {e}")))?;
-    let result = unsafe {
-        CfDehydratePlaceholder(
-            handle,
-            0,
-            0,
-            windows::Win32::Storage::CloudFilters::CF_DEHYDRATE_FLAGS(CF_DEHYDRATE_FLAG_NONE.0),
+    let pin = unsafe {
+        CfSetPinState(handle, CF_PIN_STATE_UNPINNED, CF_SET_PIN_FLAGS(0), None).map_err(|e| {
+            cloudmount_core::Error::Other(format!("CfSetPinState(UNPINNED) 失败: {e}"))
+        })
+    };
+    unsafe {
+        let _ = windows::Win32::Foundation::CloseHandle(handle);
+    }
+    pin?;
+
+    // ② 实际脱水：元数据传当前值（原样保留），身份回写原值
+    let meta = std::fs::metadata(abs_path)?;
+    update_placeholder(abs_path, meta.len(), file_mtime(abs_path), identity)
+}
+
+/// 普通文件 → 脱水的占位符（一步完成：`CfConvertToPlaceholder` +
+/// `CF_CONVERT_FLAG_DEHYDRATE`）。
+///
+/// 用于"用户创建并已上传"的文件释放空间：数据已在云端（调用方须先
+/// 校验同步水位），转换即丢弃本地数据。`CF_CONVERT_FLAG_MARK_IN_SYNC`
+/// 标记同步（Explorer 绿勾）；转换后设 UNPINNED（在线-only 语义）。
+pub fn convert_and_dehydrate(abs_path: &Path, identity: &[u8]) -> Result<()> {
+    let wide = to_wide(&abs_path.to_string_lossy());
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            windows::Win32::Storage::FileSystem::FILE_SHARE_READ
+                | windows::Win32::Storage::FileSystem::FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES(0),
             None,
         )
     }
-    .map_err(|e| cloudmount_core::Error::Other(format!("CfDehydratePlaceholder 失败: {e}")));
+    .map_err(|e| cloudmount_core::Error::Other(format!("打开文件失败: {e}")))?;
+    let result = unsafe {
+        CfConvertToPlaceholder(
+            handle,
+            Some(identity.as_ptr() as *const core::ffi::c_void),
+            identity.len() as u32,
+            CF_CONVERT_FLAGS(CF_CONVERT_FLAG_DEHYDRATE.0 | CF_CONVERT_FLAG_MARK_IN_SYNC.0),
+            None,
+            None,
+        )
+        .map_err(|e| cloudmount_core::Error::Other(format!("CfConvertToPlaceholder 失败: {e}")))
+        .and_then(|_| {
+            // 转换后设 UNPINNED（在线-only；失败不回滚转换）
+            CfSetPinState(handle, CF_PIN_STATE_UNPINNED, CF_SET_PIN_FLAGS(0), None).map_err(|e| {
+                cloudmount_core::Error::Other(format!("CfSetPinState(UNPINNED) 失败: {e}"))
+            })
+        })
+    };
     unsafe {
         let _ = windows::Win32::Foundation::CloseHandle(handle);
     }
@@ -599,7 +657,7 @@ pub fn connect_with_log(
         hydrated: hydration_log,
     });
 
-    static CALLBACK_TABLE: [CF_CALLBACK_REGISTRATION; 3] = [
+    static CALLBACK_TABLE: [CF_CALLBACK_REGISTRATION; 4] = [
         CF_CALLBACK_REGISTRATION {
             Type: CF_CALLBACK_TYPE_FETCH_DATA,
             Callback: Some(fetch_data_callback),
@@ -607,6 +665,12 @@ pub fn connect_with_log(
         CF_CALLBACK_REGISTRATION {
             Type: CF_CALLBACK_TYPE_CANCEL_FETCH_DATA,
             Callback: Some(cancel_fetch_data_callback),
+        },
+        // 脱水确认：平台脱水前询问 provider（用户应用被阻塞，期望响应）。
+        // 不注册则脱水请求无人 ACK 而挂起（60s 超时后放弃，数据不释放）。
+        CF_CALLBACK_REGISTRATION {
+            Type: CF_CALLBACK_TYPE_NOTIFY_DEHYDRATE,
+            Callback: Some(notify_dehydrate_callback),
         },
         CF_CALLBACK_REGISTRATION {
             Type: CF_CALLBACK_TYPE_NONE,
@@ -726,6 +790,54 @@ unsafe extern "system" fn cancel_fetch_data_callback(
         set.insert(info.TransferKey);
     }
     tracing::debug!(transfer = info.TransferKey, "水合被取消");
+}
+
+/// NOTIFY_DEHYDRATE 回调：平台即将脱水占位符（用户应用被阻塞），
+/// ACK 放行。脱水来源：`CfSetPinState(UNPINNED)`（我们的 dehydrate 命令）
+/// 或 Explorer 右键"释放空间"（Shell 同样走 unpin）。
+unsafe extern "system" fn notify_dehydrate_callback(
+    info: *const CF_CALLBACK_INFO,
+    _params: *const CF_CALLBACK_PARAMETERS,
+) {
+    if info.is_null() {
+        return;
+    }
+    let info = &*info;
+    let rel = identity_to_rel(info).unwrap_or_default();
+    tracing::debug!(rel = %rel, "NOTIFY_DEHYDRATE（平台请求脱水，ACK 放行）");
+    if let Err(e) = ack_dehydrate(info) {
+        tracing::error!(rel = %rel, error = %e, "ACK_DEHYDRATE 失败（脱水被挂起）");
+    }
+}
+
+/// 确认脱水（CF_OPERATION_TYPE_ACK_DEHYDRATE）。
+///
+/// FileIdentity 原样回传（不借脱水变更身份）；CompletionStatus=0 放行。
+unsafe fn ack_dehydrate(info: &CF_CALLBACK_INFO) -> Result<()> {
+    let op_info = CF_OPERATION_INFO {
+        StructSize: std::mem::size_of::<CF_OPERATION_INFO>() as u32,
+        Type: CF_OPERATION_TYPE_ACK_DEHYDRATE,
+        ConnectionKey: info.ConnectionKey,
+        TransferKey: info.TransferKey,
+        CorrelationVector: std::ptr::null(),
+        SyncStatus: std::ptr::null(),
+        RequestKey: info.RequestKey,
+    };
+    let ack = CF_OPERATION_PARAMETERS_0_5 {
+        Flags: CF_OPERATION_ACK_DEHYDRATE_FLAGS(0),
+        CompletionStatus: windows::Win32::Foundation::NTSTATUS(0),
+        FileIdentity: info.FileIdentity,
+        FileIdentityLength: info.FileIdentityLength,
+    };
+    // ParamSize = union 成员偏移 + 成员大小（与 C 的 CF_SIZE_OF_OP_PARAM 宏等价）
+    let param_size = (std::mem::offset_of!(CF_OPERATION_PARAMETERS, Anonymous)
+        + std::mem::size_of::<CF_OPERATION_PARAMETERS_0_5>()) as u32;
+    let mut params = CF_OPERATION_PARAMETERS {
+        ParamSize: param_size,
+        Anonymous: CF_OPERATION_PARAMETERS_0 { AckDehydrate: ack },
+    };
+    unsafe { CfExecute(&op_info, &mut params) }
+        .map_err(|e| cloudmount_core::Error::Other(format!("CfExecute(ACK_DEHYDRATE) 失败: {e}")))
 }
 
 /// 完成 FETCH_DATA：用 **TRANSFER_DATA** 操作把缓冲交给过滤器。

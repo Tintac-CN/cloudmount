@@ -18,6 +18,9 @@
 
 pub mod placeholder;
 
+/// daemon 控制通道（本地回环 TCP + 端口文件）。
+pub mod control;
+
 /// 平台原生挂载后端。
 pub mod backends;
 

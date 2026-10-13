@@ -404,6 +404,23 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
     let mut uploader =
         LocalChangeUploader::new(mount.clone(), provider.clone(), remote_root.clone())?;
 
+    // 控制通道：daemon 持有 CfAPI 连接，是唯一能执行 provider 专属操作
+    // （CfDehydratePlaceholder 等）的进程；CLI 经本地回环 TCP 转发请求。
+    let mount_for_ctl = mount.clone();
+    let root_canon = sync_root
+        .canonicalize()
+        .unwrap_or_else(|_| sync_root.to_path_buf());
+    let control = cloudmount_vfs::control::ControlServer::start(
+        &cloudmount_vfs::control::default_port_file()?,
+        sync_root,
+        move |cmd, arg| match cmd {
+            "PING" => format!("OK {}", cloudmount_core::VERSION),
+            "DEHYDRATE" => dehydrate_via_mount(&mount_for_ctl, &root_canon, arg),
+            _ => "ERR unknown-command".into(),
+        },
+    )?;
+    tracing::info!(port = control.port(), "控制通道已监听（PING / DEHYDRATE）");
+
     let mut sync = PlaceholderSync::new(mount.clone(), &initial);
     let interval = Duration::from_secs(cli.interval.max(1));
     // --once + --hold-secs：保持 hold_secs 再退出（供自动化验证/演示）
@@ -452,11 +469,32 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
         std::thread::sleep(interval);
     }
 
-    // 干净退出：断开连接 + 双注销（内核 + Shell）
+    // 先停控制通道（其 handler 持有挂载句柄的克隆，Arc::try_unwrap 需要它释放），
+    // 再干净退出：断开连接 + 双注销（内核 + Shell）
+    control.stop();
     if let Ok(m) = Arc::try_unwrap(mount) {
         cloudmount_vfs::Mount::unmount(Box::new(m)).ok();
     }
     Ok(())
+}
+
+/// 控制通道 DEHYDRATE 处理：绝对路径 → 校验在挂载根内 → 脱水。
+#[cfg(windows)]
+fn dehydrate_via_mount(
+    mount: &Arc<cloudmount_vfs::CfapiMount>,
+    root_canon: &std::path::Path,
+    arg: &str,
+) -> String {
+    let canon = std::path::PathBuf::from(arg)
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::PathBuf::from(arg));
+    let Ok(rel) = canon.strip_prefix(root_canon) else {
+        return format!("ERR 路径不在挂载根内: {arg}");
+    };
+    match mount.dehydrate_rel(&rel.to_string_lossy()) {
+        Ok(()) => "OK".into(),
+        Err(e) => format!("ERR {e}"),
+    }
 }
 
 /// 非 Windows：占位符挂载不可用（cldflt 为 Windows 组件）。

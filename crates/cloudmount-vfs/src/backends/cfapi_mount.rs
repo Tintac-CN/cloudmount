@@ -308,12 +308,73 @@ impl CfapiMount {
         }
     }
 
+    /// 记录"最近同步时的本地 mtime"（上传成功后调用）。
+    ///
+    /// 水合记录复用为同步水位：脱水安全检查据此区分"已同步"与
+    /// "未上传的本地修改"（用户创建的文件本地 mtime=写入时刻，
+    /// 远端 mtime=上传时刻，天然不等，须以本地水位为准）。
+    pub fn record_synced_mtime(&self, rel: &str, mtime: i64) {
+        if let Ok(mut log) = self.hydration_log.lock() {
+            log.insert(rel.to_string(), mtime);
+        }
+    }
+
     /// 某路径最近一次水合完成后的 mtime（None = 从未水合）。
     pub fn hydration_mtime(&self, rel: &str) -> Option<i64> {
         self.hydration_log
             .lock()
             .ok()
             .and_then(|m| m.get(rel).copied())
+    }
+
+    /// 释放空间：把挂载根内已水合的文件脱水（本地数据丢弃，元数据保留）。
+    ///
+    /// **provider 专属能力**：脱水经 `CfUpdatePlaceholder(DEHYDRATE)`，
+    /// 由持有连接的进程调用——CLI 等外部进程经控制通道
+    /// （[`crate::control`]）转发到 daemon，由 daemon 调到这里执行。
+    ///
+    /// **安全检查**：本地 mtime 既不匹配水合记录也不匹配远端条目
+    /// （= 用户修改未上传）时拒绝——脱水会销毁未上传的修改。
+    pub fn dehydrate_rel(&self, rel: &str) -> Result<()> {
+        // 统一分隔符为 '/'：视图/水合记录/占位符身份均用正斜杠
+        // （调用方 strip_prefix 产出的是 Windows 反斜杠）
+        let rel = rel.replace('\\', "/");
+        let abs = self.root.join(&rel);
+        let meta = std::fs::metadata(&abs)?;
+        if !meta.is_file() {
+            return Err(Error::Invalid(format!(
+                "仅支持文件（目录请逐个处理）: {rel}"
+            )));
+        }
+        let local_mtime = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let matches_hydration = self.hydration_mtime(&rel).is_some_and(|m| m == local_mtime);
+        let matches_remote = self
+            .remote_entry(rel.as_str())
+            .is_some_and(|e| e.mtime == local_mtime);
+        if !matches_hydration && !matches_remote {
+            return Err(Error::Invalid(format!(
+                "本地有未上传的修改，拒绝脱水（等待同步完成后重试）: {rel}"
+            )));
+        }
+        // 占位符 → pin+update 脱水；普通文件（用户创建已上传）→ 转换+脱水。
+        // REPARSE_POINT 判定在 provider 进程内可靠（本方法只在 daemon/测试
+        // 即 provider 进程中调用；过滤器对非 provider 进程掩码占位符属性）。
+        let is_placeholder = {
+            use std::os::windows::fs::MetadataExt;
+            meta.file_attributes()
+                & windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT.0
+                != 0
+        };
+        if is_placeholder {
+            cfapi::dehydrate(&abs, rel.as_bytes())
+        } else {
+            cfapi::convert_and_dehydrate(&abs, rel.as_bytes())
+        }
     }
 
     /// 内容变化重投影：更新占位符元数据并丢弃陈旧本地数据。
@@ -640,6 +701,15 @@ impl LocalChangeUploader {
         // 取权威远端信息并更新挂载视图（防 PlaceholderSync 重复投影）
         let entry = self.provider.stat(&result.id)?;
         self.mount.upsert_view_entry(rel, entry);
+        // 记录同步水位（脱水安全检查据此放行已上传文件）
+        self.mount.record_synced_mtime(
+            rel,
+            meta.modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0),
+        );
         // 标记同步（Explorer 绿勾）。失败仅告警不回滚：上传已成功，
         // 且新建的普通文件（非占位符）本就可能不支持该标记。
         if let Err(e) = cfapi::set_in_sync(&abs) {
