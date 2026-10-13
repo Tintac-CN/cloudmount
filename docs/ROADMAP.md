@@ -147,7 +147,10 @@
       秒传/sign_check/OSS 直传（STS + V1 签名 + 回调头）；
       create_dir/rename/move/copy/delete 全套写操作。Cookie 通道
       双向同步完整（真实端到端待扫码验证）。
-- [ ] 自动回退官方通道（ProviderRouter 接线）
+- [x] **自动回退（2026-10-13）**：ProviderRouter 只对认证类错误切换
+      （官方失效→Cookie 兜底 / Cookie 失效→回退官方；频控与网络错误
+      不切换），切换 tracing::warn + last_switch 可见（永不静默）；
+      daemon `--channel auto`（默认）双通道路由。
 - [ ] Cookie 独有能力：分享/转存/批量操作（二级入口 + 常驻风险提示）
 - **验收**：拔掉官方 token 能无感切到 Cookie 并回退；无静默行为
 
