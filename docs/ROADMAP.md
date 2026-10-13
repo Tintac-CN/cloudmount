@@ -142,7 +142,11 @@
       （my.115.com status 不踢线）；m115 协议加密（下载直链必需，
       移植 115driver）；list/stat/open_range/quota 只读能力；
       `cloudmountd --channel cookie` 挂载读取**不等 AppID 即可用**。
-- [ ] M3 v2：上传（秒传 + OSS 直传）+ 写操作
+- [x] **M3 v2（2026-10-13）：上传与写操作**——ec115 ECDH 加密
+      （P-224 + AES-CBC + LZ4 + token，移植 115driver）；initupload
+      秒传/sign_check/OSS 直传（STS + V1 签名 + 回调头）；
+      create_dir/rename/move/copy/delete 全套写操作。Cookie 通道
+      双向同步完整（真实端到端待扫码验证）。
 - [ ] 自动回退官方通道（ProviderRouter 接线）
 - [ ] Cookie 独有能力：分享/转存/批量操作（二级入口 + 常驻风险提示）
 - **验收**：拔掉官方 token 能无感切到 Cookie 并回退；无静默行为
