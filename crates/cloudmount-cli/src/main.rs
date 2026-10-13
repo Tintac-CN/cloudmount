@@ -51,6 +51,10 @@ enum Commands {
         /// 跳过知情确认交互（已阅读风险声明；供脚本使用）。
         #[arg(long)]
         consent: bool,
+        /// 直接注入 Cookie（格式 "UID=..;CID=..;SEID=..;KID=.."，
+        /// 从浏览器 F12→应用→Cookie 复制；跳过扫码）。
+        #[arg(long, conflicts_with = "with_cookie_channel")]
+        cookie: Option<String>,
     },
     /// 显示当前登录状态。
     Status,
@@ -110,7 +114,11 @@ fn main() -> anyhow::Result<()> {
         Commands::Login {
             with_cookie_channel,
             consent,
+            cookie,
         } => {
+            if let Some(cookie_str) = cookie {
+                return cmd_inject_cookie(&cookie_str, consent);
+            }
             if with_cookie_channel {
                 return cmd_login_cookie(consent);
             }
@@ -185,6 +193,59 @@ fn cmd_login(app_id: &Option<String>) -> anyhow::Result<()> {
             }
         }
     }
+}
+
+/// 直接注入浏览器复制的 Cookie（跳过扫码；测试/高级用途）。
+fn cmd_inject_cookie(cookie_str: &str, consent: bool) -> anyhow::Result<()> {
+    use cloudmount_auth::cookie::CookieJar;
+
+    if !consent {
+        println!("⚠️  Cookie 通道违反《115 生活用户服务协议》，可能导致封号/限速/互踢。");
+        print!("输入 yes 确认继续: ");
+        std::io::stdout().flush()?;
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line)?;
+        if line.trim() != "yes" {
+            println!("已取消。");
+            return Ok(());
+        }
+    }
+
+    // 解析 "UID=..;CID=..;SEID=..;KID=.."（分号/换行/空格分隔均可）
+    let mut uid = String::new();
+    let mut cid = String::new();
+    let mut seid = String::new();
+    let mut kid = None;
+    for part in cookie_str.split([';', ',', '\n']) {
+        let part = part.trim();
+        if let Some((k, v)) = part.split_once('=') {
+            let v = v.trim().trim_matches('"');
+            match k.trim() {
+                "UID" => uid = v.to_string(),
+                "CID" => cid = v.to_string(),
+                "SEID" => seid = v.to_string(),
+                "KID" => kid = Some(v.to_string()),
+                _ => {}
+            }
+        }
+    }
+    if uid.is_empty() || cid.is_empty() || seid.is_empty() {
+        anyhow::bail!("Cookie 缺少必需字段（UID/CID/SEID）；收到: {cookie_str}");
+    }
+
+    let store = default_store()?;
+    let jar = CookieJar {
+        uid,
+        cid,
+        seid,
+        kid,
+    };
+    let blob = serde_json::to_vec(&jar)?;
+    use cloudmount_auth::store::SecretKind;
+    store.put(SecretKind::CookieJar, &blob)?;
+    println!("✅ Cookie 已注入独立容器（uid={}）。", jar.uid);
+    println!("提示：可用只读探测验证有效性：cloudmountd --channel cookie --once");
+    Ok(())
 }
 
 /// Cookie 补充通道登录：知情同意 → 扫码 → 换 Cookie（独立容器存储）。

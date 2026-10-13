@@ -139,7 +139,9 @@ impl CookieAuth {
             policy,
             agent: ureq::Agent::config_builder()
                 .user_agent(WEB_USER_AGENT)
-                .timeout_global(Some(std::time::Duration::from_secs(30)))
+                // 状态接口是 ~30s 长轮询（无变化时服务端 hold 30s 才返回），
+                // 全局超时必须显著大于它
+                .timeout_global(Some(std::time::Duration::from_secs(90)))
                 .build()
                 .into(),
             jar: Mutex::new(None),
