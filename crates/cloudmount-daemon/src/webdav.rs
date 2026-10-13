@@ -74,11 +74,14 @@ impl ProviderFs {
         }
     }
 
-    /// 路径归一化："/a//b/" → "/a/b"。
+    /// 路径归一化：URL 解码 + 折叠斜杠（"/a//b/%E6%96%87" → "/a/b/文"）。
+    ///
+    /// DavPath 给出的是百分号编码路径——不解码无法与远端条目名匹配。
     fn normalize(path: &DavPath) -> String {
         let s = path.as_url_string();
+        let decoded = percent_decode(&s);
         let mut out = String::new();
-        for comp in s.split('/') {
+        for comp in decoded.split('/') {
             if !comp.is_empty() {
                 out.push('/');
                 out.push_str(comp);
@@ -170,8 +173,9 @@ fn root_entry() -> RemoteEntry {
     }
 }
 
-/// 核心错误 → FsError 映射。
+/// 核心错误 → FsError 映射（FsError 无载荷——细节走日志）。
 fn map_err(e: CoreError) -> FsError {
+    tracing::warn!(error = %e, "WebDAV Provider 调用失败");
     match e {
         CoreError::NotFound(_) => FsError::NotFound,
         CoreError::Auth(_) => FsError::GeneralFailure,
@@ -494,6 +498,35 @@ async fn remove_entry(fs: &ProviderFs, path: &DavPath) -> dav_server::fs::FsResu
         .map_err(map_err)?;
     fs.invalidate();
     Ok(())
+}
+
+/// 百分号解码（UTF-8；非法序列原样保留）。
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() + 1 && i + 2 <= bytes.len() - 1 + 1 {
+            let hex = |b: u8| -> Option<u8> {
+                match b {
+                    b'0'..=b'9' => Some(b - b'0'),
+                    b'a'..=b'f' => Some(b - b'a' + 10),
+                    b'A'..=b'F' => Some(b - b'A' + 10),
+                    _ => None,
+                }
+            };
+            if i + 2 < bytes.len() {
+                if let (Some(hi), Some(lo)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                    out.push(hi * 16 + lo);
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// 拆路径末段（"/a/b" → ("/a", "b")）。

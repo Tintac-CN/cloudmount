@@ -51,6 +51,26 @@ where
     })
 }
 
+/// `Option<i64>`：数字或数字字符串（115 部分接口用空串/字符串码）。
+pub fn opt_num_or_str_i64<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: Option<serde_json::Value> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(match v {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::Number(n)) => n.as_i64(),
+        Some(serde_json::Value::String(s)) => {
+            if s.is_empty() {
+                None
+            } else {
+                s.parse().ok()
+            }
+        }
+        _ => None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

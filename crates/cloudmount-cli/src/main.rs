@@ -348,7 +348,16 @@ fn cmd_status(app_id: &Option<String>) -> anyhow::Result<()> {
 fn cmd_logout() -> anyhow::Result<()> {
     let auth = build_auth(&None)?;
     auth.logout()?;
-    println!("已清除本地凭据。");
+    // Cookie 通道一并清除（独立容器）
+    {
+        use cloudmount_auth::cookie::{CookieAuth, CookiePolicy};
+        use cloudmount_auth::store::default_store;
+        let policy = CookiePolicy::default(); // 清理不需要开启
+        let store = default_store()?;
+        let _ = store.delete(cloudmount_auth::store::SecretKind::CookieJar);
+        let _ = CookieAuth::new(policy, store).logout();
+    }
+    println!("已清除本地凭据（含 Cookie 通道）。");
     Ok(())
 }
 

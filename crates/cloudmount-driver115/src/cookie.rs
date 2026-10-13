@@ -25,6 +25,7 @@ use cloudmount_core::{
     EntryKind, Envelope, Error, Provider, Quota, RangeSpec, RemoteEntry, RemoteId, Result,
     UploadResult,
 };
+use std::collections::HashMap;
 use std::io::Read;
 
 /// web 资源域。
@@ -41,8 +42,8 @@ const UPLOAD_INIT_URL: &str = "https://uplb.115.com/4.0/initupload.php";
 const UPLOAD_TOKEN_URL: &str = "https://uplb.115.com/3.0/gettoken.php";
 /// OSS 默认端点（115driver 常量：双栈域名）。
 const OSS_ENDPOINT: &str = "cn-shenzhen.oss.aliyuncs.com";
-/// 上传 app 版本（协议常量）。
-const APP_VER: &str = "27.0.5.7";
+/// 上传 app 版本（p115client 现行值；27.0.5.7/30.5.1/36.0.1 均被拒）。
+const APP_VER: &str = "36.2.28";
 /// sign_check 重试上限。
 const MAX_SIGN_ATTEMPTS: u32 = 3;
 
@@ -186,6 +187,9 @@ pub struct Cookie115Provider {
     webapi_base: String,
     /// pro 资源域（测试注入）。
     proapi_base: String,
+    /// fid → pickcode 缓存（list 时填充；open_range 下载凭证的来源——
+    /// get_info 端点实测返回 990002 参数错误，不可依赖）。
+    picks: std::sync::Mutex<HashMap<String, String>>,
 }
 
 impl Cookie115Provider {
@@ -208,6 +212,7 @@ impl Cookie115Provider {
             auth,
             webapi_base: WEBAPI_BASE.into(),
             proapi_base: PROAPI_BASE.into(),
+            picks: std::sync::Mutex::new(HashMap::new()),
         })
     }
 
@@ -294,6 +299,14 @@ impl Cookie115Provider {
                     .collect()
             })
             .unwrap_or_default();
+        // 记忆 fid → pickcode（open_range 下载凭证）
+        if let Ok(mut picks) = self.picks.lock() {
+            for f in &files {
+                if !f.pick_code.is_empty() && !f.fid.is_empty() {
+                    picks.insert(f.fid.clone(), f.pick_code.clone());
+                }
+            }
+        }
         Ok((files, count))
     }
 
@@ -374,18 +387,27 @@ impl Cookie115Provider {
 
     // ---------- 上传（M3 v2） ----------
 
+    /// 上传通道版本（openlist/115driver 验证过的组合：UA 与 appversion
+    /// 都用 115Browser 27.0.5.7；动态取 appversion 端点的 win 版本
+    /// 36.0.1 反而 token invalid——那是桌面客户端版本号）。
+    fn current_app_version(&self) -> String {
+        APP_VER.into()
+    }
+
     /// 上传上下文（uploadinfo 一次性获取，随上传缓存）。
     fn upload_info(&self) -> Result<UploadCtx> {
         let url = format!("{}/app/uploadinfo", self.proapi_base);
         let value = self.post_form_json(&url, &[])?;
-        let env = Envelope::from_value(value)?;
-        if !env.is_ok() {
+        tracing::debug!(target: "cm_cookie_uploadinfo", raw = %value, "uploadinfo 原始响应");
+        // 响应为**扁平结构**（user_id/userkey/size_limit 在顶层，无 data 包裹）
+        // ——直接读顶层（Envelope.into_value 只回 data 字段，会拿到 null）
+        if value.get("state").and_then(|v| v.as_bool()) == Some(false) {
             return Err(Error::Remote {
-                code: env.code(),
+                code: value.get("errno").and_then(|v| v.as_i64()).unwrap_or(0),
                 message: "uploadinfo 失败".into(),
             });
         }
-        let data = env.into_value()?;
+        let data = value;
         let user_id = data
             .get("user_id")
             .and_then(|v| {
@@ -415,53 +437,59 @@ impl Cookie115Provider {
         name: &str,
         size: u64,
         fileid: &str,
-        preid: &str,
         sign: &Option<(String, String)>,
         source: &cloudmount_core::provider::UploadSource<'_>,
     ) -> Result<InitUploadResp> {
         let cipher = EcdhCipher::new()?;
         let target = format!("U_1_{dir_id}");
+        let app_ver = self.current_app_version();
+        // **秒级时间戳**（fake115uploader 同款；毫秒会 token invalid）
         let t = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
+            .map(|d| d.as_secs())
             .unwrap_or(0);
         let (sign_key, sign_val) = match sign {
             Some((k, v)) => (k.clone(), v.clone()),
             None => (String::new(), String::new()),
         };
 
+        // 表单（p115client 现行协议）：**含 userkey 字段**，键排序，
+        // 空值过滤（sign_key/sign_val 为空时不传）
         let mut form: Vec<(String, String)> = vec![
             ("appid".into(), "0".into()),
-            ("appversion".into(), APP_VER.into()),
-            ("userid".into(), ctx.user_id.to_string()),
+            ("appversion".into(), app_ver.to_string()),
+            ("fileid".into(), fileid.to_string()),
             ("filename".into(), name.to_string()),
             ("filesize".into(), size.to_string()),
-            ("fileid".into(), fileid.to_string()),
-            ("target".into(), target.clone()),
             (
                 "sig".into(),
                 ec115::generate_signature(&ctx.user_id.to_string(), &ctx.userkey, fileid, &target),
             ),
-            ("topupload".into(), "true".into()),
             ("t".into(), t.to_string()),
+            ("target".into(), target.clone()),
             (
                 "token".into(),
                 ec115::generate_token(
                     &ctx.user_id.to_string(),
                     fileid,
-                    preid,
                     &t.to_string(),
                     &size.to_string(),
                     &sign_key,
                     &sign_val,
+                    &app_ver,
                 ),
             ),
+            ("topupload".into(), "true".into()),
+            ("userid".into(), ctx.user_id.to_string()),
+            ("userkey".into(), ctx.userkey.clone()),
         ];
         if !sign_key.is_empty() && !sign_val.is_empty() {
             form.push(("sign_key".into(), sign_key));
             form.push(("sign_val".into(), sign_val));
         }
+        form.sort_by(|a, b| a.0.cmp(&b.0));
 
+        tracing::debug!(target: "cm_initupload", form = ?form, "initupload 表单");
         // ECDH 加密表单体
         let body = form
             .iter()
@@ -474,8 +502,16 @@ impl Cookie115Provider {
         let cookie = self.auth.cookie_header()?;
         self.pace()?;
         let url = format!("{UPLOAD_INIT_URL}?k_ec={k_ec}");
-        let resp = self
-            .agent
+        // initupload UA：三客户端家族合一（p115client 现行）
+        let disk_ua_agent: ureq::Agent = ureq::Agent::config_builder()
+            .user_agent(format!(
+                "Mozilla/5.0 115disk/{app_ver} 115Browser/{app_ver} 115wangpan_android/{app_ver}"
+            ))
+            .http_status_as_error(false)
+            .timeout_global(Some(std::time::Duration::from_secs(120)))
+            .build()
+            .into();
+        let resp = disk_ua_agent
             .post(&url)
             .header("Cookie", &cookie)
             .header("Content-Type", "application/x-www-form-urlencoded")
@@ -486,6 +522,7 @@ impl Cookie115Provider {
             .read_to_vec()
             .map_err(|e| Error::Transport(format!("读取 initupload 响应失败: {e}")))?;
         let plain = cipher.decrypt(&raw)?;
+        tracing::debug!(target: "cm_ec115", resp = %String::from_utf8_lossy(&plain), "initupload 解密响应");
         let mut resp: InitUploadResp = serde_json::from_slice(&plain)
             .map_err(|e| Error::Other(format!("initupload 响应解析失败: {e}")))?;
 
@@ -520,6 +557,7 @@ impl Cookie115Provider {
             .into_body()
             .read_to_string()
             .map_err(|e| Error::Transport(format!("读取 token 响应失败: {e}")))?;
+        tracing::debug!(target: "cm_oss_token", raw = %text, "gettoken 响应");
         let token: OssStsToken = serde_json::from_str(&text)
             .map_err(|e| Error::Other(format!("token 响应解析失败: {e}")))?;
         if token.status_code != "200" {
@@ -647,7 +685,7 @@ struct CallbackInfo {
 /// OSS STS token 响应。
 #[derive(Debug, serde::Deserialize)]
 struct OssStsToken {
-    #[serde(rename = "AccessKeyID")]
+    #[serde(rename = "AccessKeyId")]
     access_key_id: String,
     #[serde(rename = "AccessKeySecret")]
     access_key_secret: String,
@@ -755,9 +793,14 @@ impl Provider for Cookie115Provider {
         // v1 用 get_info 尽力而为
         let url = format!("{}/files/get_info?fid={}", self.webapi_base, id.0);
         let value = self.get_json(&url)?;
+        tracing::debug!(target: "cm_cookie_stat", raw = %value, "get_info 响应");
         let env = Envelope::from_value(value)?;
         if !env.is_ok() {
-            return Err(Error::NotFound(format!("stat {} 失败", id.0)));
+            return Err(Error::NotFound(format!(
+                "stat {} 失败: {}",
+                id.0,
+                env.message.clone().unwrap_or_default()
+            )));
         }
         let data = env.into_value()?;
         // data 可能是数组（get_info 批量语义）
@@ -775,11 +818,14 @@ impl Provider for Cookie115Provider {
     }
 
     fn open_range(&self, id: &RemoteId, range: RangeSpec) -> Result<Box<dyn Read + Send>> {
-        // RemoteId 为 fid；下载需 pickcode——从 stat 取
-        let entry = self.stat(id)?;
-        let pick = entry
-            .pick_code
-            .clone()
+        // pickcode 优先取缓存（list 填充）；未命中才走 get_info（实测常返回
+        // 990002 参数错误，故缓存是主路径）
+        let pick = self
+            .picks
+            .lock()
+            .ok()
+            .and_then(|p| p.get(&id.0).cloned())
+            .or_else(|| self.stat(id).ok().and_then(|e| e.pick_code))
             .ok_or_else(|| Error::Invalid(format!("{} 无 pickcode（目录不可下载）", id.0)))?;
         let url = self.download_url(&pick)?;
         // 直链请求需带浏览器 UA（CDN 校验）
@@ -881,7 +927,6 @@ impl Provider for Cookie115Provider {
                 name,
                 hashes.size,
                 &hashes.fileid,
-                &hashes.preid,
                 &sign,
                 &source,
             )?;
@@ -1041,7 +1086,7 @@ mod tests {
     #[test]
     fn oss_sts_token_parsing() {
         let t: OssStsToken = serde_json::from_str(
-            r#"{"AccessKeyID":"id","AccessKeySecret":"sec","SecurityToken":"tok","StatusCode":"200"}"#,
+            r#"{"AccessKeyId":"id","AccessKeySecret":"sec","SecurityToken":"tok","StatusCode":"200"}"#,
         )
         .unwrap();
         assert_eq!(t.access_key_id, "id");

@@ -103,33 +103,55 @@ impl EcdhCipher {
 
     /// 解密（AES-128-CBC）→ `[长度(2 LE)][LZ4 块]` → LZ4 解压。
     pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+        tracing::debug!(
+            target: "cm_ec115",
+            ct_len = ciphertext.len(),
+            ct_head = %ciphertext.iter().take(24).map(|b| format!("{b:02x}")).collect::<String>(),
+            key = %self.key.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            iv = %self.iv.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            "decrypt 输入"
+        );
         // 截掉尾部非整块（Go 原样处理）
         let usable = ciphertext.len() - ciphertext.len() % 16;
         if usable == 0 {
             return Err(Error::Other("ec115 密文不足一个块".into()));
         }
+        // 手写 CBC 解密：p_i = D(c_i) XOR c_{i-1}——**prev 存密文块**
+        // （曾把明文拷进 prev：首块碰巧正确、第二块起全错；单测加解密
+        // 镜像同 bug 假绿，真机数据才炸出）
         let mut buf = ciphertext[..usable].to_vec();
         let cipher = Aes128::new((&self.key).into());
-        let mut prev = self.iv;
+        let mut prev: aes::cipher::generic_array::GenericArray<u8, aes::cipher::consts::U16> =
+            self.iv.into();
         for chunk in buf.chunks_mut(16) {
-            let block = aes::cipher::generic_array::GenericArray::from_mut_slice(chunk);
-            cipher.decrypt_block(block);
+            let c_i = *aes::cipher::generic_array::GenericArray::from_slice(chunk);
+            let mut block = c_i;
+            cipher.decrypt_block(&mut block);
             for i in 0..16 {
-                chunk[i] ^= prev[i];
+                block[i] ^= prev[i];
             }
-            prev.copy_from_slice(chunk);
+            chunk.copy_from_slice(&block);
+            prev = c_i;
         }
         // 明文：[长度(2 字节 LE)][LZ4 块]
         if buf.len() < 2 {
             return Err(Error::Other("ec115 明文不足长度头".into()));
         }
+        tracing::debug!(
+            target: "cm_ec115",
+            plain_hex = %buf.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+            "CBC 解密后（全量）"
+        );
         let lz4_len = buf[0] as usize | ((buf[1] as usize) << 8);
         if lz4_len == 0 || 2 + lz4_len > buf.len() {
             return Err(Error::Other("ec115 LZ4 长度头非法".into()));
         }
-        let mut out = Vec::new();
-        lz4_flex::block::decompress_into(&buf[2..2 + lz4_len], &mut out)
+        // 与 Go 原实现一致：预分配 64KB（initupload 响应为小 JSON），
+        // decompress_into 需要预知输出容量——超出时报错带期望值，可按需放大
+        let mut out = vec![0u8; 0x10000];
+        let n = lz4_flex::block::decompress_into(&buf[2..2 + lz4_len], &mut out)
             .map_err(|e| Error::Other(format!("ec115 LZ4 解压失败: {e}")))?;
+        out.truncate(n);
         Ok(out)
     }
 
@@ -268,11 +290,11 @@ pub fn generate_signature(user_id: &str, userkey: &str, file_id: &str, target: &
 pub fn generate_token(
     user_id: &str,
     file_id: &str,
-    _pre_id: &str,
     timestamp: &str,
     file_size: &str,
     sign_key: &str,
     sign_val: &str,
+    app_ver: &str,
 ) -> String {
     use md5::{Digest, Md5};
     let user_id_md5 = {
@@ -281,9 +303,9 @@ pub fn generate_token(
         hex::encode(h.finalize())
     };
     const MD5_SALT: &str = "Qclm8MGWUv59TnrR0XPg";
-    const APP_VER: &str = "27.0.5.7";
+    // app_ver 必须与表单 appversion 字段**完全一致**（服务端校验 token）
     let input = format!(
-        "{MD5_SALT}{file_id}{file_size}{sign_key}{sign_val}{user_id}{timestamp}{user_id_md5}{APP_VER}"
+        "{MD5_SALT}{file_id}{file_size}{sign_key}{sign_val}{user_id}{timestamp}{user_id_md5}{app_ver}"
     );
     let mut h = Md5::new();
     h.update(input.as_bytes());
@@ -316,13 +338,14 @@ mod tests {
         let mut prev = cipher.iv;
         let mut recovered = Vec::new();
         for chunk in ct.chunks(16) {
-            let mut block = *aes::cipher::generic_array::GenericArray::from_slice(chunk);
+            let c_i = *aes::cipher::generic_array::GenericArray::from_slice(chunk);
+            let mut block = c_i;
             aes.decrypt_block(&mut block);
             let mut plain = block.to_vec();
             for i in 0..16 {
                 plain[i] ^= prev[i];
             }
-            prev.copy_from_slice(chunk);
+            prev.copy_from_slice(&c_i);
             recovered.extend_from_slice(&plain);
         }
         // PKCS7 去填充
@@ -353,7 +376,7 @@ mod tests {
 
     #[test]
     fn generate_token_shape() {
-        let token = generate_token("123", "FILEID", "PRE", "1791875040000", "1024", "", "");
+        let token = generate_token("123", "FILEID", "1791875040000", "1024", "", "", "36.0.1");
         assert_eq!(token.len(), 32, "MD5 十六进制 32 字符");
         assert!(token
             .chars()

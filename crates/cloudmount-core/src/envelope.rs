@@ -82,8 +82,8 @@ pub struct Envelope {
     /// 成功标志（可能缺失，缺失时以 code 判定）。
     #[serde(default)]
     pub state: Option<StateFlag>,
-    /// 业务码（0 为成功）。
-    #[serde(default)]
+    /// 业务码（0 为成功；部分 web 接口用空串/字符串——宽容解析）。
+    #[serde(default, deserialize_with = "crate::serde_util::opt_num_or_str_i64")]
     pub code: Option<i64>,
     /// 提示信息。
     #[serde(default)]
@@ -91,8 +91,8 @@ pub struct Envelope {
     /// 认证域的错误文本。
     #[serde(default)]
     pub error: Option<String>,
-    /// 认证域的错误码（与 code 同值）。
-    #[serde(default)]
+    /// 认证域的错误码（与 code 同值；宽容解析）。
+    #[serde(default, deserialize_with = "crate::serde_util::opt_num_or_str_i64")]
     pub errno: Option<i64>,
     /// 数据体（成功时的数组/对象/空）。
     #[serde(default)]
