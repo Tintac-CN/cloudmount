@@ -588,16 +588,25 @@ impl DavFile for WriteFileWithProvider {
     }
 }
 
+/// TLS 配置（证书与私钥 PEM 路径）。
+#[derive(Debug, Clone)]
+pub struct TlsConfig {
+    pub cert_path: PathBuf,
+    pub key_path: PathBuf,
+}
+
 /// 启动 WebDAV + web-ui 静态托管服务（阻塞直到 Ctrl-C）。
 ///
 /// - `/dav/*` → WebDAV（Provider 通道）
 /// - 其余 → `web_ui_dir` 静态文件（None 则 404 提示）
 /// - `auth`：`user:pass` 启用 HTTP Basic（None = 无认证，仅建议本机/内网）
+/// - `tls`：Some 则 HTTPS（rustls；证书自备，可 `tailscale cert` 签发）
 pub async fn serve(
     provider: Arc<dyn Provider>,
     listen: &str,
     auth: Option<(String, String)>,
     web_ui_dir: Option<PathBuf>,
+    tls: Option<TlsConfig>,
 ) -> anyhow::Result<()> {
     let addr: std::net::SocketAddr = listen
         .parse()
@@ -611,30 +620,108 @@ pub async fn serve(
 
     let dav = Arc::new(dav);
     let ui_dir = web_ui_dir.map(Arc::new);
+    let scheme = if tls.is_some() { "https" } else { "http" };
+    tracing::info!(%listen, scheme, "边缘网关启动：/dav/ = WebDAV 出口");
 
-    let make_service = hyper::service::make_service_fn(move |_| {
+    // 请求处理服务工厂（TLS 与明文两条路径共用）
+    let make_svc = move || {
         let dav = dav.clone();
         let ui_dir = ui_dir.clone();
         let auth = auth.clone();
-        async move {
-            let func = move |req: hyper::Request<hyper::Body>| {
-                let dav = dav.clone();
-                let ui_dir = ui_dir.clone();
-                let auth = auth.clone();
-                async move {
-                    Ok::<_, std::convert::Infallible>(handle_request(req, dav, ui_dir, auth).await)
-                }
-            };
-            Ok::<_, std::convert::Infallible>(hyper::service::service_fn(func))
-        }
-    });
+        hyper::service::service_fn(move |req: hyper::Request<hyper::Body>| {
+            let dav = dav.clone();
+            let ui_dir = ui_dir.clone();
+            let auth = auth.clone();
+            async move {
+                Ok::<_, std::convert::Infallible>(handle_request(req, dav, ui_dir, auth).await)
+            }
+        })
+    };
 
-    tracing::info!(%listen, "边缘网关启动：/dav/ = WebDAV 出口" );
-    hyper::Server::bind(&addr)
-        .serve(make_service)
+    let listener = tokio::net::TcpListener::bind(addr)
         .await
-        .map_err(|e| anyhow::anyhow!("WebDAV 服务失败: {e}"))?;
-    Ok(())
+        .map_err(|e| anyhow::anyhow!("绑定 {addr} 失败: {e}"))?;
+
+    match tls {
+        None => {
+            // 明文：逐连接服务
+            loop {
+                let (stream, _) = listener.accept().await?;
+                let svc = make_svc();
+                tokio::spawn(async move {
+                    let _ = hyper::server::conn::Http::new()
+                        .serve_connection(stream, svc)
+                        .await;
+                });
+            }
+        }
+        Some(tls) => {
+            // TLS：rustls 加载 PEM 后逐连接 accept
+            let acceptor = load_tls_acceptor(&tls.cert_path, &tls.key_path)?;
+            loop {
+                let (stream, peer) = listener.accept().await?;
+                let svc_factory = make_svc();
+                let acceptor = acceptor.clone();
+                tokio::spawn(async move {
+                    match acceptor.accept(stream).await {
+                        Ok(tls_stream) => {
+                            let _ = hyper::server::conn::Http::new()
+                                .serve_connection(tls_stream, svc_factory)
+                                .await;
+                        }
+                        Err(e) => {
+                            tracing::debug!(%peer, error = %e, "TLS 握手失败（客户端直连明文？）");
+                        }
+                    }
+                });
+            }
+        }
+    }
+}
+
+/// 加载 PEM 证书/私钥为 rustls acceptor。
+fn load_tls_acceptor(
+    cert_path: &PathBuf,
+    key_path: &PathBuf,
+) -> anyhow::Result<tokio_rustls::TlsAcceptor> {
+    let certs: Vec<_> = {
+        let f = std::fs::File::open(cert_path)
+            .map_err(|e| anyhow::anyhow!("打开证书 {}: {e}", cert_path.display()))?;
+        rustls_pemfile::certs(&mut std::io::BufReader::new(f))?
+            .into_iter()
+            .map(rustls::Certificate)
+            .collect()
+    };
+    // rustls-pemfile 1.x 按格式逐个尝试（PKCS8 → RSA → EC）
+    let key = {
+        let f = std::fs::File::open(key_path)
+            .map_err(|e| anyhow::anyhow!("打开私钥 {}: {e}", key_path.display()))?;
+        let pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut std::io::BufReader::new(f))?;
+        if !pkcs8.is_empty() {
+            rustls::PrivateKey(pkcs8[0].clone())
+        } else {
+            let f = std::fs::File::open(key_path)
+                .map_err(|e| anyhow::anyhow!("打开私钥 {}: {e}", key_path.display()))?;
+            let rsa = rustls_pemfile::rsa_private_keys(&mut std::io::BufReader::new(f))?;
+            if !rsa.is_empty() {
+                rustls::PrivateKey(rsa[0].clone())
+            } else {
+                let f = std::fs::File::open(key_path)
+                    .map_err(|e| anyhow::anyhow!("打开私钥 {}: {e}", key_path.display()))?;
+                let ec = rustls_pemfile::ec_private_keys(&mut std::io::BufReader::new(f))?;
+                let ec = ec.into_iter().next().ok_or_else(|| {
+                    anyhow::anyhow!("私钥文件无可用密钥（支持 PKCS8/RSA/EC PEM）")
+                })?;
+                rustls::PrivateKey(ec)
+            }
+        }
+    };
+    let config = rustls::ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)
+        .map_err(|e| anyhow::anyhow!("TLS 配置非法: {e}"))?;
+    Ok(tokio_rustls::TlsAcceptor::from(Arc::new(config)))
 }
 
 /// 单请求路由：/dav/* → DavHandler；其余 → 静态 web-ui；认证前置。

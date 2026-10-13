@@ -1,0 +1,11 @@
+# /etc/default/cloudmountd —— systemd 服务的环境配置
+# 取消注释并填写：
+
+# 115 开放平台 AppID（官方通道）
+# CLOUDMOUNT_APP_ID=你的AppID
+
+# 数据通道：auto（官方为主 Cookie 兜底，默认）/ open / cookie
+# CLOUDMOUNT_CHANNEL=auto
+
+# 网关参数（对应 cloudmountd --serve 的 flag）
+# LM_ARGS="--listen 0.0.0.0:8384 --auth user:pass --web-ui-dir /opt/cloudmount/web-ui"

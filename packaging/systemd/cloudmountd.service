@@ -1,0 +1,47 @@
+# CloudMount 边缘网关 systemd 服务单元。
+#
+# 安装：
+#   sudo cp packaging/systemd/cloudmountd.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cloudmountd
+#
+# 配置经 /etc/default/cloudmountd（EnvironmentFile）注入，见文件内注释。
+[Unit]
+Description=CloudMount 边缘网关（115 -> WebDAV）
+Documentation=https://github.com/Tintac-CN/cloudmount
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cloudmount
+Group=cloudmount
+# 环境文件：CLOUDMOUNT_APP_ID / CLOUDMOUNT_CHANNEL / LM_LISTEN / LM_AUTH 等
+EnvironmentFile=-/etc/default/cloudmountd
+# WebDAV 出口 + web-ui
+ExecStart=/usr/local/bin/cloudmountd --serve $LM_ARGS
+Restart=on-failure
+RestartSec=5
+
+# ---- 低内存纪律（目标：512MB 设备可长期运行）----
+MemoryMax=64M
+MemoryHigh=48M
+# 静态二进制 + 单线程运行时 + 小栈：实际 RSS 约 10-20MB
+LimitNOFILE=4096
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+# WebDAV spool 需要可写临时目录
+ReadWritePaths=/var/lib/cloudmount
+StateDirectory=cloudmount
+
+[Install]
+WantedBy=multi-user.target

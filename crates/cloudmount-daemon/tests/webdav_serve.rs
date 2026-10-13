@@ -27,7 +27,9 @@ async fn start_server() -> (u16, Arc<MockRemote>) {
     let provider: Arc<dyn cloudmount_core::Provider> = remote.clone();
     let listen = format!("127.0.0.1:{port}");
     let server = tokio::spawn(async move {
-        webdav::serve(provider, &listen, None, None).await.ok();
+        webdav::serve(provider, &listen, None, None, None)
+            .await
+            .ok();
     });
     // 等服务就绪
     for _ in 0..50 {
@@ -178,6 +180,7 @@ async fn webdav_auth_rejects_missing_credentials() {
             &listen,
             Some(("user".into(), "pass".into())),
             None,
+            None,
         )
         .await
         .ok();
@@ -244,7 +247,7 @@ async fn web_ui_static_serving() {
     let listen = format!("127.0.0.1:{port}");
     let ui_dir = dir.clone();
     tokio::spawn(async move {
-        webdav::serve(provider, &listen, None, Some(ui_dir))
+        webdav::serve(provider, &listen, None, Some(ui_dir), None)
             .await
             .ok();
     });

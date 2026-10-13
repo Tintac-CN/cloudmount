@@ -50,16 +50,26 @@ jobs:
       - run: npm run build
 
   arm-cross:
-    name: 交叉编译（aarch64 musl 冒烟）
+    name: 交叉编译（musl 冒烟：aarch64 / x86_64）
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-unknown-linux-musl, x86_64-unknown-linux-musl]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-unknown-linux-musl
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
-      # cross：docker 化交叉编译（自带 aarch64 musl 工具链镜像，含 ring 所需的 C 编译器）。
+      # cross：docker 化交叉编译（自带 musl 工具链镜像，含 ring 所需的 C 编译器）。
       # musl.cc 直接下载在本环境不稳定，故走 cross 预编译镜像。
       - uses: taiki-e/install-action@cross
-      - name: Build edge daemon
-        run: cross build -p cloudmount-daemon --target aarch64-unknown-linux-musl --release
+      - name: Build edge daemon + CLI
+        run: |
+          cross build -p cloudmount-daemon -p cloudmount-cli             --target ${{ matrix.target }} --release
+      - name: Smoke test（x86_64 可本机运行）
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          target/${{ matrix.target }}/release/cloudmountd --help
+          target/${{ matrix.target }}/release/cloudmount --help

@@ -1,0 +1,95 @@
+name: Release（多架构 Docker 镜像）
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  docker:
+    name: 构建并推送多架构镜像（GHCR）
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            target: x86_64-unknown-linux-musl
+          - platform: linux/arm64
+            target: aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cross
+      - name: 交叉编译静态产物
+        run: |
+          cross build -p cloudmount-daemon -p cloudmount-cli \
+            --target ${{ matrix.target }} --release
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: 登录 GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送（按架构）
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/cloudmount,push-by-digest=true,name-canonical=true,push=true
+
+      - name: 导出 digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ fromJSON(steps.build.outputs.metadata).imageJSON.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: 上传 digest（供合并清单）
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.target }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+
+  merge:
+    name: 合并多架构清单
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: 下载 digest
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+      - name: 登录 GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 创建并推送合并清单
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${{ github.repository_owner }}/cloudmount:${{ github.ref_name }} \
+            -t ghcr.io/${{ github.repository_owner }}/cloudmount:latest \
+            $(printf 'ghcr.io/${{ github.repository_owner }}/cloudmount@sha256:%s ' *)

@@ -119,6 +119,14 @@ struct Cli {
     #[arg(long)]
     web_ui_dir: Option<std::path::PathBuf>,
 
+    /// [serve] TLS 证书 PEM（设置后走 HTTPS；需与 --tls-key 成对）。
+    #[arg(long)]
+    tls_cert: Option<std::path::PathBuf>,
+
+    /// [serve] TLS 私钥 PEM。
+    #[arg(long)]
+    tls_key: Option<std::path::PathBuf>,
+
     /// [仅 Windows] 服务管理子命令（install/start/stop/uninstall/run）。
     #[cfg(windows)]
     #[command(subcommand)]
@@ -393,11 +401,20 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
             s.split_once(':')
                 .map(|(u, p)| (u.to_string(), p.to_string()))
         });
+        let tls = match (&cli.tls_cert, &cli.tls_key) {
+            (Some(c), Some(k)) => Some(cloudmount_daemon::webdav::TlsConfig {
+                cert_path: c.clone(),
+                key_path: k.clone(),
+            }),
+            (None, None) => None,
+            _ => anyhow::bail!("--tls-cert 与 --tls-key 必须成对提供"),
+        };
         return cloudmount_daemon::webdav::serve(
             provider,
             &cli.listen,
             auth,
             cli.web_ui_dir.clone(),
+            tls,
         )
         .await;
     }
