@@ -18,3 +18,5 @@ sha1.workspace = true
 hex.workspace = true
 base64.workspace = true
 time.workspace = true
+# m115 协议加密（固定 1024-bit RSA 模数的 modpow）
+num-bigint = "0.4"

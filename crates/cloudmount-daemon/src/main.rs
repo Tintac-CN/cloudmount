@@ -30,6 +30,8 @@
 
 use anyhow::Context;
 use clap::Parser;
+#[cfg(windows)]
+use cloudmount_auth::cookie::CookieAuth;
 use cloudmount_auth::open::OpenApiAuth;
 use cloudmount_core::{Provider, RemoteId};
 use cloudmount_driver115::Open115Provider;
@@ -91,6 +93,11 @@ struct Cli {
     /// 是否传播本地删除（**默认关闭**：远端保留并重新下载）。
     #[arg(long)]
     propagate_local_deletes: bool,
+
+    /// 数据通道：open（官方 OpenAPI，默认）/ cookie（补充通道，须已
+    /// `cloudmount login --with-cookie-channel` 登录；只读能力）。
+    #[arg(long, default_value = "open")]
+    channel: String,
 
     /// [仅 mock feature] 使用内置 MockRemote 云端（免凭据自检/演示）。
     #[cfg(feature = "mock")]
@@ -244,6 +251,21 @@ fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
         mock.put_dir("docs");
         mock.put_file("docs/demo.txt", b"Nested placeholder hydration works.");
         return Ok(Arc::new(mock));
+    }
+
+    // Cookie 补充通道（显式 opt-in；知情同意已在 login 时完成）
+    if cli.channel == "cookie" {
+        tracing::warn!(
+            "使用 Cookie 补充通道（违反 115 服务协议；只读能力，上传未实现）。             失效探测只读不踢线，失效时请重新扫码。"
+        );
+        let policy = cloudmount_auth::cookie::CookiePolicy {
+            enabled: true,
+            consent_acknowledged: true,
+        };
+        let store = cloudmount_auth::store::default_store()?;
+        let auth = CookieAuth::new(policy, store);
+        let provider = cloudmount_driver115::Cookie115Provider::try_new(policy, auth)?;
+        return Ok(Arc::new(provider));
     }
 
     let app_id = cli

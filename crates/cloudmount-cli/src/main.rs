@@ -45,9 +45,12 @@ struct Cli {
 enum Commands {
     /// 用 115 App 扫码登录（官方 OpenAPI，推荐）。
     Login {
-        /// 额外启用 Cookie 补充通道（违反 115 服务协议，默认关闭）。
+        /// 启用 Cookie 补充通道并扫码登录（违反 115 服务协议，默认关闭）。
         #[arg(long)]
         with_cookie_channel: bool,
+        /// 跳过知情确认交互（已阅读风险声明；供脚本使用）。
+        #[arg(long)]
+        consent: bool,
     },
     /// 显示当前登录状态。
     Status,
@@ -106,12 +109,10 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Login {
             with_cookie_channel,
+            consent,
         } => {
             if with_cookie_channel {
-                eprintln!(
-                    "⚠️  Cookie 补充通道违反《115 生活用户服务协议》(3.2.3(4)/4.2(11)/5.4)，\n\
-                     可能导致封号/限速/多端互踢。Cookie 通道将在 M3 实现。"
-                );
+                return cmd_login_cookie(consent);
             }
             cmd_login(&cli.app_id)
         }
@@ -179,6 +180,86 @@ fn cmd_login(app_id: &Option<String>) -> anyhow::Result<()> {
             None => {
                 // 状态接口为长轮询，本身会阻塞；短暂 sleep 防止空转
                 std::thread::sleep(std::time::Duration::from_millis(500));
+                print!(".");
+                std::io::stdout().flush().ok();
+            }
+        }
+    }
+}
+
+/// Cookie 补充通道登录：知情同意 → 扫码 → 换 Cookie（独立容器存储）。
+fn cmd_login_cookie(consent: bool) -> anyhow::Result<()> {
+    use cloudmount_auth::cookie::{CookieAuth, CookiePolicy};
+
+    // ---- 知情同意（默认关闭原则：必须显式确认）----
+    if !consent {
+        println!(
+            "⚠️  Cookie 补充通道风险声明（务必阅读）：
+  1. 该方式违反《115 生活用户服务协议》3.2.3(4)/4.2(11)/5.4 条
+     （禁止非授权客户端/接口、禁止反向工程）；
+  2. 可能导致账号冻结、限速、数据访问受限；
+  3. 扫码登录会与其它设备会话互踢；
+  4. 无稳定性承诺，115 可随时变更协议导致失效。
+官方 OpenAPI 已覆盖同步盘全部核心能力（申请入口 https://open.115.com/ ）。
+凭据将存放在独立容器（与官方 token 物理隔离），失效探测只读不踢线。"
+        );
+        print!(
+            "
+输入 yes 确认知情同意并继续（其它任意键取消）: "
+        );
+        std::io::stdout().flush()?;
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line)?;
+        if line.trim() != "yes" {
+            println!("已取消（未启用 Cookie 通道）。");
+            return Ok(());
+        }
+    }
+
+    let policy = CookiePolicy {
+        enabled: true,
+        consent_acknowledged: true,
+    };
+    let store = default_store()?;
+    let auth = CookieAuth::new(policy, store);
+    if auth.is_logged_in() {
+        println!("Cookie 通道已登录（如需重新登录请先 `cloudmount logout`）。");
+        return Ok(());
+    }
+
+    // ---- 扫码（与官方通道同构：终端二维码 + 轮询）----
+    let challenge = auth.begin_login()?;
+    println!(
+        "请用 115 App 扫描下面的二维码：
+"
+    );
+    println!(
+        "{}
+",
+        challenge.qr_content
+    );
+    match render_qr(&challenge.qr_content) {
+        Ok(art) => println!("{art}"),
+        Err(e) => tracing::debug!("终端二维码渲染失败（可用上面的链接）: {e}"),
+    }
+
+    let deadline = challenge.expires_at;
+    loop {
+        if now_unix() > deadline {
+            anyhow::bail!("二维码已过期，请重新执行 login --with-cookie-channel");
+        }
+        match auth.poll_login(&challenge)? {
+            Some(_) => {
+                println!(
+                    "
+✅ Cookie 登录成功，凭据已保存到独立容器。"
+                );
+                println!("提示：挂载/读取可用 Cookie 通道；上传能力将在 M3 v2 提供。");
+                return Ok(());
+            }
+            None => {
+                // web 状态接口立即返回（短轮询），控制节奏
+                std::thread::sleep(std::time::Duration::from_millis(1000));
                 print!(".");
                 std::io::stdout().flush().ok();
             }
