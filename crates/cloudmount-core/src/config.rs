@@ -209,8 +209,13 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// env var 是进程级的——两个 env 测试必须互斥（并行 set/remove 同一
+    /// 变量会竞态：CI Windows 上实际复现）。
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn env_overrides_file() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_config("env");
         save_to(
             &path,
@@ -234,6 +239,7 @@ mod tests {
 
     #[test]
     fn empty_env_keeps_file_value() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let path = temp_config("empty-env");
         save_to(
             &path,
