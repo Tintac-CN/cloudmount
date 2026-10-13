@@ -1,14 +1,12 @@
 //! # cloudmountd
 //!
-//! CloudMount 常驻服务。两种运行模式：
+//! CloudMount 常驻服务。运行模式：
 //!
 //! ## 1. 同步模式（默认）—— 双向同步引擎
 //!
 //! ```text
-//! export CLOUDMOUNT_APP_ID=<开放平台 AppID>
-//! export CLOUDMOUNT_SYNC_ROOT=/path/to/local/folder
-//! cloudmountd --interval 30        # 每 30 秒一轮
-//! cloudmountd --once               # 只跑一轮
+//! cloudmountd --interval 30
+//! cloudmountd --once
 //! ```
 //!
 //! ## 2. 占位符挂载模式（`--placeholder-mount`）—— 类 OneDrive 按需视图
@@ -18,30 +16,37 @@
 //! cloudmountd --placeholder-mount --mock --once --hold-secs 5   # 免凭据自检
 //! ```
 //!
-//! 每轮：探测远端变化（1 次请求）→ 有变化则全量拉取 → 投影为占位符 /
-//! 删除传播。文件被访问时由 cldflt 回调直接从云端按需水合（不经引擎）。
+//! ## 3. Windows 服务管理（`service` 子命令）
+//!
+//! ```text
+//! cloudmountd service install --sync-root D:\Cloud   # 注册（开机自启）
+//! cloudmountd service start / stop / uninstall
+//! ```
 //!
 //! ## 低内存纪律（目标空闲 RSS 5–15MB）
 //! - tokio 用 `new_current_thread()` 单线程运行时。
 //! - 同步/挂载循环是**同步阻塞**实现，跑在独立阻塞线程里。
-//! - 缓冲区小而有限；缓存落盘不占 RAM。
 //! - 发布构建 `opt-level="z" + lto + panic="abort"`。
 
 use anyhow::Context;
 use clap::Parser;
 use cloudmount_auth::open::OpenApiAuth;
-use cloudmount_auth::store::default_store;
 use cloudmount_core::{Provider, RemoteId};
 use cloudmount_driver115::Open115Provider;
 #[cfg(windows)]
 use cloudmount_sync::remote::RemoteViewTracker;
-#[cfg(feature = "mock")]
-use cloudmount_sync::testutil::MockRemote;
+#[cfg(all(feature = "mock", not(windows)))]
+use cloudmount_sync::testutil::MockRemote as _;
 use cloudmount_sync::{SyncEngine, SyncEngineConfig};
 #[cfg(windows)]
-use cloudmount_vfs::backends::cfapi_mount::PlaceholderSync;
+use cloudmount_vfs::LocalChangeUploader;
+#[cfg(windows)]
+use cloudmount_vfs::PlaceholderSync;
 use std::sync::Arc;
 use std::time::Duration;
+
+#[cfg(windows)]
+mod service;
 
 /// 命令行参数。
 #[derive(Parser)]
@@ -79,10 +84,6 @@ struct Cli {
     #[arg(long, default_value_t = 0)]
     hold_secs: u64,
 
-    /// 数据目录（默认按平台惯例，见 `cloudmount_core::paths`）。
-    #[arg(long, env = "CLOUDMOUNT_DATA_DIR")]
-    data_dir: Option<std::path::PathBuf>,
-
     /// 是否传播远端删除（**默认关闭**：本地保留并重新上传）。
     #[arg(long)]
     propagate_remote_deletes: bool,
@@ -95,6 +96,28 @@ struct Cli {
     #[cfg(feature = "mock")]
     #[arg(long)]
     mock: bool,
+
+    /// [仅 Windows] 服务管理子命令（install/start/stop/uninstall/run）。
+    #[cfg(windows)]
+    #[command(subcommand)]
+    service: Option<ServiceCommands>,
+}
+
+/// Windows 服务管理子命令。
+#[cfg(windows)]
+#[derive(Debug, Clone, clap::Subcommand)]
+enum ServiceCommands {
+    /// 注册 Windows 服务（开机自启；启动参数由本次其余 flag 决定）。
+    Install,
+    /// 启动服务。
+    Start,
+    /// 停止服务。
+    Stop,
+    /// 删除服务。
+    Uninstall,
+    /// SCM 入口（由服务控制管理器调用，勿手动执行）。
+    #[command(hide = true)]
+    Run,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -106,6 +129,59 @@ fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
 
+    // Windows 服务子命令（安装/启停在 SCM 层，无需 tokio）
+    #[cfg(windows)]
+    if let Some(cmd) = &cli.service {
+        let launch_args = build_launch_args(&cli);
+        match cmd {
+            ServiceCommands::Install => {
+                service::install(&launch_args)?;
+                println!(
+                    "服务已安装（开机自启）。启动：sc start {} 或重启",
+                    service::SERVICE_NAME
+                );
+            }
+            ServiceCommands::Start => {
+                service::service_start()?;
+                println!("服务已启动");
+            }
+            ServiceCommands::Stop => {
+                service::service_stop()?;
+                println!("服务已停止");
+            }
+            ServiceCommands::Uninstall => {
+                service::uninstall()?;
+                println!("服务已删除");
+            }
+            ServiceCommands::Run => {
+                // SCM 入口：同步引擎循环（阻塞直到 SCM Stop）
+                let sync_root = cli.sync_root.clone().unwrap_or_else(|| ".".into());
+                let provider = build_provider(&cli)?;
+                let mut cfg = SyncEngineConfig::new(&sync_root);
+                cfg.remote_root = RemoteId(cli.remote_root.clone());
+                cfg.policy.propagate_remote_deletes = cli.propagate_remote_deletes;
+                cfg.policy.propagate_local_deletes = cli.propagate_local_deletes;
+                let interval = cli.interval.max(1);
+                // cfg/provider 会被闭包捕获，先克隆供 SCM 执行体用
+                let cfg_for_closure = cfg.clone();
+                let provider_for_closure = provider.clone();
+                if let Err(e) =
+                    service::run_service_scm_executor(cfg, provider, interval, move |stop| {
+                        run_service_engine_blocking(
+                            cfg_for_closure,
+                            provider_for_closure,
+                            interval,
+                            stop,
+                        )
+                    })
+                {
+                    tracing::error!(error = %e, "服务运行失败");
+                }
+            }
+        }
+        return Ok(());
+    }
+
     // 单线程运行时：内存最优。
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -116,6 +192,88 @@ fn main() -> anyhow::Result<()> {
     tracing::info!(version = cloudmount_core::VERSION, "cloudmountd starting");
 
     rt.block_on(async_main(cli))
+}
+
+/// 从 Cli 提取服务启动参数（install 时烘焙进 binPath）。
+#[cfg(windows)]
+fn build_launch_args(cli: &Cli) -> Vec<String> {
+    let mut args = Vec::new();
+    if cli.placeholder_mount {
+        args.push("--placeholder-mount".into());
+    }
+    if let Some(root) = &cli.sync_root {
+        args.extend(["--sync-root".into(), root.to_string_lossy().to_string()]);
+    }
+    if cli.remote_root != "0" {
+        args.extend(["--remote-root".into(), cli.remote_root.clone()]);
+    }
+    if let Some(id) = &cli.app_id {
+        args.extend(["--app-id".into(), id.clone()]);
+    }
+    if cli.propagate_remote_deletes {
+        args.push("--propagate-remote-deletes".into());
+    }
+    if cli.propagate_local_deletes {
+        args.push("--propagate-local-deletes".into());
+    }
+    args
+}
+
+/// 以 AppID 构造 Provider（供服务模式/占位符模式的非 mock 通道）。
+fn build_provider_from_app_id(app_id: &str) -> anyhow::Result<Arc<dyn Provider>> {
+    let store = cloudmount_auth::store::default_store()?;
+    let auth = Arc::new(OpenApiAuth::new(app_id, store));
+    if !auth.is_logged_in() {
+        anyhow::bail!("未登录：请先执行 `cloudmount login` 完成扫码授权");
+    }
+    Ok(Arc::new(Open115Provider::new(auth)))
+}
+
+/// 阻塞式构建 Provider（无 mock 时走官方 OpenAPI）。
+fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
+    let app_id = cli
+        .app_id
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("缺少 AppID：请设置 CLOUDMOUNT_APP_ID 或传 --app-id"))?;
+    build_provider_from_app_id(&app_id)
+}
+
+/// 服务模式引擎循环（阻塞直到 SCM 停止）。
+fn run_service_engine_blocking(
+    cfg: SyncEngineConfig,
+    provider: Arc<dyn Provider>,
+    interval_secs: u64,
+    stop: crate::service::StopSignal,
+) {
+    let Ok(mut engine) = SyncEngine::new(cfg, provider) else {
+        return;
+    };
+    loop {
+        if stop.should_stop() || crate::service::should_exit() {
+            return;
+        }
+        match engine.run_once() {
+            Ok(stats) => {
+                if stats.has_changes() || stats.errors > 0 {
+                    tracing::info!(
+                        uploaded = stats.uploaded,
+                        downloaded = stats.downloaded,
+                        conflicts = stats.conflicts,
+                        errors = stats.errors,
+                        "同步完成（有变更）"
+                    );
+                }
+            }
+            Err(e) => tracing::error!(error = %e, "同步轮次失败（继续）"),
+        }
+        // 分段 sleep，及时响应停止
+        for _ in 0..(interval_secs.max(1) * 2) {
+            if stop.should_stop() || crate::service::should_exit() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+    }
 }
 
 async fn async_main(cli: Cli) -> anyhow::Result<()> {
@@ -134,7 +292,7 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
             "缺少 AppID：请设置 CLOUDMOUNT_APP_ID 或传 --app-id（申请入口 https://open.115.com/）"
         )
     })?;
-    let store = default_store()?;
+    let store = cloudmount_auth::store::default_store()?;
     let auth = Arc::new(OpenApiAuth::new(app_id, store));
     if !auth.is_logged_in() {
         anyhow::bail!("未登录：请先执行 `cloudmount login` 完成扫码授权");
@@ -184,7 +342,6 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
     });
 
     // TODO(M4): 边缘模式下并行启动 dav-server-rs 的 WebDAV 出口与 web-ui 托管。
-    // TODO(M2.5): 桌面模式把占位符挂载与同步引擎并联（双向写路径设计）。
 
     engine_task
         .await
@@ -228,11 +385,8 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
     }
 
     // 双向：本地变更（用户修改/新建）→ 上传
-    let mut uploader = cloudmount_vfs::LocalChangeUploader::new(
-        mount.clone(),
-        provider.clone(),
-        remote_root.clone(),
-    )?;
+    let mut uploader =
+        LocalChangeUploader::new(mount.clone(), provider.clone(), remote_root.clone())?;
 
     let mut sync = PlaceholderSync::new(mount.clone(), &initial);
     let interval = Duration::from_secs(cli.interval.max(1));
@@ -260,6 +414,7 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
                 Ok(stats) => tracing::info!(
                     added = stats.added,
                     removed = stats.removed,
+                    content_updated = stats.content_updated,
                     content_pending = stats.content_changes_pending,
                     "远端视图已应用"
                 ),
@@ -281,44 +436,9 @@ fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Resu
         std::thread::sleep(interval);
     }
 
-    // 干净退出：断开连接 + 注销同步根
+    // 干净退出：断开连接 + 双注销（内核 + Shell）
     if let Ok(m) = Arc::try_unwrap(mount) {
         cloudmount_vfs::Mount::unmount(Box::new(m)).ok();
     }
     Ok(())
-}
-
-/// 非 Windows：占位符挂载不可用（cldflt 为 Windows 组件）。
-#[cfg(not(windows))]
-fn run_placeholder_mount(_cli: &Cli, _sync_root: &std::path::Path) -> anyhow::Result<()> {
-    anyhow::bail!("占位符挂载当前仅支持 Windows（macOS FileProvider / Linux 方案见 ROADMAP）")
-}
-
-/// 构造 Provider（mock 通道或官方 OpenAPI）。
-#[cfg(windows)]
-fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
-    #[cfg(feature = "mock")]
-    if cli.mock {
-        tracing::warn!("使用 MockRemote 云端（演示/自检；内容为内置示例）");
-        let mock = MockRemote::new();
-        mock.put_file(
-            "welcome.txt",
-            b"Welcome to CloudMount! This file is hydrated on demand.",
-        );
-        mock.put_dir("docs");
-        mock.put_file("docs/demo.txt", b"Nested placeholder hydration works.");
-        return Ok(Arc::new(mock));
-    }
-
-    let app_id = cli.app_id.clone().ok_or_else(|| {
-        anyhow::anyhow!(
-            "缺少 AppID：请设置 CLOUDMOUNT_APP_ID 或传 --app-id（申请入口 https://open.115.com/）"
-        )
-    })?;
-    let store = default_store()?;
-    let auth = Arc::new(OpenApiAuth::new(app_id, store));
-    if !auth.is_logged_in() {
-        anyhow::bail!("未登录：请先执行 `cloudmount login` 完成扫码授权");
-    }
-    Ok(Arc::new(Open115Provider::new(auth)))
 }

@@ -1,0 +1,61 @@
+// ---- SCM 运行入口 ----
+
+windows_service::define_windows_service!(ffi_service_main, service_main);
+
+fn service_main(args: Vec<std::ffi::OsString>) {
+    // args[0] 为 exe 名，args[1..] 为注册时烘焙的 launch_arguments。
+    // 仅解析同步模式所需的最小 flag 集（与 build_launch_args 输出对齐）。
+    let mut sync_root = ".".to_string();
+    let mut remote_root = "0".to_string();
+    let mut app_id: Option<String> = None;
+    let mut interval = 30u64;
+    let mut propagate_remote = false;
+    let mut propagate_local = false;
+
+    let mut it = args.into_iter().skip(1);
+    while let Some(arg) = it.next() {
+        let Some(arg) = arg.to_str() else { continue };
+        let mut value = String::new();
+        let takes_value = matches!(
+            arg.as_str(),
+            "--sync-root" | "--remote-root" | "--app-id" | "--interval"
+        );
+        if takes_value {
+            if let Some(v) = it.next() {
+                value = v.to_string_lossy().to_string();
+            }
+        }
+        match arg.as_str() {
+            "--sync-root" => sync_root = value,
+            "--remote-root" => remote_root = value,
+            "--app-id" => app_id = Some(value),
+            "--interval" => interval = value.parse().unwrap_or(30),
+            "--propagate-remote-deletes" => propagate_remote = true,
+            "--propagate-local-deletes" => propagate_local = true,
+            _ => {}
+        }
+    }
+
+    // Provider 构造（与命令行模式一致：从系统凭据库恢复 token）
+    let provider: Arc<dyn Provider> = match build_provider(&app_id) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!(error = %e, "Provider 构造失败（服务退出）");
+            return;
+        }
+    };
+
+    let mut cfg = SyncEngineConfig::new(&sync_root);
+    cfg.remote_root = RemoteId(remote_root);
+    cfg.policy.propagate_remote_deletes = propagate_remote;
+    cfg.policy.propagate_local_deletes = propagate_local;
+
+    if let Err(e) = crate::service::run_service(
+        cfg,
+        provider,
+        interval.max(1),
+        move |stop| run_service_engine_blocking(cfg, provider, interval.max(1), stop),
+    ) {
+        tracing::error!(error = %e, "服务运行失败");
+    }
+}
