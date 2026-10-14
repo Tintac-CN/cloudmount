@@ -54,3 +54,24 @@ GATE-REJECTED gate1 2026-10-14
 - 新计数：AC1–AC16 ↔ T-01…T-29 全部有映射落点；P0 = 9、P1 = 19、P2 = 1。
 - 残留未裁决开放问题收敛为 3 项（prd：F-05 拒绝语义、F-13 不可读分支、F-05 升级行为/存储位置 A/B 含 m12 反向窗口）+ architecture 6 项（desktop 同意交互形态为新增）——Gate#1 复审时合并呈报。
 - 相位转移：gate1 复位 pending（重审前复位，decisions.md 2026-10-14 GATE-REJECTED gate1 之后须新回执），phase → gate1。
+
+---
+
+2026-10-14 Gate#1 复审（r2）与人类裁决（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate1-ai-r2.md`（复审轮：上轮全部发现经源码级核验确认真实消解；新发现 1 BLOCKER / 3 MAJOR / 15 MINOR，均为措辞级收敛；reviewer-architect 与 reviewer-dev 明确"修完即可放行、无需第三轮全量互审"）。
+- 问：「Gate#1 复审：上轮全部发现确认消解，新发现 1 BLOCKER / 3 MAJOR / 15 MINOR（均为措辞级收敛，四方评审建议修完即可放行）。如何裁决？」
+  答：「打回微调（推荐）」
+- 问：「BLOCKER 的根因是裁决原文"从配置构造 CookiePolicy"有歧义。desktop 侧统一口径采哪种？」
+  答：「点击即同意（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate1 第 2 次打回（gate1=rejected，phase 回 inception）；只重跑被点名收敛项（B-R2-1 口径统一 + 3 MAJOR + MINOR 清单），复审只核对新收敛点（轻量，不重跑全量四方互审）。
+  2. **desktop 统一口径 = 点击即同意**：勾选框初值取配置；点击登录时构造 CookiePolicy（enabled=true 恒真、consent_acknowledged=勾选状态）→ 首次登录零障碍；登录成功写回 [cookie] 段供 daemon/CLI 消费。结构性断言收窄为"引擎/组装路径（build_channel_provider/try_cookie_provider/engine_loop）不复存在硬编码，登录会话路径豁免（勾选即同意）"。
+- 收敛轮编排者代行裁决（Gate#1 第三次复审追认项）：
+  1. M-R2-1（T-11/AC7 锁观测 seam）：采**纯测试侧判据**（零生产 seam）——SlowMockRemote 桩侧记录每次 list/create_dir 调用的起止时间窗，断言存在时间窗交叠（不同前缀的两目录并发 ensure_remote_dir；交叠 ⇒ 锁未跨网络持有；现状整段持锁则严格串行、无交叠，红测判别成立）；AC7/T-11 措辞同步，不再引用"架构修订声明的 seam"。
+  2. M-R2-2（desktop 写回测试归宿）：采方案①——写回逻辑提取为 cloudmount-core 纯函数（如 `set_cookie_consent(&mut Config)`，配合既有 load_from/save_to 路径注入变体），core 层单元测（CI 可见，守护 [cookie] 写回语义）；**desktop 接线（登录成功回调调用该函数）显式归人工清单⑦**；AC16 措辞同步（不要求 desktop crate 内自动化测试）。
+  3. M-R2-3（windows 编译面）：build_launch_args 的**参数向量组装提取为跨平台纯函数**（纯 Vec<String> 组装，无 windows 专属 API），T-29/T-21 测试无门控；windows 专属执行面（SCM 注册等）留原处；T-25② 清单补全（T-09 全腿 windows-only、T-29/T-21 无门控说明）。
+  4. sign_check（status=7）二次区间用例：**延后**——architecture F-14 覆盖矩阵注明延后，qa 缺口节记录（不扩 T-24 复杂度）。
+  5. desktop 写回在 config::load 失败时静默跳过（arch MINOR-3）：写回分支补 warn（同意记录丢失可观测）。
+  6. MINOR 清单第 17 条（AC16 结构性断言 T 点）随 B-R2-1 收敛一并落点（T-28 或新增 T-30 grep 式断言）。
+
+GATE-REJECTED gate1 2026-10-14
