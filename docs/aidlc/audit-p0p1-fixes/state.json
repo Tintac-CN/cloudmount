@@ -1,7 +1,7 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "construction",
+  "phase": "gate2",
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
   "tddLockPaths": [
@@ -17,15 +17,15 @@
     "U3": "done",
     "U4": "done",
     "U5": "done",
-    "U6": "pending",
+    "U6": "done",
     "U7": "done",
     "U8": "done",
     "U9": "done",
     "U10": "done",
     "U11": "done",
-    "U12": "pending"
+    "U12": "done"
   },
-  "updatedAt": "2026-10-15T01:12:30+08:00",
+  "updatedAt": "2026-10-15T01:50:10+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -128,6 +128,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U8/U11 完成（绿，11/12 units done，含 U11 两条实证偏差备案交 Gate#2）；U12 最后一个 unit 派发"
+    },
+    {
+      "at": "2026-10-15T01:50:10+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U12 完成（绿）——12/12 units 全部 done；统一验证两腿全绿（workspace 273 + mock 腿 281 测试 0 失败）+ workspace clippy -D warnings 净；gate2 前置满足，进入交付门"
     }
   ]
 }

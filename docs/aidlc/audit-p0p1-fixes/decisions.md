@@ -188,3 +188,13 @@ GATE-APPROVED gate1 2026-10-14
 - **U11 完成（绿）**：F-08 flushed 上传确认后置位 + flush 幂等护栏 + take() 关句柄后上传 + Drop 自愈未 flush spool + 删除失败 warn 接受残留；F-09 收窄 NotFound（GeneralFailure→500）。红 4（PUT 201 静默新建/独占打开被拒证 as_ref 半泄漏/二次 flush GeneralFailure/失败上传直接删 spool 无自愈）→ 绿 6/6；daemon mock 腿 20/20、默认腿 8/8；clippy 净。unitStatus U11 = done。
 - **U11 偏差备案两条（实证级，交 Gate#2 核验）**：①T-13 原红判据（as_ref 半泄漏→删除失败残留）在现 Rust std 不成立——默认 share mode 含 FILE_SHARE_DELETE，修复前 remove_file 即成功（delete-pending 命名空间立即消失），F-08 红判据由 T-14 独占打开判别 + flush 幂等 + Drop 自愈分支承载，T-13 集成分支保留为精确路径回归保护；②webdav_write.rs 自带最小 harness（集成测试目标为独立 crate 不能直接 import U10 harness；#[path] 包含会重跑 U10 全套，抽公共模块需动 U10 已完成文件）。
 - U12（F-12+F-13，最后一个 unit）派发。
+
+---
+
+2026-10-15 Construction 完成记录（编排者）：
+- **12/12 units 全部 done**（U1-U12；含 U2X 扩围补刀）。提交链：987cae3(plan)→9daacd0/a375829/59c3315(红)→92017e1(U9)→9daacd0 系(U1 @ a3fbab5 done)→c4257cd(U4)→a2881f4(U3)→b670cf9(U2)/436c1c7(U7)→f5a8d5a(U2X)/87bb4be(U10)→107f96d(U5)→6ba2ef1(U8/U11)→33517e5(U12)。
+- **统一验证命令两腿全绿**：①`cargo test --workspace` 273 测试 0 失败；②`cargo test --workspace --features cloudmount-daemon/mock` 281 测试 0 失败（mock feature 目标真实执行——T-25 的 CI 空绿缺陷已消除）；③`cargo clippy --workspace --all-targets --features cloudmount-daemon/mock -- -D warnings` 零警告。
+- 降级事件汇总（均留痕并已按协议处置）：U1/U4/U5 三次代理限流（1302）零产出→串行/单飞重派全部成功，无内联代跑。
+- 架构偏差备案（实证级，交 Gate#2 核验）：①U7 CloseHandle 阻塞实证 → 事件唤醒修正（契约面不变）；②U11 T-13 红判据 std 语义修正（FILE_SHARE_DELETE）→ 判据由 T-14/幂等/自愈承载；③U11 自包含 harness（集成目标独立 crate 不可 import）。
+- 范围内追加裁决（已留痕）：F-04 施工面扩至八处（ec115 两处密钥材料泄漏升格）；r3 MINOR×8 顺带回填。
+- Gate#2 前置满足：全 unit 完成 + 验证命令通过 → phase 置 gate2。
