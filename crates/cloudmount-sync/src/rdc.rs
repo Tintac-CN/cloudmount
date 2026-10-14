@@ -14,9 +14,10 @@ use crate::watcher::{apply_dirty, diff_snapshots, rescan_into, DirtyEvent};
 use cloudmount_core::{Error, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::time::Duration;
 
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Storage::FileSystem::{
@@ -32,6 +33,24 @@ const BUFFER_SIZE: usize = 64 * 1024;
 /// 每多少轮 poll 做一次全量对账（防事件漂移的兜底）。
 const RESCAN_EVERY_POLLS: u32 = 50;
 
+/// Drop 收割：轮询 `exited` 的间隔。
+const WATCHER_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+/// Drop 收割上限：超时则 detach + warn（泄漏回到可观测形态，绝不挂起 Drop）。
+const WATCHER_JOIN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// 活跃 watcher 计数（线程 spawn 成功后 +1，event_loop 退出 -1）。
+///
+/// 生产 seam（架构 MA6）：cfg 无关、生产构建常驻，供 T-09 泄漏断言轮询
+/// 回落基线；代价为每次创建/退出各一次原子加减，可忽略。
+static ACTIVE_WATCHERS: AtomicUsize = AtomicUsize::new(0);
+
+/// 当前活跃 watcher 数（`#[doc(hidden)]`：仅供泄漏回归测试观测）。
+#[doc(hidden)]
+pub fn active_watcher_count() -> usize {
+    ACTIVE_WATCHERS.load(Ordering::SeqCst)
+}
+
 /// Windows 原生目录变更 watcher。
 pub struct RdcWatcher {
     root: PathBuf,
@@ -41,22 +60,53 @@ pub struct RdcWatcher {
     overflow: Arc<AtomicBool>,
     /// 关停标志。
     shutdown: Arc<AtomicBool>,
-    /// 目录句柄（Drop 时关闭以唤醒阻塞的读线程）。
-    handle: Arc<RawHandle>,
+    /// 线程已退出标志（event_loop 全部退出路径归一置位——有界收割的观测点）。
+    exited: Arc<AtomicBool>,
+    /// 目录句柄（Drop 时显式 close 以唤醒阻塞的读线程）。
+    handle: Option<Arc<RawHandle>>,
+    /// 读线程句柄（Drop 时有界 join；超时 detach）。
+    thread: Option<std::thread::JoinHandle<()>>,
     polls: u32,
 }
 
-/// 裸句柄包装（Drop 关闭；线程共享只读使用）。
-struct RawHandle(windows::Win32::Foundation::HANDLE);
+/// 裸句柄包装（显式 close 幂等；线程共享只读使用）。
+struct RawHandle {
+    handle: windows::Win32::Foundation::HANDLE,
+    /// 关闭守卫：`swap(true)` 成功者才执行 `CloseHandle`——恰一次；
+    /// Drop 复用同一守卫，防显式 close 后句柄值被 OS 复用时误关新对象。
+    closed: AtomicBool,
+}
 
 // HANDLE 是指针大小的值类型，跨线程共享安全（仅用于系统调用）
 unsafe impl Send for RawHandle {}
 unsafe impl Sync for RawHandle {}
 
+impl RawHandle {
+    fn new(handle: windows::Win32::Foundation::HANDLE) -> Self {
+        Self {
+            handle,
+            closed: AtomicBool::new(false),
+        }
+    }
+
+    /// 幂等关闭目录句柄。
+    ///
+    /// 注意：只能在**无线程在途读**时调用（harvest_watcher 在 join 之后/
+    /// 线程自身退出路径）——对在途同步 `ReadDirectoryChangesW` 调
+    /// `CloseHandle` 会阻塞至 IRP 完成（本地 NTFS 实测），并非"关闭即唤醒"。
+    /// `closed` 守卫保证 `CloseHandle` 恰一次：显式 close 后 Arc 归零时的
+    /// Drop 复用同一守卫，防句柄值被 OS 复用时误关新对象。
+    fn close(&self) {
+        if self.closed.swap(true, Ordering::SeqCst) {
+            return; // 已关闭
+        }
+        let _ = unsafe { CloseHandle(self.handle) };
+    }
+}
+
 impl Drop for RawHandle {
     fn drop(&mut self) {
-        // 关闭句柄会唤醒阻塞中的 ReadDirectoryChangesW（文档化的取消方式）
-        let _ = unsafe { CloseHandle(self.0) };
+        self.close();
     }
 }
 
@@ -71,20 +121,39 @@ impl RdcWatcher {
         let (tx, rx) = channel::<Vec<DirtyEvent>>();
         let overflow = Arc::new(AtomicBool::new(false));
         let shutdown = Arc::new(AtomicBool::new(false));
-        let shared_handle = Arc::new(RawHandle(handle));
+        let exited = Arc::new(AtomicBool::new(false));
+        let shared_handle = Arc::new(RawHandle::new(handle));
 
-        let _thread = std::thread::Builder::new()
+        let thread = std::thread::Builder::new()
             .name("cm-rdc-watcher".into())
             .spawn({
                 let handle = shared_handle.clone();
                 let overflow = overflow.clone();
                 let shutdown = shutdown.clone();
-                move || event_loop(handle, tx, overflow, shutdown)
+                let exited = exited.clone();
+                move || event_loop(handle, tx, overflow, shutdown, exited)
             })
             .map_err(|e| Error::Other(format!("启动 watcher 线程失败: {e}")))?;
 
+        // spawn 成功即计入活跃（与 event_loop 退出的 -1 配对）
+        ACTIVE_WATCHERS.fetch_add(1, Ordering::SeqCst);
+
         // 建立基线快照（此时线程已在监听，期间发生的事件不会丢失）
-        let snapshot = crate::scan::scan_tree(&root_abs)?;
+        let snapshot = match crate::scan::scan_tree(&root_abs) {
+            Ok(s) => s,
+            Err(e) => {
+                // 回滚：new() 返回 Err 后 Drop 不会运行，必须在此有界收割
+                // 线程与句柄（否则线程与计数泄漏）
+                harvest_watcher(
+                    &shutdown,
+                    &exited,
+                    Some(shared_handle),
+                    Some(thread),
+                    &root_abs,
+                );
+                return Err(e);
+            }
+        };
 
         Ok(Self {
             root: root_abs,
@@ -92,7 +161,9 @@ impl RdcWatcher {
             events: rx,
             overflow,
             shutdown,
-            handle: shared_handle,
+            exited,
+            handle: Some(shared_handle),
+            thread: Some(thread),
             polls: 0,
         })
     }
@@ -140,9 +211,65 @@ impl LocalWatcher for RdcWatcher {
 
 impl Drop for RdcWatcher {
     fn drop(&mut self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-        // 关闭句柄（RawHandle 的 Drop）唤醒阻塞线程；线程自行退出
-        drop(self.handle.clone());
+        harvest_watcher(
+            &self.shutdown,
+            &self.exited,
+            self.handle.take(),
+            self.thread.take(),
+            &self.root,
+        );
+    }
+}
+
+/// 有界收割 watcher 线程并回收目录句柄（Drop 与 `new()` 失败回滚共用）。
+///
+/// 唤醒机制说明（架构决策 #13 的实现细节修正，探针实证）：
+/// 同步模式 `ReadDirectoryChangesW` 的在途 IRP 只在目录变更时完成；对在途
+/// 读调 `CloseHandle` 会**阻塞**至 IRP 完成（本地 NTFS 实测）而非"关闭唤醒"。
+/// 因此先造目录事件唤醒线程 → 线程在 loop 顶自查 `shutdown` 退出 → 线程
+/// 终结（无在途 IRP）后再 `close` 句柄（立即返回）。
+fn harvest_watcher(
+    shutdown: &AtomicBool,
+    exited: &AtomicBool,
+    handle: Option<Arc<RawHandle>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+    root: &Path,
+) {
+    shutdown.store(true, Ordering::SeqCst);
+    let Some(handle) = handle else {
+        return; // 已收割过（幂等）
+    };
+
+    // 1) 造目录事件唤醒在途读（尽力而为：目录不可写/已删时造事件失败，
+    //    交给下方超时兜底）
+    let wake = root.join(format!(".cm-wake-{}.tmp", std::process::id()));
+    let _ = std::fs::write(&wake, b"");
+    let _ = std::fs::remove_file(&wake);
+
+    // 2) 有界收割：轮询 exited（线程真正退出的信号），50ms 间隔，上限 5s
+    let deadline = std::time::Instant::now() + WATCHER_JOIN_TIMEOUT;
+    while !exited.load(Ordering::SeqCst) && std::time::Instant::now() < deadline {
+        std::thread::sleep(WATCHER_POLL_INTERVAL);
+    }
+
+    // 3) 观测到退出 → join 收割，随后关句柄（线程已终结，无在途 IRP，
+    //    CloseHandle 立即返回）；超时 → detach + warn（线程与句柄泄漏回到
+    //    可观测形态：warn 日志 + ACTIVE_WATCHERS 计数不回落），Drop 绝不挂起
+    if exited.load(Ordering::SeqCst) {
+        if let Some(t) = thread {
+            let _ = t.join();
+        }
+        handle.close();
+    } else {
+        let _ = thread; // detach
+        tracing::warn!(
+            root = %root.display(),
+            timeout_secs = WATCHER_JOIN_TIMEOUT.as_secs(),
+            "watcher 线程未在超时内退出，放弃收割（detach，泄漏可观测）"
+        );
+        // 有意泄漏 Arc<RawHandle>：此刻 drop 会在在途读上再次 CloseHandle
+        // 而阻塞。句柄回收交由线程侧 Arc（若线程日后被事件唤醒退出）。
+        std::mem::forget(handle);
     }
 }
 
@@ -174,6 +301,7 @@ fn event_loop(
     tx: Sender<Vec<DirtyEvent>>,
     overflow: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
+    exited: Arc<AtomicBool>,
 ) {
     // 过滤掩码：文件/目录增删改名 + 属性 + 大小 + 修改时间 + 创建 + 安全描述符。
     // 刻意不含 LAST_ACCESS（纯读取也触发，噪音太大）。
@@ -186,11 +314,16 @@ fn event_loop(
         | FILE_NOTIFY_CHANGE_SECURITY;
 
     loop {
+        // Drop/回滚请求关停后经目录事件唤醒，在此自查退出（在途同步读无法
+        // 被 CloseHandle 无阻塞取消——见 harvest_watcher 注释）
+        if shutdown.load(Ordering::SeqCst) {
+            break;
+        }
         let mut buffer = vec![0u8; BUFFER_SIZE];
         let mut bytes_returned: u32 = 0;
         let result = unsafe {
             ReadDirectoryChangesW(
-                handle.0,
+                handle.handle,
                 buffer.as_mut_ptr() as *mut core::ffi::c_void,
                 buffer.len() as u32,
                 true, // 监听整棵子树
@@ -227,6 +360,20 @@ fn event_loop(
                 break;
             }
         }
+    }
+
+    // 三个退出出口（接收端销毁 / 正常关停 / 句柄失效）归一至此：
+    // 线程真正退出的信号（Drop 有界收割的观测点）+ 归还活跃计数
+    //（CAS + saturating_sub 防下溢——如 scan_tree 失败路径的边角时序）。
+    exited.store(true, Ordering::SeqCst);
+    let mut prev = ACTIVE_WATCHERS.load(Ordering::SeqCst);
+    while let Err(observed) = ACTIVE_WATCHERS.compare_exchange_weak(
+        prev,
+        prev.saturating_sub(1),
+        Ordering::SeqCst,
+        Ordering::SeqCst,
+    ) {
+        prev = observed;
     }
 }
 
