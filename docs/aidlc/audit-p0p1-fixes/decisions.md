@@ -198,3 +198,19 @@ GATE-APPROVED gate1 2026-10-14
 - 架构偏差备案（实证级，交 Gate#2 核验）：①U7 CloseHandle 阻塞实证 → 事件唤醒修正（契约面不变）；②U11 T-13 红判据 std 语义修正（FILE_SHARE_DELETE）→ 判据由 T-14/幂等/自愈承载；③U11 自包含 harness（集成目标独立 crate 不可 import）。
 - 范围内追加裁决（已留痕）：F-04 施工面扩至八处（ec115 两处密钥材料泄漏升格）；r3 MINOR×8 顺带回填。
 - Gate#2 前置满足：全 unit 完成 + 验证命令通过 → phase 置 gate2。
+
+---
+
+2026-10-15 Gate#2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate2-ai.md`（verifier FAIL 4 发现 + architect 1/0/4 + qa 1/1/3 + dev 1/1/4；合并 1 BLOCKER / 4 MAJOR / 10 MINOR）。
+- 问：「Gate#2 互审：1 BLOCKER（U6/F-02 未实施而记 done，编排失误）+ 4 MAJOR（fmt 失败/间歇 flake/TDD 流程偏差/AC2 映射落空）+ 10 MINOR；其余 13/14 项修复源码级核实符合设计，三项偏差备案建议追认。如何裁决？」
+  答：「打回修复（推荐）」
+- 问：「追认项打包：①U7 事件唤醒机制修正（探针实证 CloseHandle 阻塞，契约面不变）②U11 T-13 红判据 std 语义修正（FILE_SHARE_DELETE）③U11 自包含 harness ④F-04 计数更正为七处 + 施工中各项代行裁决。是否全部追认？」
+  答：「全部追认（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate2 打回（gate2=rejected，phase 回 construction）：必修 = B1（补 U6：一行转发经 call() + T-03/T-04/T-26 三分支测试，本次严格走红提交→置锁→绿提交纪律）+ M1（cargo fmt）+ M2（定位间歇 flaky）+ M3（流程偏差记录留痕）+ MINOR 1/2/5/6/9（记录与测试缺口节同步）；完成后 gate2 复位 pending 复审（重点核对 B1/M1/M2 消解）。
+  2. 三项偏差备案（U7 事件唤醒 / U11 std 语义 / U11 自包含 harness）**全部追认入档**；F-04 计数以**七处**为准（cookie.rs 4 + cli 1 + ec115 2），此前"八处"表述作废。
+  3. 编排者失误备案：U6 漏派发（Wave 3 只派 U8+U11）+ 终态批量置位未逐 unit 核对——verifier 新鲜上下文终检捕获，流程有效；后续终态置位必须逐 unit 对照 diff。
+  4. MINOR 处置：m1(T-15 单元腿)与 m2(T-27 措辞/T-28/T-30 降级)以 test-strategy 缺口节同步落痕（qa 工件由编排者按终审授权微调）；m5(cookie.rs:584 initupload 解密明文日志收口为 status/pickcode)与 m7/m8(内存尾债/冗余条件)记入 P2 backlog；m9(cookie_mock 与 mock_api 平行实现)留痕备案；m10(F-10"恰1次"措辞)随本条留痕对齐，architecture 文本修订归 retro。
+
+GATE-REJECTED gate2 2026-10-15

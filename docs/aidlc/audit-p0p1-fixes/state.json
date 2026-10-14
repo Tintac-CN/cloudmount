@@ -1,8 +1,8 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "gate2",
-  "gates": { "gate1": "approved", "gate2": "pending" },
+  "phase": "construction",
+  "gates": { "gate1": "approved", "gate2": "rejected" },
   "tddLock": true,
   "tddLockPaths": [
     "crates/cloudmount-driver115/tests/cookie_channel.rs",
@@ -17,7 +17,7 @@
     "U3": "done",
     "U4": "done",
     "U5": "done",
-    "U6": "done",
+    "U6": "pending",
     "U7": "done",
     "U8": "done",
     "U9": "done",
@@ -25,7 +25,7 @@
     "U11": "done",
     "U12": "done"
   },
-  "updatedAt": "2026-10-15T01:50:10+08:00",
+  "updatedAt": "2026-10-15T07:08:24+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -133,7 +133,13 @@
       "at": "2026-10-15T01:50:10+08:00",
       "from": "construction",
       "to": "gate2",
-      "why": "U12 完成（绿）——12/12 units 全部 done；统一验证两腿全绿（workspace 273 + mock 腿 281 测试 0 失败）+ workspace clippy -D warnings 净；gate2 前置满足，进入交付门"
+      "why": "U12 完成（绿）——该条目的 12/12 声称失实：U6 实际未派发（编排漏派），终态批量置位未核对，gate2 互审四方一致抓出（reviews/gate2-ai.md B1）"
+    },
+    {
+      "at": "2026-10-15T07:08:24+08:00",
+      "from": "gate2",
+      "to": "construction",
+      "why": "Gate#2 人类审批打回（decisions.md 2026-10-15 GATE-REJECTED gate2）：B1 补 U6 + M1 fmt + M2 定位 flaky + M3 流程留痕 + MINOR 同步；三项偏差备案全部追认；F-04 计数更正为七处；U6 unitStatus 更正为 pending"
     }
   ]
 }
