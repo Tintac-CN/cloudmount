@@ -214,26 +214,93 @@ impl Provider for ProviderRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cloudmount_core::EntryKind;
+    use cloudmount_core::{ChangeProbe, EntryKind};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// 桩的 `change_probe` 可编程行为（四态）。
+    enum ProbeBehavior {
+        /// 预置 `Some(ChangeProbe)`（支持探测）。
+        Preset(ChangeProbe),
+        /// 显式配置"不支持探测"（`Ok(None)`，与 trait 默认实现同形）。
+        None,
+        /// 非认证类错误（透传面，T-04）。
+        NonAuthErr(Error),
+        /// 认证失效错误（切换面，T-26）。
+        AuthErr(String),
+    }
+
+    /// 桩调用计数（`Arc` 共享：`ProviderRouter` 拿走 `Box<dyn Provider>`
+    /// 后，测试仍可经此句柄读取各方法调用次数）。
+    #[derive(Clone, Default)]
+    struct StubCounts {
+        list: Arc<AtomicUsize>,
+        probe: Arc<AtomicUsize>,
+    }
+
+    impl StubCounts {
+        fn list_calls(&self) -> usize {
+            self.list.load(Ordering::SeqCst)
+        }
+        fn probe_calls(&self) -> usize {
+            self.probe.load(Ordering::SeqCst)
+        }
+    }
 
     /// 桩 Provider：可配置每个方法的返回。
     struct Stub {
         entries: Vec<RemoteEntry>,
         fail_with: Option<Error>,
+        /// `change_probe` 可编程行为（默认 [`ProbeBehavior::None`]，
+        /// 与 trait 默认实现 `Ok(None)` 观测等价，既有测试不受影响）。
+        probe: ProbeBehavior,
+        /// 调用计数（共享句柄见 [`StubCounts`]）。
+        counts: StubCounts,
     }
 
     impl Stub {
-        fn ok(entries: Vec<RemoteEntry>) -> Box<Self> {
+        fn new(entries: Vec<RemoteEntry>, fail_with: Option<Error>, probe: ProbeBehavior) -> Box<Self> {
             Box::new(Self {
                 entries,
-                fail_with: None,
+                fail_with,
+                probe,
+                counts: StubCounts::default(),
             })
         }
+        fn ok(entries: Vec<RemoteEntry>) -> Box<Self> {
+            Self::new(entries, None, ProbeBehavior::None)
+        }
         fn auth_fail(msg: &str) -> Box<Self> {
-            Box::new(Self {
-                entries: Vec::new(),
-                fail_with: Some(Error::Auth(msg.into())),
-            })
+            Self::new(
+                Vec::new(),
+                Some(Error::Auth(msg.into())),
+                ProbeBehavior::None,
+            )
+        }
+        /// `change_probe` 返回预置探测值（其余方法同空目录 ok）。
+        /// 返回共享计数句柄供测试断言。
+        fn probe_some(p: ChangeProbe) -> (Box<Self>, StubCounts) {
+            let s = Self::new(Vec::new(), None, ProbeBehavior::Preset(p));
+            let counts = s.counts.clone();
+            (s, counts)
+        }
+        /// `change_probe` 显式返回 `None`（不支持探测）。
+        fn probe_none() -> (Box<Self>, StubCounts) {
+            let s = Self::new(Vec::new(), None, ProbeBehavior::None);
+            let counts = s.counts.clone();
+            (s, counts)
+        }
+        /// `change_probe` 返回非认证类错误。
+        fn probe_err(e: Error) -> (Box<Self>, StubCounts) {
+            let s = Self::new(Vec::new(), None, ProbeBehavior::NonAuthErr(e));
+            let counts = s.counts.clone();
+            (s, counts)
+        }
+        /// `change_probe` 返回认证失效错误。
+        fn probe_auth_err(msg: &str) -> (Box<Self>, StubCounts) {
+            let s = Self::new(Vec::new(), None, ProbeBehavior::AuthErr(msg.into()));
+            let counts = s.counts.clone();
+            (s, counts)
         }
     }
 
@@ -242,6 +309,7 @@ mod tests {
             "stub"
         }
         fn list(&self, _dir: &RemoteId) -> Result<Vec<RemoteEntry>> {
+            self.counts.list.fetch_add(1, Ordering::SeqCst);
             match &self.fail_with {
                 Some(e) => Err(clone_err(e)),
                 None => Ok(self.entries.clone()),
@@ -334,6 +402,15 @@ mod tests {
                 }),
             }
         }
+        fn change_probe(&self, _dir: &RemoteId) -> Result<Option<ChangeProbe>> {
+            self.counts.probe.fetch_add(1, Ordering::SeqCst);
+            match &self.probe {
+                ProbeBehavior::Preset(p) => Ok(Some(*p)),
+                ProbeBehavior::None => Ok(None),
+                ProbeBehavior::NonAuthErr(e) => Err(clone_err(e)),
+                ProbeBehavior::AuthErr(m) => Err(Error::Auth(m.clone())),
+            }
+        }
     }
 
     /// Error 不实现 Clone——手工复制（测试专用）。
@@ -403,12 +480,13 @@ mod tests {
     #[test]
     fn rate_limited_does_not_switch() {
         // 频控错误不切换（退避重试是正解）
-        let open = Box::new(Stub {
-            entries: Vec::new(),
-            fail_with: Some(Error::RateLimited {
+        let open = Stub::new(
+            Vec::new(),
+            Some(Error::RateLimited {
                 retry_after_ms: 1000,
             }),
-        });
+            ProbeBehavior::None,
+        );
         let router = ProviderRouter::new(open, Some(Stub::ok(vec![entry("c1")])));
         let err = router.list(&RemoteId("0".into())).unwrap_err();
         assert!(matches!(err, Error::RateLimited { .. }));
@@ -446,5 +524,108 @@ mod tests {
         assert_eq!(router.active(), ActiveChannel::Cookie);
         let q = router.quota().expect("后续调用走 Cookie");
         assert_eq!(q.total, 100);
+    }
+
+    // ---- F-02：change_probe 转发（T-03 / T-04 / T-26）----
+
+    /// T-03（正）：`ProviderRouter::change_probe` 转发到**活跃通道**——
+    /// 预置 Some 探测值原样透传、活跃通道计数 +1、另一通道不触达、
+    /// `list` 计数不增长（快路径确实生效，非回退全量）。
+    #[test]
+    fn provider_router_change_probe_forwards_to_active_channel() {
+        let open_probe = ChangeProbe {
+            count: 11,
+            max_mtime: 111,
+        };
+        let cookie_probe = ChangeProbe {
+            count: 22,
+            max_mtime: 222,
+        };
+        let (open, open_counts) = Stub::probe_some(open_probe);
+        let (cookie, cookie_counts) = Stub::probe_some(cookie_probe);
+        let router = ProviderRouter::new(open, Some(cookie));
+
+        let dir = RemoteId("0".into());
+        let probe = router
+            .change_probe(&dir)
+            .expect("探测不应报错")
+            .expect("活跃通道预置探测值应原样透传，而非默认实现吞成 None");
+
+        assert_eq!(probe, open_probe, "应返回活跃通道（Open）的探测值");
+        assert_eq!(open_counts.probe_calls(), 1, "活跃通道 change_probe 应恰好转发一次");
+        assert_eq!(cookie_counts.probe_calls(), 0, "非活跃通道不应被触达");
+        assert_eq!(open_counts.list_calls(), 0, "探测路径不得回退全量 list");
+        assert_eq!(cookie_counts.list_calls(), 0);
+    }
+
+    /// T-03（None 分支，r2 pm MIN-6）：Stub 配置 `change_probe` 返回 `None`
+    /// → 路由层**原样透传 `None`**（引擎侧回退全量列表为既有行为，本点仅断言透传）。
+    #[test]
+    fn provider_router_change_probe_none_passthrough() {
+        let (open, _open_counts) = Stub::probe_none();
+        let (cookie, _cookie_counts) = Stub::probe_some(ChangeProbe {
+            count: 7,
+            max_mtime: 7,
+        });
+        let router = ProviderRouter::new(open, Some(cookie));
+
+        let probe = router
+            .change_probe(&RemoteId("0".into()))
+            .expect("探测不应报错");
+        assert_eq!(probe, None, "配置 None 应原样透传 None");
+    }
+
+    /// T-04（负）：活跃通道 `change_probe` 返回**非认证类** Err → 路由层
+    /// 原样透传错误（不吞成 `None`、不触发切换、不回退全量 list）。
+    #[test]
+    fn change_probe_non_auth_error_passes_through() {
+        let (open, open_counts) = Stub::probe_err(Error::Transport("网络中断".into()));
+        let router = ProviderRouter::new(open, Some(Stub::ok(vec![entry("c1")])));
+
+        let err = router
+            .change_probe(&RemoteId("0".into()))
+            .expect_err("非认证类错误应原样透传，而非被默认实现吞成 None");
+        assert!(
+            matches!(err, Error::Transport(ref m) if m.contains("网络中断")),
+            "错误应原样透传（不吞成 None、不换形）：{err:?}"
+        );
+        assert_eq!(router.active(), ActiveChannel::Open, "非认证类错误不应切换通道");
+        assert!(router.last_switch().is_none(), "非认证类错误不应记录切换");
+        assert_eq!(open_counts.probe_calls(), 1, "应确经活跃通道透传（仅一次）");
+        assert_eq!(open_counts.list_calls(), 0, "不得静默回退全量 list");
+    }
+
+    /// T-26（负）：活跃通道 `change_probe` 返回**认证失效**（Error::Auth）
+    /// → 走与其它方法一致的通道切换：`last_switch()` 记录（from/to/reason）、
+    /// 后续调用路由到切换后通道、错误不静默吞成 `None`。
+    #[test]
+    fn change_probe_auth_error_switches_channel() {
+        let preset = ChangeProbe {
+            count: 42,
+            max_mtime: 777,
+        };
+        let (open, open_counts) = Stub::probe_auth_err("token 失效");
+        let (cookie, cookie_counts) = Stub::probe_some(preset);
+        let router = ProviderRouter::new(open, Some(cookie));
+
+        let dir = RemoteId("0".into());
+        let first = router
+            .change_probe(&dir)
+            .expect("Auth 失效切换后应成功，而非吞成 None");
+        assert_eq!(first, Some(preset), "应返回切换后通道（Cookie）的探测值，不吞成 None");
+
+        let sw = router.last_switch().expect("Auth 失效应记录切换");
+        assert_eq!(sw.from, ActiveChannel::Open);
+        assert_eq!(sw.to, ActiveChannel::Cookie);
+        assert!(sw.reason.contains("token 失效"), "切换原因应携带认证失效信息：{}", sw.reason);
+        assert_eq!(router.active(), ActiveChannel::Cookie);
+
+        // 后续调用路由到切换后通道（无感）
+        let second = router
+            .change_probe(&dir)
+            .expect("后续调用应走切换后通道");
+        assert_eq!(second, Some(preset));
+        assert_eq!(open_counts.probe_calls(), 1, "官方通道不应再被探测");
+        assert_eq!(cookie_counts.probe_calls(), 2, "首次切换重试 + 后续调用都应命中 Cookie");
     }
 }
