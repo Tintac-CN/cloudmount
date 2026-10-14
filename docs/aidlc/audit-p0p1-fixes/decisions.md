@@ -232,3 +232,20 @@ GATE-REJECTED gate2 2026-10-15
 - **MINOR 同步**：m1/m2（T-15 单元腿、T-27 措辞、T-28/T-30 降级）已落 test-strategy.md 缺口节（47fb6ec）；m6（AC2 映射 U2→U6）已更正 prd.md；m5/m7/m8/m9 处置见缺口节与 GATE-REJECTED 条目（P2 backlog/备案）。
 - **修复轮终验**：两腿全绿（workspace 26 目标 0 失败 + mock 腿 26 目标 0 失败）+ `cargo fmt --check` 过 + workspace clippy -D warnings 净。
 - gate2 复位 pending（重审以新一轮为准；GATE-REJECTED gate2 2026-10-15 之后须新回执），phase → gate2。复审重点核对 B1/M1/M2 消解。
+
+---
+
+2026-10-15 Gate#2 复审人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate2-ai-r2.md` @ 596377a（verifier 0/0/2 + architect 0/0/3 + qa 0/1/1 + dev 0/0/3 + pm 0/0/3；合并 0 BLOCKER / 1 MAJOR / 5 MINOR）。
+- 问：「Gate#2 复审（r2）：上轮 1 BLOCKER/4 MAJOR 已消解（U6 补做红→绿可复核、fmt 净、两腿 277/289 全绿复跑、flaky 零复现），遗留 1 MAJOR（decisions.md 备案句"diff 仅 impl"与实际不符，属记录措辞级）+ 5 MINOR（fmt 计数尾差/flaky 头号嫌疑未备案/AC2 标签编号混用/architecture F-04 旧计数/Stub 漂移面）。如何裁决？」
+  答：「通过（推荐）」
+- 问：「追认项打包（本轮新增的两项锁例外处置，均已经互审核验）：① router.rs 内联 #[cfg(test)] 测试模块不列入 tddLockPaths（同 U9 cfapi.rs 前例，红提交全在测试模块、绿提交断言零修改已核验）；② fmt 触及 4 个锁定测试文件（纯布局调整、断言面不变已三方核验）。是否全部追认？」
+  答：「全部追认（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate2，2026-10-15 GATE-REJECTED gate2 的新鲜度要求由本回执满足），phase → operations。
+  2. R2-MAJOR-1 订正留痕（最终口径）：绿提交 1d90f36 实际 diff = impl 增 `change_probe` 方法（经 call() 转发）+ `ChangeProbe` import + 测试模块 7 处 rustfmt 纯布局重排（use 排序互换、Stub::new 签名断行、5 处断言宏换行）；**测试断言语义零修改**经 architect/qa/verifier 三方独立核验为真（逐断言比对字节级相同、断言宏计数 51=51、token 多重集一致）——此前 2026-10-15 修复轮两条目中"diff 仅 impl 一方法"与"绿阶段 diff 仅 impl 增一行转发"两句以本条为准订正；1d90f36 提交信息"本文件随 fmt"自披露在案。
+  3. MINOR 处置：①fmt 计数以 **14 文件**为准（d88b95c 13 文件 + 1d90f36 router.rs；"45 处/15 文件"句按本条订正，第 15 个文件无 git 史归属；"cookie_mock/mod.rs -w diff 为 0"句为平凡真——该文件不在 fmt 提交内，锁定文件断言面保证以三方核验为准）；②flaky 处置维持"未复现、CI 观察项"，静态头号嫌疑 `file_path_hashing_matches_bytes`（crates/cloudmount-driver115/src/hash.rs:157-170，固定共享 temp 路径 + 300KB 读写哈希比对）记入 P2 backlog（per-run 唯一 temp 目录可根治），CI 若现身按失败测试名定位；③prd AC2 标签编号空间混用（AC 头 U-n 用户故事编号与施工单元编号并存）归 retro 措辞收敛（建议 `(units/6, F-02)` 形态）；④architecture.md F-04"五处"过时值归 retro 修订清单（canonical=七处，三值收敛防再漂移）；⑤U6 Stub mock 漂移面（clone_err 兜底错映射 + 通道侧误包 Auth 盲区）随 m9 一并留痕备案。
+  4. 追认入档：①router.rs 内联 #[cfg(test)] 测试模块不列入 tddLockPaths；②fmt 触及 4 个锁定测试文件（crates/cloudmount-driver115/tests/cookie_channel.rs、crates/cloudmount-driver115/tests/cookie_mock/mod.rs、crates/cloudmount-driver115/tests/single_flight_refresh.rs、crates/cloudmount-vfs/tests/cfapi_hydration.rs）为纯布局调整、断言面不变。
+  5. 后续：phase = operations，`/aidlc:ops` 产出 ops-runbook.md；本 intent 学习全部进 retro.md（含 F-04 计数三值收敛、AC 标签口径、flaky 观察项移交 CI）。
+
+GATE-APPROVED gate2 2026-10-15

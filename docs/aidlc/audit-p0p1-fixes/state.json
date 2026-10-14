@@ -1,8 +1,8 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "gate2",
-  "gates": { "gate1": "approved", "gate2": "pending" },
+  "phase": "operations",
+  "gates": { "gate1": "approved", "gate2": "approved" },
   "tddLock": true,
   "tddLockPaths": [
     "crates/cloudmount-driver115/tests/cookie_channel.rs",
@@ -25,7 +25,7 @@
     "U11": "done",
     "U12": "done"
   },
-  "updatedAt": "2026-10-15T07:28:00+08:00",
+  "updatedAt": "2026-10-15T07:55:00+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -152,6 +152,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "修复轮完成：U6 绿（1d90f36，逐 unit diff 核对后置位 done）+ fmt 净（d88b95c）+ flaky 31 跑零复现记录在案 + MINOR 同步（47fb6ec）；两腿终验全绿 + fmt --check 过 + clippy 净；gate2 复位 pending 待复审（重点核对 B1/M1/M2）"
+    },
+    {
+      "at": "2026-10-15T07:55:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 复审人类通过（decisions.md 2026-10-15 GATE-APPROVED gate2）：上轮 1B/4M 全消解实证（U6 红→绿可复核、fmt 净、两腿 277/289 全绿复跑、flaky 零复现），复审 0 BLOCKER / 1 MAJOR（备案措辞级，随批准条目订正留痕）/ 5 MINOR（P2 backlog 与 retro 归档）；两项锁例外处置全部追认（reviews/gate2-ai-r2.md @ 596377a）"
     }
   ]
 }
