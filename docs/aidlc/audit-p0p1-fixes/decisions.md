@@ -156,3 +156,12 @@ GATE-APPROVED gate1 2026-10-14
 - oss_put 非 2xx → Err(Error::Http{status, 体前 2KB 摘要})（ureq 3.x 须先 into_reader 再 take）；Error::Http 既有 is_retryable 分类（≥500 可重试）恰好满足 5xx/4xx 分叉，error.rs 零改动；+17 行零删除。
 - cookie_channel 9/9（2 预期红转绿，U1 残留清零）+ lib 50 + single_flight 8/8 + mock_api 6/6 全绿；clippy 净。unitStatus U3 = done。**driver115 关键路径（U1→U3）全绿。**
 - Wave 2 启动（限流约束并发 ≤2，按文件冲突面配对）：第一批 U2（F-04 五处脱敏，driver115+cli）+ U7（F-06 RdcWatcher，sync）并行；第二批 U5（F-05+desktop）+ U10（F-03+CI 腿）。
+
+---
+
+2026-10-14 Wave 2 第一批完成 + 两项编排者裁决（编排者）：
+- **U2 完成（绿）**：redact_fields 纯函数收口四处 debug! + cli validate_cookie_fields 提取（错误只记缺失字段名，零值回显）；新测 cookie_logging 4 绿（含捕获完备性守卫防 subscriber 失效假绿）+ cli 1 绿；driver115 全套 77 + cli 3 零回退；clippy 净。unitStatus U2 = done。
+- **U7 完成（绿）**：幂等 close（AtomicBool 守卫恰一次）+ Option 所有权 + exited 三出口归一 + harvest_watcher 有界收割（50ms 轮询上限 5s）+ 超时 detach+warn+forget（泄漏可观测）；ACTIVE_WATCHERS CAS+saturating_sub 防下溢；测试落独立 windows 门控二进制 tests/rdc_release.rs（进程级计数隔离，无锁例外）。T-09 红证 baseline=0/now=50 → 绿；sync 全量 103 绿；clippy 净。unitStatus U7 = done。
+- **架构偏差备案（U7，实现细节级）**：临时探针实证本机（Win 26300/NTFS）对在途 ReadDirectoryChangesW 调 CloseHandle **阻塞至 IRP 完成而非唤醒**（架构 #13 的"关句柄唤醒"前提不成立，照原稿 Drop 悬挂 >100s）。实现修正为：造目录事件（.cm-wake-<pid>.tmp 写+删）确定性唤醒 → 轮询 exited → join → 线程终结后 close 立即返回；只读/已删目录造事件失败走超时 detach 分支（即人工验证兜底路径）。**契约承重面全部保留**（幂等 close/Option 所有权/exited 归一/5s 有界/detach+warn 可观测）——交 Gate#2 verifier 与 party-review 核验认可。
+- **F-04 施工面升格裁决（第七/八处）**：U2 跨 unit 观察 ec115.rs:112/:146 的 debug! 记录 ECDH 会话 AES key/IV hex 与解密后全量明文 hex——属安全不变量 #2 的密钥材料泄漏（重于 userkey），与 F-04 同一不变量同一性质。按 m13/m18 已获追认的升格模式，**裁决并入 F-04 施工面**（一行级脱敏 + cookie_logging 金丝雀断言扩展），派回 U2 代理执行；Gate#2 复审追认。
+- 环境备注（全量验证用）：`cargo test -p cloudmount-sync` 不带 features 因既有 tests/common/mod.rs 无门控在 HEAD 即编译失败（非本 intent 引入）——sync 测试腿需 `--features testutil`。

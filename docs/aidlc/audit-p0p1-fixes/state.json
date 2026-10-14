@@ -13,19 +13,19 @@
   "tddLockOverride": null,
   "unitStatus": {
     "U1": "done",
-    "U2": "pending",
+    "U2": "done",
     "U3": "done",
     "U4": "done",
     "U5": "pending",
     "U6": "pending",
-    "U7": "pending",
+    "U7": "done",
     "U8": "pending",
     "U9": "done",
     "U10": "pending",
     "U11": "pending",
     "U12": "pending"
   },
-  "updatedAt": "2026-10-14T23:45:00+08:00",
+  "updatedAt": "2026-10-15T00:33:32+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -104,6 +104,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U3 完成（绿，cookie_channel 9/9——U1 预期红清零，driver115 全套 73 绿）；Wave 2 第一批 U2+U7 并行（限流约束并发≤2）"
+    },
+    {
+      "at": "2026-10-15T00:33:32+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2/U7 完成（绿）；U7 架构偏差备案（CloseHandle 阻塞实证→事件唤醒修正，契约面不变，交 Gate#2 核验）；ec115 密钥材料日志泄漏升格并入 F-04（第七/八处，派回 U2 代理）；Wave 2 第二批 U5+U10 派发"
     }
   ]
 }
