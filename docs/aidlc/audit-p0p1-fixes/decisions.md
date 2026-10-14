@@ -180,3 +180,11 @@ GATE-APPROVED gate1 2026-10-14
 - T-27（core）/T-08（daemon t08_cookie_gate，MemoryStore 播种 seam 三态可判定）/T-28/T-30（desktop include_str! 自扫描，CI 不可见由人工清单⑦兜底）红→绿全落；**workspace 全量 cargo test 全绿**（driver115 78 零回退）+ 五 crate clippy -D warnings 净。
 - 范围外最小修复备案：desktop widgets.rs/theme.rs 存量 clippy 告警清理（未使用导入/Stroke 显式化/DANGER 常量 allow——属 U5 负责的 desktop 壳 clippy 门）。unitStatus U5 = done。
 - Wave 3 派发：U8（F-07 sync 锁重构）+ U11（F-08+F-09 daemon 写路径，基于 U10 harness）并行；U12 收尾。
+
+---
+
+2026-10-14 Wave 3 第一批完成（编排者）：
+- **U8 完成（绿）**：plan_dir_chain 锁内计划 + dir_creating per-前缀锁（Arc 克隆后放 map 锁 → 门锁 → 双检 → 写回 dir_ids 后清理条目——顺序不可换；Arc::ptr_eq 只清自己的门锁防误删在途）+ 锁序父先子后无环。T-11 主判据红证 8 窗严格串行零交叠 → 绿；副判据（缓存 Y 排队 1.0s ≈ X）红→稳定绿；T-12 现状绿作回归护栏（并发深层目录格对完全去锁回归仍具判别力）。sync 全量 107 绿；clippy 净。unitStatus U8 = done。
+- **U11 完成（绿）**：F-08 flushed 上传确认后置位 + flush 幂等护栏 + take() 关句柄后上传 + Drop 自愈未 flush spool + 删除失败 warn 接受残留；F-09 收窄 NotFound（GeneralFailure→500）。红 4（PUT 201 静默新建/独占打开被拒证 as_ref 半泄漏/二次 flush GeneralFailure/失败上传直接删 spool 无自愈）→ 绿 6/6；daemon mock 腿 20/20、默认腿 8/8；clippy 净。unitStatus U11 = done。
+- **U11 偏差备案两条（实证级，交 Gate#2 核验）**：①T-13 原红判据（as_ref 半泄漏→删除失败残留）在现 Rust std 不成立——默认 share mode 含 FILE_SHARE_DELETE，修复前 remove_file 即成功（delete-pending 命名空间立即消失），F-08 红判据由 T-14 独占打开判别 + flush 幂等 + Drop 自愈分支承载，T-13 集成分支保留为精确路径回归保护；②webdav_write.rs 自带最小 harness（集成测试目标为独立 crate 不能直接 import U10 harness；#[path] 包含会重跑 U10 全套，抽公共模块需动 U10 已完成文件）。
+- U12（F-12+F-13，最后一个 unit）派发。
