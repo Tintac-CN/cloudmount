@@ -21,11 +21,11 @@
     "U7": "done",
     "U8": "pending",
     "U9": "done",
-    "U10": "pending",
+    "U10": "done",
     "U11": "pending",
     "U12": "pending"
   },
-  "updatedAt": "2026-10-15T00:33:32+08:00",
+  "updatedAt": "2026-10-15T00:46:55+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -110,6 +110,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2/U7 完成（绿）；U7 架构偏差备案（CloseHandle 阻塞实证→事件唤醒修正，契约面不变，交 Gate#2 核验）；ec115 密钥材料日志泄漏升格并入 F-04（第七/八处，派回 U2 代理）；Wave 2 第二批 U5+U10 派发"
+    },
+    {
+      "at": "2026-10-15T00:46:55+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2X/U10 完成（绿，workspace mock 腿全绿）；U5 限流零产出，§8 串行重派（单飞）"
     }
   ]
 }

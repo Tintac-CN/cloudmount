@@ -165,3 +165,10 @@ GATE-APPROVED gate1 2026-10-14
 - **架构偏差备案（U7，实现细节级）**：临时探针实证本机（Win 26300/NTFS）对在途 ReadDirectoryChangesW 调 CloseHandle **阻塞至 IRP 完成而非唤醒**（架构 #13 的"关句柄唤醒"前提不成立，照原稿 Drop 悬挂 >100s）。实现修正为：造目录事件（.cm-wake-<pid>.tmp 写+删）确定性唤醒 → 轮询 exited → join → 线程终结后 close 立即返回；只读/已删目录造事件失败走超时 detach 分支（即人工验证兜底路径）。**契约承重面全部保留**（幂等 close/Option 所有权/exited 归一/5s 有界/detach+warn 可观测）——交 Gate#2 verifier 与 party-review 核验认可。
 - **F-04 施工面升格裁决（第七/八处）**：U2 跨 unit 观察 ec115.rs:112/:146 的 debug! 记录 ECDH 会话 AES key/IV hex 与解密后全量明文 hex——属安全不变量 #2 的密钥材料泄漏（重于 userkey），与 F-04 同一不变量同一性质。按 m13/m18 已获追认的升格模式，**裁决并入 F-04 施工面**（一行级脱敏 + cookie_logging 金丝雀断言扩展），派回 U2 代理执行；Gate#2 复审追认。
 - 环境备注（全量验证用）：`cargo test -p cloudmount-sync` 不带 features 因既有 tests/common/mod.rs 无门控在 HEAD 即编译失败（非本 intent 引入）——sync 测试腿需 `--features testutil`。
+
+---
+
+2026-10-14 Wave 2 第二批记录（编排者）：
+- **U2X 完成（绿）**：ec115.rs:112/:146 脱敏（key/iv/ct_head/plain_hex → 只记帧长度）+ cookie_logging 新增 ECDH 金丝雀用例（红→绿，判据双锚：泄漏字段标记缺席 + 32 字符互异串防 LZ4 匹配假绿，内置 lz4_flex 前置自校验）；driver115 全套 78 绿、clippy 净。F-04 施工面最终 = **八处**（cookie.rs 五处 + cli 一处 + ec115 两处）。unitStatus U2 补刀完成。
+- **U10 完成（绿）**：serve_static 双检重写（成分级零 IO 先拒 + canonicalize starts_with(root_canonical)，OnceLock 按 root 缓存）；T-05 七向量红→绿（主向量修复前 200 真实泄漏 win.ini 内容）；harness 扩 UiFixture + start_server_with_ui + U11 注入口；ci.yml 增 rust-mock-features 并列腿；**附加验证：workspace 全量 `cargo test --workspace --features cloudmount-daemon/mock` 全绿**。unitStatus U10 = done。
+- **U5 派发触发限流（1302）失败**：工作区核查零产出，按 §8 串行重派一次（单飞）；再失败则内联代跑（U5 体量大，代跑拆段：core+daemon 先行，cli+desktop 续）。
