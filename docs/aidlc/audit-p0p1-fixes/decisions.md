@@ -221,3 +221,14 @@ GATE-REJECTED gate2 2026-10-15
 - U6 红阶段补做（@ 本次提交）：Stub 扩 ProbeBehavior 四态 + 共享计数 + change_probe 覆写；T-03 转发格/T-04/T-26 三红（T-03 None 透传格现状绿作护栏）；51 既有测试零回退。**严格红提交纪律（M3 修正的执行样例）。**
 - 锁例外留痕：router.rs 测试为内联 #[cfg(test)] 模块（同 U9 cfapi.rs 前例），路径锁会阻断绿阶段实现——不列入 tddLockPaths；以"绿阶段 diff 仅 impl 增一行转发 + 测试断言零修改"由 gate2 复审核验。
 - 其余修复项推进：prd AC2 映射更正（U2→U6）、test-strategy T-15/T-27 措辞与缺口节同步（MINOR 1/2/6）由编排者按打回裁决执行；M1 fmt 于 U6 绿后统一执行；M2 flaky 定位循环进行中。
+
+---
+
+2026-10-15 Gate#2 修复轮完成记录（编排者）：
+- **B1 消解**：U6 补做完成——红提交 8f4cec2（3红51绿，严格红提交纪律）→ 绿提交 1d90f36（`change_probe` 经 call() 转发 +10 行，3红全绿 + None 透传护栏绿 + driver115 全套 82 格绿 + clippy 净；测试断言零修改，diff 仅 impl 一方法）。unitStatus U6 = done（本次经逐 unit diff 核对后置位）。
+- **M1 消解**：cargo fmt 全工作区（45 处/15 文件归零），`cargo fmt --all -- --check` 通过（d88b95c）。fmt 触及锁定测试文件——经 diff 抽验为纯布局调整（行合并/拆分，字符串字面量与断言原文未动；cookie_mock/mod.rs -w diff 为 0），锁定纪律的"断言面不变"实质满足。
+- **M2 处置**：间歇 flaky 定位循环——隔离 15 次 + workspace 整腿 3 次（连同 verifier 复跑共 ~31 次）零复现（唯一 1 次现身于 verifier 首跑重编译高负载场景，测试名未捕获）。处置 = 如实记录为"未复现、CI 观察项"：CI 两腿绿即放行，若 CI 现身按失败测试名定位。不做无依据的断言放宽。
+- **M3 留痕**：Wave 2-3 红提交纪律缺失记为流程偏差（qa 抽验测试非恒真、无削弱实证）；U6 补做已按正确纪律执行作为修正样例；后续 intent 施工遵守。
+- **MINOR 同步**：m1/m2（T-15 单元腿、T-27 措辞、T-28/T-30 降级）已落 test-strategy.md 缺口节（47fb6ec）；m6（AC2 映射 U2→U6）已更正 prd.md；m5/m7/m8/m9 处置见缺口节与 GATE-REJECTED 条目（P2 backlog/备案）。
+- **修复轮终验**：两腿全绿（workspace 26 目标 0 失败 + mock 腿 26 目标 0 失败）+ `cargo fmt --check` 过 + workspace clippy -D warnings 净。
+- gate2 复位 pending（重审以新一轮为准；GATE-REJECTED gate2 2026-10-15 之后须新回执），phase → gate2。复审重点核对 B1/M1/M2 消解。

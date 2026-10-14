@@ -1,8 +1,8 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "construction",
-  "gates": { "gate1": "approved", "gate2": "rejected" },
+  "phase": "gate2",
+  "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
   "tddLockPaths": [
     "crates/cloudmount-driver115/tests/cookie_channel.rs",
@@ -17,7 +17,7 @@
     "U3": "done",
     "U4": "done",
     "U5": "done",
-    "U6": "pending",
+    "U6": "done",
     "U7": "done",
     "U8": "done",
     "U9": "done",
@@ -25,7 +25,7 @@
     "U11": "done",
     "U12": "done"
   },
-  "updatedAt": "2026-10-15T07:20:00+08:00",
+  "updatedAt": "2026-10-15T07:28:00+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -146,6 +146,12 @@
       "from": "construction",
       "to": "construction",
       "why": "修复轮：U6 红阶段补做提交（3红51绿，严格红提交纪律）；router.rs 内联测试锁例外留痕（同 U9 前例）；MINOR 1/2/6 文档同步进行"
+    },
+    {
+      "at": "2026-10-15T07:28:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "修复轮完成：U6 绿（1d90f36，逐 unit diff 核对后置位 done）+ fmt 净（d88b95c）+ flaky 31 跑零复现记录在案 + MINOR 同步（47fb6ec）；两腿终验全绿 + fmt --check 过 + clippy 净；gate2 复位 pending 待复审（重点核对 B1/M1/M2）"
     }
   ]
 }
