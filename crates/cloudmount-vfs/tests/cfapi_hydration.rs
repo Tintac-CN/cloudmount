@@ -188,13 +188,14 @@ fn golden_hydration_flow() {
     let calls_ref2 = calls_ref.clone();
     let conn = cfapi::connect(
         &root,
-        Box::new(move |rel, offset, len| {
+        Box::new(move |rel, offset, len, sink| {
             calls_ref
                 .lock()
                 .unwrap()
                 .push((rel.to_string(), offset, len));
             let end = (offset as usize + len as usize).min(hydrate_data.len());
-            Ok(hydrate_data[offset as usize..end].to_vec())
+            sink.transfer(offset, &hydrate_data[offset as usize..end])?;
+            Ok(())
         }),
     )
     .expect("连接同步根");
@@ -243,11 +244,12 @@ fn hydration_of_subdirectory_file() {
 
     let conn = cfapi::connect(
         &root,
-        Box::new(|rel, offset, len| {
+        Box::new(|rel, offset, len, sink| {
             assert_eq!(rel, "docs/2026/report.txt");
             let content = b"nested hydration works!";
             let end = (offset as usize + len as usize).min(content.len());
-            Ok(content[offset as usize..end].to_vec())
+            sink.transfer(offset, &content[offset as usize..end])?;
+            Ok(())
         }),
     )
     .unwrap();
@@ -274,12 +276,12 @@ fn pseudo_random(len: usize, seed: u64) -> Vec<u8> {
         .collect()
 }
 
-/// **U9 骨架（T-01 集成腿）**：多块规模占位符的 FETCH_DATA 分块水合拼接一致。
+/// **U9（T-01 集成腿）**：多块规模占位符的 FETCH_DATA 分块水合拼接一致。
 ///
 /// 2 MiB + 奇数尾：读取全程必然跨多个 FETCH_DATA 块；端到端内容逐字节一致。
 /// 红测判别在单元腿（`pump_chunks` 读取序列，`cargo test -p cloudmount-vfs
-/// --lib`）；本用例为真机端到端回归——实现阶段随 HydrateFn 契约切换
-/// 机械适配 ChunkSink 形态（同 `golden_hydration_flow` 的调用点）。
+/// --lib`）；本用例为真机端到端回归——ChunkSink 契约形态的分块推送经
+/// 真机 FETCH_DATA 全链路（open_range 单次建流 + TRANSFER_DATA 分块）。
 #[test]
 fn fetch_data_multiblock_hydration_content_identical() {
     if !cfapi::platform_available() {
@@ -300,11 +302,14 @@ fn fetch_data_multiblock_hydration_content_identical() {
     let hydrate_data = expected.clone();
     let conn = cfapi::connect(
         &root,
-        Box::new(move |rel, offset, len| {
+        Box::new(move |rel, offset, len, sink| {
             assert_eq!(rel, "big.bin");
             let start = (offset as usize).min(hydrate_data.len());
             let end = (offset as usize + len as usize).min(hydrate_data.len());
-            Ok(hydrate_data[start..end].to_vec())
+            if start < end {
+                sink.transfer(offset, &hydrate_data[start..end])?;
+            }
+            Ok(())
         }),
     )
     .expect("连接同步根");
@@ -320,13 +325,13 @@ fn fetch_data_multiblock_hydration_content_identical() {
     cleanup(&root);
 }
 
-/// **U9 骨架（T-02 集成腿，占位——真机验证）**：水合中途取消后系统一致。
+/// **U9（T-02 集成腿，占位——真机验证）**：水合中途取消后系统一致。
 ///
 /// 真机语义：读取方提前关闭句柄 → 过滤器对挂起 FETCH_DATA 发 CANCEL
-/// → 实现（ChunkSink 契约）逐块查 `cancelled` → Err 停止并丢弃 reader。
+/// → ChunkSink 契约实现逐块查 `cancelled` → Err 停止并丢弃 reader。
 /// 当前口径：部分读取后取消，重新完整读取仍逐字节正确（无残留损坏）；
-/// "逐块取消即停"的强断言由单元腿 T-02 守护，真机取消行为在实现阶段
-/// 适配 ChunkSink 契约后于此补强。
+/// "逐块取消即停"的强断言由单元腿 T-02 守护（`pump_chunks` 取消用例），
+/// 真机取消窗口的行为断言属时序敏感，归人工清单验证。
 #[test]
 fn fetch_data_cancel_consistency_placeholder() {
     if !cfapi::platform_available() {
@@ -347,11 +352,14 @@ fn fetch_data_cancel_consistency_placeholder() {
     let hydrate_data = expected.clone();
     let conn = cfapi::connect(
         &root,
-        Box::new(move |rel, offset, len| {
+        Box::new(move |rel, offset, len, sink| {
             assert_eq!(rel, "cancel.bin");
             let start = (offset as usize).min(hydrate_data.len());
             let end = (offset as usize + len as usize).min(hydrate_data.len());
-            Ok(hydrate_data[start..end].to_vec())
+            if start < end {
+                sink.transfer(offset, &hydrate_data[start..end])?;
+            }
+            Ok(())
         }),
     )
     .expect("连接同步根");

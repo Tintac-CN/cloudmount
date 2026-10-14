@@ -25,6 +25,11 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
+/// 水合分块上限：1 MiB（架构关键决策 #2——过滤器单次请求通常 1-8 MiB 与之
+/// 同量级；4 GiB 文件 = 4096 次 `TRANSFER_DATA`，调用开销可忽略；内存峰值 =
+/// 1 块，与文件大小无关）。
+const HYDRATION_CHUNK: usize = 1024 * 1024;
+
 /// CfAPI 挂载后端。
 pub struct CfapiBackend {
     provider: Arc<dyn Provider>,
@@ -107,10 +112,10 @@ impl CfapiBackend {
             .collect();
         cfapi::create_placeholders_ordered(point, &specs)?;
 
-        // 4. 连接：水合 = rel_path → ID → Provider Range 拉取
+        // 4. 连接：水合 = rel_path → ID → Provider Range 拉取（分块流送，U9/F-01）
         let provider = self.provider.clone();
         let state_for_cb = state.clone();
-        let hydrate: cfapi::HydrateFn = Box::new(move |rel, offset, len| {
+        let hydrate: cfapi::HydrateFn = Box::new(move |rel, offset, len, sink| {
             let entry = state_for_cb
                 .remote
                 .read()
@@ -124,8 +129,11 @@ impl CfapiBackend {
                 .saturating_add(len.saturating_sub(1))
                 .min(entry.size.saturating_sub(1));
             if start > end {
-                return Ok(Vec::new());
+                return Ok(());
             }
+            // 单次建流 + 分块泵送：复用 1 MiB 缓冲逐块推送（内存峰值 = 1 块，
+            // 不再 read_to_end 物化整个范围）；中途任一读错误 → Err → 回调以
+            // 失败 TRANSFER_DATA 收尾挂起读
             let mut reader = provider.open_range(
                 &entry.id,
                 RangeSpec {
@@ -133,9 +141,8 @@ impl CfapiBackend {
                     end: Some(end),
                 },
             )?;
-            let mut buf = Vec::with_capacity((end - start + 1) as usize);
-            reader.read_to_end(&mut buf)?;
-            Ok(buf)
+            cfapi::pump_chunks(&mut reader, sink, start, HYDRATION_CHUNK)?;
+            Ok(())
         });
         let hydration_log: cfapi::HydrationLog = Arc::new(Mutex::new(HashMap::new()));
         let connection = cfapi::connect_with_log(point, hydrate, hydration_log.clone())?;

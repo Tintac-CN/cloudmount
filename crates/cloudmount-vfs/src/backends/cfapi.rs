@@ -11,17 +11,18 @@
 //! create_placeholders(sync_root, …)  CfCreatePlaceholders（目录树全量投影，
 //!                                    FileIdentity 携带相对路径）
 //! connect(sync_root, hydrate)        CfConnectSyncRoot + FETCH_DATA 回调
-//!     用户读文件 → filter 回调 → hydrate(rel, offset, len)
-//!     → 内容写入占位符文件（普通 I/O）→ CfExecute(RETRIEVE_DATA) 完成水合
+//!     用户读文件 → filter 回调 → hydrate(rel, offset, len, sink)
+//!     → 分块泵送：每块 CfExecute(TRANSFER_DATA) 直接交过滤器（内存峰值 = 1 块）
 //! ```
 //!
 //! ## 设计说明
 //!
-//! - **水合回调签名** `Fn(&str rel_path, u64 offset, u64 len) -> Result<Vec<u8>>`：
-//!   与具体后端（115/本地/测试）解耦，由调用方提供。
-//! - **写占位符 + RetrieveData** 模式（微软 CloudMirror 样例同款）：内容用普通
-//!   文件 I/O 写入占位符文件，再以 `CfExecute(RETRIEVE_DATA)`（Buffer=null）告知
-//!   过滤器数据已就绪 —— 避免.Provider 缓冲区的特殊分配要求。
+//! - **水合回调签名** `Fn(&str rel_path, u64 offset, u64 len, &mut dyn ChunkSink)
+//!   -> Result<()>`：与具体后端（115/本地/测试）解耦，由调用方提供；内容
+//!   **分块推送**（U9/F-01），不再一次性物化整个范围。
+//! - **TRANSFER_DATA 分块流送** 模式（微软 CloudMirror 样例同款）：每块经
+//!   `CfExecute(TRANSFER_DATA)` 把缓冲直接交给过滤器（同步返回 → 天然背压，
+//!   任一时刻至多一个块在途），内存峰值 = 1 块（1 MiB）。
 //! - **FileIdentity** 存相对路径（UTF-8 字节）；回调里优先使用 identity，
 //!   归一化路径仅作日志。
 //! - **确定性**：测试在本机真实 cldflt 上运行（Win10 1709+ 均内置）。
@@ -582,8 +583,8 @@ pub fn create_placeholders(sync_root: &Path, specs: &[PlaceholderSpec]) -> Resul
     Ok(processed)
 }
 
-/// 水合函数：给定相对路径与请求范围，返回内容。
-pub type HydrateFn = Box<dyn Fn(&str, u64, u64) -> Result<Vec<u8>> + Send + Sync>;
+/// 水合函数：给定相对路径与请求范围，把内容**分块推送**进 sink（U9/F-01 契约）。
+pub type HydrateFn = Box<dyn Fn(&str, u64, u64, &mut dyn ChunkSink) -> Result<()> + Send + Sync>;
 
 /// 分块推送 sink（F-01 水合分块契约的回调侧接口）。
 ///
@@ -606,14 +607,30 @@ pub trait ChunkSink {
 ///   失败的读取不产生伪造 transfer）。
 ///
 /// 返回成功泵送的总字节数。
-#[allow(dead_code)] // TDD 骨架期占位：实现阶段由水合闭包接入后移除
 pub(crate) fn pump_chunks(
-    _reader: &mut dyn std::io::Read,
-    _sink: &mut dyn ChunkSink,
-    _offset: u64,
-    _chunk_size: usize,
+    reader: &mut dyn std::io::Read,
+    sink: &mut dyn ChunkSink,
+    offset: u64,
+    chunk_size: usize,
 ) -> Result<u64> {
-    todo!("U9（F-01）红阶段骨架：分块泵送循环于实现阶段落地")
+    if chunk_size == 0 {
+        return Err(cloudmount_core::Error::Invalid("chunk_size 必须为正".into()));
+    }
+    // 单个复用块缓冲：一次分配（容量恰为 chunk_size），循环内零重配零增长
+    //（内存峰值 = 1 块，与总范围大小无关）
+    let mut buf = vec![0u8; chunk_size];
+    let mut pumped: u64 = 0;
+    loop {
+        // 读取请求恒为 chunk_size（短读时继续按块上限续读）；Ok(0) = EOF 干净收尾
+        let n = reader.read(&mut buf)?;
+        if n == 0 {
+            return Ok(pumped);
+        }
+        // 块立即推送（含末块短读）；sink Err（取消 / TRANSFER_DATA 失败）原样传播中止，
+        // reader 随调用方丢弃（下游连接关闭），失败的读取不产生伪造 transfer
+        sink.transfer(offset + pumped, &buf[..n])?;
+        pumped += n as u64;
+    }
 }
 
 /// 水合记录（rel_path → 完成后 mtime），连接回调与挂载层共享。
@@ -740,7 +757,36 @@ unsafe fn identity_to_rel(info: &CF_CALLBACK_INFO) -> Option<String> {
     Some(String::from_utf8_lossy(bytes).to_string())
 }
 
-/// FETCH_DATA 回调：按需水合。
+/// FETCH_DATA 回调的分块 sink：每个块发送前查取消集合，然后以该块完成
+/// 一次 `TRANSFER_DATA`（同步返回 → 天然背压，任一时刻至多一个块在途）。
+struct FetchDataSink<'a> {
+    info: &'a CF_CALLBACK_INFO,
+    /// 已取消的传输（TransferKey）集合（与回调共享）。
+    cancelled: &'a Mutex<HashSet<i64>>,
+}
+
+impl ChunkSink for FetchDataSink<'_> {
+    fn transfer(&mut self, offset: u64, data: &[u8]) -> Result<()> {
+        // 取消检查（每块发送前）：取消 → Err → 泵送立即中止，
+        // reader 随调用方丢弃（下游连接关闭），回调以失败状态收尾。
+        {
+            let cancelled = self.cancelled.lock().expect("lock");
+            if cancelled.contains(&self.info.TransferKey) {
+                return Err(cloudmount_core::Error::Other(format!(
+                    "传输 {} 已取消（分块发送前检测）",
+                    self.info.TransferKey
+                )));
+            }
+        }
+        // **关键：直接把块缓冲交给过滤器（TRANSFER_DATA.Buffer）。**
+        // 不要在这里用普通 I/O 打开占位符——对已脱水的占位符申请写访问
+        // 会触发过滤器的隐式水合 → 递归等待当前 FETCH_DATA → 死锁
+        // （表现为用户读取超时后 CANCEL）。
+        unsafe { transfer_data(self.info, offset as i64, Some(data), 0) }
+    }
+}
+
+/// FETCH_DATA 回调：按需水合（分块流送，U9/F-01）。
 unsafe extern "system" fn fetch_data_callback(
     info: *const CF_CALLBACK_INFO,
     params: *const CF_CALLBACK_PARAMETERS,
@@ -775,25 +821,23 @@ unsafe extern "system" fn fetch_data_callback(
         }
     }
 
-    // 水合
-    let data = (ctx.hydrate)(&rel_path, offset as u64, length as u64);
+    // 分块水合：hydrate 逐块把内容推送进 sink，每块完成一次 TRANSFER_DATA
+    //（内存峰值 = 1 块，与文件大小无关——4GB 视频不再物化 4GB Vec）
+    let mut sink = FetchDataSink {
+        info,
+        cancelled: &ctx.cancelled,
+    };
+    let result = (ctx.hydrate)(&rel_path, offset as u64, length as u64, &mut sink);
 
-    match data {
-        Ok(bytes) => {
-            // **关键：直接把缓冲交给过滤器（RetrieveData.Buffer）。**
-            // 不要在这里用普通 I/O 打开占位符——对已脱水的占位符申请写访问
-            // 会触发过滤器的隐式水合 → 递归等待当前 FETCH_DATA → 死锁
-            // （表现为用户读取超时后 CANCEL）。
-            if let Err(e) = transfer_data(info, offset, Some(&bytes), 0) {
-                tracing::error!(rel = %rel_path, error = %e, "TransferData 失败");
-            } else {
-                // 记录水合后的 mtime：供上传协调器区分"过滤器写入"与"用户修改"
-                if let Ok(mut hydrated) = ctx.hydrated.lock() {
-                    let abs = ctx.sync_root.join(rel_path.replace('/', "\\"));
-                    hydrated.insert(rel_path.to_string(), file_mtime(&abs));
-                }
-                tracing::debug!(rel = %rel_path, len = bytes.len(), "水合完成");
+    match result {
+        Ok(()) => {
+            // 记录水合后的 mtime：供上传协调器区分"过滤器写入"与"用户修改"
+            //（在最后一个块成功之后整体记录一次——语义不变：仍是"水合完成后"）
+            if let Ok(mut hydrated) = ctx.hydrated.lock() {
+                let abs = ctx.sync_root.join(rel_path.replace('/', "\\"));
+                hydrated.insert(rel_path.to_string(), file_mtime(&abs));
             }
+            tracing::debug!(rel = %rel_path, offset, length, "水合完成");
         }
         Err(e) => {
             // 用失败的 TRANSFER_DATA 结束挂起的读取（明确错误而非 60s 超时）
@@ -1079,7 +1123,7 @@ mod pump_chunks_tests {
     /// 红测判别：现状水合闭包 `read_to_end` 一次性填满整个容量缓冲（几何增长）。
     #[test]
     fn pump_chunks_requests_bounded_at_chunk_cap_and_content_identical() {
-        let body = pseudo_random(CHUNK * 5 + 12345, 0xDA7A_115);
+        let body = pseudo_random(CHUNK * 5 + 12345, 0x0DA7_A115);
         let mut reader = RecordingReader::with(body.clone());
         let mut sink = RecordingSink::new();
 
@@ -1146,7 +1190,7 @@ mod pump_chunks_tests {
     /// （不放大缓冲补偿短读），内容拼接不受短读影响，无 panic。
     #[test]
     fn pump_chunks_short_reads_still_request_within_cap() {
-        let body = pseudo_random(CHUNK * 3 + 7, 0x510D_0A7);
+        let body = pseudo_random(CHUNK * 3 + 7, 0x0510_D0A7);
         let mut reader = RecordingReader::with(body.clone()).short();
         let mut sink = RecordingSink::new();
 
