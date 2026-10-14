@@ -1,20 +1,25 @@
 //! Windows 服务集成（SCM 协议 + 安装/卸载/启停）。
 //!
 //! 仅 Windows 编译。依赖 `windows-service` crate：
-//! - [`run_service`]：SCM 入口（`define_windows_service!`）；
-//!   停止事件 → [`SERVICE_EXIT`] 标志，引擎循环自行退出。
+//! - [`run_service_scm_executor`]：SCM 运行执行体（手动注册控制处理器；
+//!   SCM 实际入口是 main.rs 的 `service run` clap 分支）；
+//!   停止事件 → [`SERVICE_EXIT`] 标志，注入的引擎/挂载循环自行退出。
 //! - [`install`]：`ServiceManager::create_service` 注册
-//!   （OWN_PROCESS + AutoStart；启动参数携带 --sync-root 等配置）。
+//!   （OWN_PROCESS + AutoStart；启动参数由 main.rs `assemble_service_args`
+//!   烘焙，launch_arguments 一律由 clap 统一解析）。
 //!
-//! ## 与引擎循环的协议
+//! ## 与引擎/挂载循环的协议
 //!
 //! 服务模式下 main.rs 调 [`should_exit`] 决定是否退出循环
-//! （引擎分段 sleep 时检查，SCM Stop 事件置位 [`SERVICE_EXIT`]）。
-//! [`service_main`] 解析 SCM 传入的 launch_arguments（install 时烘焙的
-//! --sync-root 等 flag），构造 Provider 与配置后驱动引擎。
+//! （循环分段 sleep 时检查，SCM Stop 事件置位 [`SERVICE_EXIT`]）。
+//! 循环体（引擎循环 / 占位符挂载循环，F-12 两支路）由 main.rs 注入
+//! [`run_service_scm_executor`]。
+//!
+//! 注：不使用 windows-service 的 FFI 服务入口宏——历史上的双份参数解析已
+//! 删除（F-12：全仓无 `service_dispatcher::start`，死入口与 clap 解析漂移）。
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -141,81 +146,16 @@ pub fn should_exit() -> bool {
     SERVICE_EXIT.load(Ordering::SeqCst)
 }
 
-// ---- SCM 运行入口 ----
+// ---- SCM 运行执行体 ----
 
-windows_service::define_windows_service!(ffi_service_main, service_main);
-
-#[allow(dead_code)] // 由 define_windows_service! 宏经 FFI 调用
-fn service_main(args: Vec<std::ffi::OsString>) {
-    // args[0] 为 exe 名，args[1..] 为 install 时烘焙的 launch_arguments。
-    // 仅解析同步模式所需的最小 flag 集（与 build_launch_args 输出对齐）。
-    let mut sync_root = ".".to_string();
-    let mut remote_root = "0".to_string();
-    let mut app_id: Option<String> = None;
-    let mut interval = 30u64;
-    let mut propagate_remote = false;
-    let mut propagate_local = false;
-
-    let mut it = args.into_iter().skip(1);
-    while let Some(arg) = it.next() {
-        let Some(arg) = arg.to_str() else { continue };
-        // 注意：arg 已是 &str（to_str shadow），勿再调 as_str（&str::as_str 不稳定）
-        let takes_value = matches!(
-            arg,
-            "--sync-root" | "--remote-root" | "--app-id" | "--interval"
-        );
-        let mut value = String::new();
-        if takes_value {
-            if let Some(v) = it.next() {
-                value = v.to_string_lossy().to_string();
-            }
-        }
-        match arg {
-            "--sync-root" => sync_root = value,
-            "--remote-root" => remote_root = value,
-            "--app-id" => app_id = Some(value),
-            "--interval" => interval = value.parse().unwrap_or(30),
-            "--propagate-remote-deletes" => propagate_remote = true,
-            "--propagate-local-deletes" => propagate_local = true,
-            _ => {}
-        }
-    }
-
-    // Provider 构造（与命令行模式一致：从系统凭据库恢复 token）
-    let Some(app_id) = app_id.as_deref() else {
-        tracing::error!("服务缺少 AppID");
-        return;
-    };
-    let provider: Arc<dyn cloudmount_core::Provider> =
-        match crate::build_provider_from_app_id(app_id) {
-            Ok(p) => p,
-            Err(e) => {
-                tracing::error!(error = %e, "Provider 构造失败（服务退出）");
-                return;
-            }
-        };
-
-    let mut cfg = cloudmount_sync::SyncEngineConfig::new(&sync_root);
-    cfg.remote_root = cloudmount_core::RemoteId(remote_root);
-    cfg.policy.propagate_remote_deletes = propagate_remote;
-    cfg.policy.propagate_local_deletes = propagate_local;
-
-    let cfg_for_engine = cfg.clone();
-    let provider_for_engine = provider.clone();
-    if let Err(e) = run_service_scm_executor(
-        cfg_for_engine,
-        provider_for_engine,
-        interval.max(1),
-        move |stop| crate::run_service_engine_blocking(cfg, provider, interval.max(1), stop),
-    ) {
-        tracing::error!(error = %e, "服务运行失败");
-    }
-}
-
+/// SCM 运行执行体：注册控制处理器 → Running → 注入循环 → Stopped。
+///
+/// SCM 实际入口是 main.rs 的 `service run` clap 分支（launch_arguments 由
+/// clap 统一解析；历史上的 FFI 入口与手写参数解析已删除——F-12 死入口，
+/// 消除与 clap 的双份解析漂移）。循环体由调用方注入（引擎循环 /
+/// 占位符挂载循环，F-12 两支路共用本执行体）；SCM Stop/Shutdown 事件
+/// 置位 [`SERVICE_EXIT`] 并经停止通道唤醒循环。
 pub fn run_service_scm_executor(
-    _cfg: cloudmount_sync::SyncEngineConfig,
-    _provider: std::sync::Arc<dyn cloudmount_core::Provider>,
-    _interval_secs: u64,
     engine_loop: impl FnOnce(crate::service::StopSignal) + Send + 'static,
 ) -> windows_service::Result<()> {
     use windows_service::service::{
@@ -266,7 +206,7 @@ pub fn run_service_scm_executor(
     Ok(())
 }
 
-/// SCM 停止信号（`run_service` 注入给引擎循环）。
+/// SCM 停止信号（[`run_service_scm_executor`] 注入给引擎/挂载循环）。
 pub struct StopSignal(pub(crate) mpsc::Receiver<()>);
 
 impl StopSignal {

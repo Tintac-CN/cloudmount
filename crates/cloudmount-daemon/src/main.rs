@@ -50,7 +50,7 @@ use std::time::Duration;
 mod service;
 
 /// 命令行参数。
-#[derive(Parser)]
+#[derive(Clone, Parser)]
 #[command(
     name = "cloudmountd",
     version,
@@ -159,17 +159,17 @@ fn main() -> anyhow::Result<()> {
 
     // 配置文件 → clap 默认值（优先级：CLI flag > 环境变量 > 配置文件 > 内置默认；
     // clap 的 env 属性天然高于 default，文件值替换 default 即插入正确层级）
-    let file_cfg = cloudmount_core::config::load().unwrap_or_else(|e| {
-        tracing::warn!(error = %e, "配置文件加载失败（回退默认值）");
-        cloudmount_core::config::Config::default()
-    });
+    // F-13 fail-fast：坏配置拒绝启动（错误链含「解析失败」+文件路径），
+    // 绝不静默回退默认值（错误配置下跑同步/删除传播风险不对称）；
+    // 文件缺失走默认值（load_from 既有语义）。
+    let file_cfg = load_config_or_fail(&cloudmount_core::config::config_path()?)?;
     let cli =
         Cli::from_arg_matches(&apply_config_defaults(&file_cfg).get_matches()).expect("clap 解析");
 
     // Windows 服务子命令（安装/启停在 SCM 层，无需 tokio）
     #[cfg(windows)]
     if let Some(cmd) = &cli.service {
-        let launch_args = build_launch_args(&cli);
+        let launch_args = assemble_service_args(&cli);
         match cmd {
             ServiceCommands::Install => {
                 service::install(&launch_args)?;
@@ -191,30 +191,40 @@ fn main() -> anyhow::Result<()> {
                 println!("服务已删除");
             }
             ServiceCommands::Run => {
-                // SCM 入口：同步引擎循环（阻塞直到 SCM Stop）
-                let sync_root = cli.sync_root.clone().unwrap_or_else(|| ".".into());
+                // F-12：按 --placeholder-mount 分派（决策逻辑在
+                // dispatch_service_run——T-21 可注入两支路工厂单测）；
+                // provider 构造失败 → 进程非零退出（与前台路径一致）。
                 let provider = build_provider(&cli, &file_cfg)?;
-                let mut cfg = SyncEngineConfig::new(&sync_root);
-                cfg.remote_root = RemoteId(cli.remote_root.clone());
-                // flag（本次运行显式开启）或文件持久值，任一为真即生效
-                cfg.policy.propagate_remote_deletes =
-                    cli.propagate_remote_deletes || file_cfg.sync.propagate_remote_deletes;
-                cfg.policy.propagate_local_deletes =
-                    cli.propagate_local_deletes || file_cfg.sync.propagate_local_deletes;
-                let interval = cli.interval.max(1);
-                // cfg/provider 会被闭包捕获，先克隆供 SCM 执行体用
-                let cfg_for_closure = cfg.clone();
-                let provider_for_closure = provider.clone();
-                if let Err(e) =
-                    service::run_service_scm_executor(cfg, provider, interval, move |stop| {
-                        run_service_engine_blocking(
-                            cfg_for_closure,
-                            provider_for_closure,
-                            interval,
-                            stop,
-                        )
-                    })
-                {
+                let result = dispatch_service_run(
+                    &cli,
+                    &file_cfg,
+                    // 占位符支路：SCM 版占位符挂载循环（与前台同一主循环，
+                    // stop_check = SCM 停止信号）
+                    |plan| {
+                        let cli = cli.clone();
+                        let plan = plan.clone();
+                        let provider = provider.clone();
+                        service::run_service_scm_executor(move |stop| {
+                            if let Err(e) =
+                                run_service_placeholder_blocking(provider, cli, plan, stop)
+                            {
+                                tracing::error!(error = %e, "占位符挂载服务循环失败");
+                            }
+                        })
+                        .map_err(|e| anyhow::anyhow!("服务运行失败: {e}"))
+                    },
+                    // 引擎支路：既有 run_service_engine_blocking
+                    |plan| {
+                        let cfg = engine_config_from_plan(plan);
+                        let interval = plan.interval_secs;
+                        let provider = provider.clone();
+                        service::run_service_scm_executor(move |stop| {
+                            run_service_engine_blocking(cfg, provider, interval, stop)
+                        })
+                        .map_err(|e| anyhow::anyhow!("服务运行失败: {e}"))
+                    },
+                );
+                if let Err(e) = result {
                     tracing::error!(error = %e, "服务运行失败");
                 }
             }
@@ -232,6 +242,19 @@ fn main() -> anyhow::Result<()> {
     tracing::info!(version = cloudmount_core::VERSION, "cloudmountd starting");
 
     rt.block_on(async_main(cli, file_cfg))
+}
+
+/// 配置加载（F-13 fail-fast）：存在但损坏 → Err，错误链含 load_from 的
+/// 「配置文件解析失败 {path}」+ 本层恢复提示；仅文件不存在回内置默认值
+/// （首次运行是正常路径）。
+///
+/// 位于 main 入口、先于一切子命令分派 → 作用于全部子命令
+/// （含 `service stop/uninstall` 等管理命令；sc.exe 直接操作服务是用户侧兜底）。
+fn load_config_or_fail(
+    path: &std::path::Path,
+) -> anyhow::Result<cloudmount_core::config::Config> {
+    cloudmount_core::config::load_from(path)
+        .context("配置文件加载失败（修正该文件，或删除后重启以恢复默认配置）")
 }
 
 /// 配置文件值注入 clap 默认值（优先级：CLI > env > 文件 > 内置）。
@@ -289,9 +312,16 @@ fn apply_config_defaults(cfg: &cloudmount_core::config::Config) -> clap::Command
     cmd
 }
 
-/// 从 Cli 提取服务启动参数（install 时烘焙进 binPath）。
-#[cfg(windows)]
-fn build_launch_args(cli: &Cli) -> Vec<String> {
+/// 服务 binPath 启动参数组装（F-12/T-29：**跨平台纯函数**——纯 `Vec<String>`、
+/// 无 windows API；windows 专属执行面在 service.rs / main 服务分支）。
+///
+/// T-29/T-21 单测无门控（M-R2-3：提取消除原 `#[cfg(windows)]` 使 Linux CI
+/// 直接编译失败的面）。`--interval` **无条件烘焙**（MA9 修复：值 = clap
+/// 解析结果，已含配置文件默认注入——修复"服务模式恒默认 30s"潜伏 bug）；
+/// `--placeholder-mount` 显式时烘焙（服务模式由 Run 分支按它分派）；
+/// `--once/--hold-secs` 不参与服务路径（服务即常驻），无需烘焙。
+#[cfg_attr(not(windows), allow(dead_code))] // 仅服务分支调用；跨平台提取供 T-29 无门控单测
+fn assemble_service_args(cli: &Cli) -> Vec<String> {
     let mut args = Vec::new();
     if cli.placeholder_mount {
         args.push("--placeholder-mount".into());
@@ -305,6 +335,9 @@ fn build_launch_args(cli: &Cli) -> Vec<String> {
     if let Some(id) = &cli.app_id {
         args.extend(["--app-id".into(), id.clone()]);
     }
+    // 无条件烘焙（MA9）：SCM 侧解析由 clap 统一承担（死入口的手写解析
+    // 已删除），缺省时烘焙的是解析后的实际值（含文件默认注入）
+    args.extend(["--interval".into(), cli.interval.to_string()]);
     if cli.propagate_remote_deletes {
         args.push("--propagate-remote-deletes".into());
     }
@@ -312,6 +345,76 @@ fn build_launch_args(cli: &Cli) -> Vec<String> {
         args.push("--propagate-local-deletes".into());
     }
     args
+}
+
+/// 服务/前台共用运行计划（F-12：两路径产出配置一致由同源构造保证）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ServiceRunPlan {
+    /// 本地同步根（前台为 required 校验后的值；服务模式缺省 "."）
+    sync_root: std::path::PathBuf,
+    /// 远端根目录 ID（clap 解析结果，含配置文件默认注入）
+    remote_root: String,
+    /// 秒（clap 解析结果，含配置文件默认注入；前台循环与 binPath 烘焙共用）
+    interval_secs: u64,
+    /// flag（本次运行显式开启）或文件持久值，任一为真即生效
+    propagate_remote_deletes: bool,
+    /// flag（本次运行显式开启）或文件持久值，任一为真即生效
+    propagate_local_deletes: bool,
+    /// F-12 分派依据：true = 占位符挂载支路
+    placeholder_mount: bool,
+}
+
+/// F-12 决策核心（跨平台纯函数）：Cli + 文件配置 + 同步根 → 运行计划。
+///
+/// 前台引擎路径与 SCM `service run` 分支共用此构造（T-21 一致性锚：
+/// 两路径产出配置一致不是靠测试碰巧对齐，而是同源构造）。
+fn service_run_plan(
+    cli: &Cli,
+    file_cfg: &cloudmount_core::config::Config,
+    sync_root: std::path::PathBuf,
+) -> ServiceRunPlan {
+    ServiceRunPlan {
+        sync_root,
+        remote_root: cli.remote_root.clone(),
+        interval_secs: cli.interval.max(1),
+        propagate_remote_deletes: cli.propagate_remote_deletes
+            || file_cfg.sync.propagate_remote_deletes,
+        propagate_local_deletes: cli.propagate_local_deletes
+            || file_cfg.sync.propagate_local_deletes,
+        placeholder_mount: cli.placeholder_mount,
+    }
+}
+
+/// 从运行计划构造引擎配置（前台引擎路径与 SCM 引擎支路同源）。
+fn engine_config_from_plan(plan: &ServiceRunPlan) -> SyncEngineConfig {
+    let mut cfg = SyncEngineConfig::new(&plan.sync_root);
+    cfg.remote_root = RemoteId(plan.remote_root.clone());
+    cfg.policy.propagate_remote_deletes = plan.propagate_remote_deletes;
+    cfg.policy.propagate_local_deletes = plan.propagate_local_deletes;
+    cfg
+}
+
+/// F-12：SCM `service run` 分派决策——按 `--placeholder-mount` 选择支路。
+///
+/// 跨平台纯决策（无 windows API，T-21 无门控单测）：true → 占位符支路，
+/// false → 引擎支路。两支路均经工厂注入（生产侧 = SCM 执行体接线，
+/// 测试侧 = 捕获调用的桩），共享 [`service_run_plan`] 构造的运行计划——
+/// 两路径产出配置一致由同源构造保证，非测试巧合对齐。
+#[cfg_attr(not(windows), allow(dead_code))] // 仅服务分支调用；跨平台提取供 T-21 无门控单测
+fn dispatch_service_run(
+    cli: &Cli,
+    file_cfg: &cloudmount_core::config::Config,
+    run_placeholder: impl FnOnce(&ServiceRunPlan) -> anyhow::Result<()>,
+    run_engine: impl FnOnce(&ServiceRunPlan) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    // 服务模式缺省同步根 "."（前台路径为 required 校验，不走此处）
+    let sync_root = cli.sync_root.clone().unwrap_or_else(|| ".".into());
+    let plan = service_run_plan(cli, file_cfg, sync_root);
+    if plan.placeholder_mount {
+        run_placeholder(&plan)
+    } else {
+        run_engine(&plan)
+    }
 }
 
 /// 以 AppID 构造 Provider（供服务模式/占位符模式的非 mock 通道）。
@@ -537,15 +640,12 @@ async fn async_main(cli: Cli, file_cfg: cloudmount_core::config::Config) -> anyh
     // ---- 同步模式（默认）----
     let provider = build_channel_provider(&cli, &file_cfg)?;
 
-    let mut cfg = SyncEngineConfig::new(&sync_root);
-    cfg.remote_root = RemoteId(cli.remote_root.clone());
-    cfg.policy.propagate_remote_deletes =
-        cli.propagate_remote_deletes || file_cfg.sync.propagate_remote_deletes;
-    cfg.policy.propagate_local_deletes =
-        cli.propagate_local_deletes || file_cfg.sync.propagate_local_deletes;
+    // F-12：前台与服务模式共用同一运行计划构造（两路径产出配置一致由同源保证）
+    let plan = service_run_plan(&cli, &file_cfg, sync_root);
+    let cfg = engine_config_from_plan(&plan);
 
     // 同步引擎是阻塞实现：放进专用阻塞线程，避免占用 tokio 工作线程
-    let interval = Duration::from_secs(cli.interval.max(1));
+    let interval = Duration::from_secs(plan.interval_secs);
     let once = cli.once;
     let engine_task = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
         let mut engine = SyncEngine::new(cfg, provider)?;
@@ -590,7 +690,7 @@ async fn async_main(cli: Cli, file_cfg: cloudmount_core::config::Config) -> anyh
     Ok(())
 }
 
-/// 占位符挂载模式：远端视图 → 占位符投影 → 按需水合。
+/// 占位符挂载模式（前台入口）：远端视图 → 占位符投影 → 按需水合。
 #[cfg(windows)]
 fn run_placeholder_mount(
     cli: &Cli,
@@ -598,7 +698,43 @@ fn run_placeholder_mount(
     file_cfg: &cloudmount_core::config::Config,
 ) -> anyhow::Result<()> {
     let provider = build_provider(cli, file_cfg)?;
+    // 前台无外部停止源：stop_check 恒 false——轮次间/分段 sleep 处的检查
+    // 退化为直通（与 SCM 版 [`run_service_placeholder_blocking`] 共用主循环）
+    run_placeholder_mount_inner(provider, cli, sync_root, &|| false)
+}
 
+/// SCM 版占位符挂载循环（F-12：服务模式与前台行为一致）。
+///
+/// 与前台共用 [`run_placeholder_mount_inner`] 主循环；stop_check = SCM 停止
+/// 信号（控制通道 Stop/Shutdown 的 [`service::StopSignal`]）或 SCM 执行体
+/// 置位的退出标志，任一触发即在轮次间/分段 sleep 处结束循环并干净卸载
+/// （control.stop + Arc::try_unwrap + unmount）。`--once/--hold-secs` 不参与
+/// 服务路径（SCM binPath 不烘焙），循环常驻直到 SCM 停止。
+#[cfg(windows)]
+fn run_service_placeholder_blocking(
+    provider: Arc<dyn Provider>,
+    cli: Cli,
+    plan: ServiceRunPlan,
+    stop: service::StopSignal,
+) -> anyhow::Result<()> {
+    let stop_check = move || stop.should_stop() || crate::service::should_exit();
+    run_placeholder_mount_inner(provider, &cli, &plan.sync_root, &stop_check)
+}
+
+/// 占位符挂载主循环（F-12 抽取：前台与 SCM 服务共用同一循环体）。
+///
+/// `stop_check` 是停止感知 seam：前台传 `|| false`；SCM 传
+/// `stop.should_stop() || service::should_exit()`。检查点：轮次之间与
+/// 分段 sleep（500ms 步长）处。停止/`--once`/保持时长结束后的退出路径
+/// 相同：先停控制通道（其 handler 持有挂载句柄的克隆，`Arc::try_unwrap`
+/// 需要它释放），再断开连接 + 双注销（内核 + Shell）干净卸载。
+#[cfg(windows)]
+fn run_placeholder_mount_inner(
+    provider: Arc<dyn Provider>,
+    cli: &Cli,
+    sync_root: &std::path::Path,
+    stop_check: &dyn Fn() -> bool,
+) -> anyhow::Result<()> {
     if !cloudmount_vfs::cfapi::platform_available() {
         anyhow::bail!("cldflt 不可用：占位符挂载需要 Windows 10 1709+ 且为本地 NTFS 卷");
     }
@@ -652,13 +788,17 @@ fn run_placeholder_mount(
     let mut sync = PlaceholderSync::new(mount.clone(), &initial);
     let interval = Duration::from_secs(cli.interval.max(1));
     // --once + --hold-secs：保持 hold_secs 再退出（供自动化验证/演示）
-    // --once（无 hold）：跑一轮即退出；常驻：一直保持
+    // --once（无 hold）：跑一轮即退出；常驻（前台无 flag / 服务路径）：一直保持
     let deadline = (cli.once && cli.hold_secs > 0)
         .then(|| std::time::Instant::now() + Duration::from_secs(cli.hold_secs));
     let exit_after_cycle = cli.once && deadline.is_none();
 
     // 挂载循环是阻塞实现：直接在调用线程上跑
     loop {
+        if stop_check() {
+            tracing::info!("收到停止信号，卸载退出");
+            break;
+        }
         // 先处理本地→远端（用户修改上传），再处理远端→视图（投影/删除）
         match uploader.poll_and_upload() {
             Ok(stats) if stats.uploaded > 0 || stats.errors > 0 => tracing::info!(
@@ -694,7 +834,17 @@ fn run_placeholder_mount(
         if exit_after_cycle {
             break;
         }
-        std::thread::sleep(interval);
+        // 分段 sleep（500ms 步长）及时响应停止；前台 stop_check 恒 false
+        // → 与整段 sleep 行为等价
+        let mut remaining = interval;
+        while !remaining.is_zero() {
+            if stop_check() {
+                break;
+            }
+            let step = Duration::from_millis(500).min(remaining);
+            std::thread::sleep(step);
+            remaining -= step;
+        }
     }
 
     // 先停控制通道（其 handler 持有挂载句柄的克隆，Arc::try_unwrap 需要它释放），
@@ -837,5 +987,380 @@ mod t08_cookie_gate {
         });
         let msg = format!("{}", no_consent.check_enabled().unwrap_err());
         assert!(msg.contains("同意"), "未同意应指明知情同意: {msg}");
+    }
+}
+
+/// U12（F-12 + F-13）验收测试：T-21 / T-22 / T-29。
+///
+/// - T-21：SCM Run 分支决策（[`dispatch_service_run`] 注入两支路工厂捕获
+///   调用；两路径产出配置一致锚定 [`service_run_plan`] 同源构造）
+///   以及 service.rs 死 FFI 入口删除的结构性断言（MA10：
+///   `#[allow(dead_code)]` 使"无告警"判据无判别力，故检源码文本）；
+/// - T-22：坏 config.toml → fail-fast（错误链含「解析失败」+ 文件路径），
+///   文件不存在 → 默认值回归护栏（路径注入，无环境变量触面）；
+/// - T-29：[`assemble_service_args`] 跨平台纯函数快照（`--interval`
+///   无条件烘焙；缺省时烘焙解析后的默认值）。
+///
+/// 全部无 `#[cfg(windows)]` 门控（M-R2-3：参数组装/决策为跨平台纯函数，
+/// Linux CI 可执行）。
+#[cfg(test)]
+mod u12_scm_config {
+    use super::*;
+    use cloudmount_core::config::{Config, SyncConfig};
+
+    /// env 是进程级的：clap `env =` 属性读取 CLOUDMOUNT_*，与任何显式
+    /// set/remove 环境变量的测试必须互斥（config.rs ENV_LOCK 先例）。
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// 清空影响 clap 解析的环境变量（仅测试进程内生效，退出即消失）。
+    fn clear_mount_env(_guard: &std::sync::MutexGuard<'_, ()>) {
+        std::env::remove_var("CLOUDMOUNT_SYNC_ROOT");
+        std::env::remove_var("CLOUDMOUNT_APP_ID");
+        std::env::remove_var("CLOUDMOUNT_CHANNEL");
+    }
+
+    fn u12_temp_path(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "cm-u12-{tag}-{}-{:?}.toml",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos()
+        ))
+    }
+
+    // ---- T-21：SCM Run 分支决策 + 死入口结构性断言 ----
+
+    /// 结构性断言：service.rs 不得再含死 FFI 入口符号
+    /// （`define_windows_service!` + `service_main` 手写解析与 clap
+    /// 双份解析，正是 F-12 病灶之一）。
+    #[test]
+    fn t21_dead_ffi_entry_symbols_removed() {
+        let src = include_str!("service.rs");
+        assert!(
+            !src.contains("define_windows_service!"),
+            "死 FFI 入口 define_windows_service! 必须删除（全仓无 service_dispatcher::start）"
+        );
+        assert!(
+            !src.contains("service_main"),
+            "死入口 service_main 符号必须不复存在（含文档引用）"
+        );
+    }
+
+    /// placeholder_mount=true → 占位符支路执行、引擎支路不被调用
+    /// （现状 Run 分支不分派 → 红）。
+    #[test]
+    fn t21_placeholder_true_dispatches_placeholder_branch() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let cli = Cli::parse_from(["cloudmountd", "--placeholder-mount", "--sync-root", "C:/Cloud"]);
+        let calls = Arc::new(std::sync::Mutex::new(Vec::<&'static str>::new()));
+        let seen = calls.clone();
+        dispatch_service_run(
+            &cli,
+            &Config::default(),
+            |_| {
+                seen.lock().unwrap().push("placeholder");
+                Ok(())
+            },
+            |_| {
+                seen.lock().unwrap().push("engine");
+                Ok(())
+            },
+        )
+        .expect("分派本身不得失败");
+        assert_eq!(
+            *calls.lock().unwrap(),
+            ["placeholder"],
+            "placeholder_mount=true 必须且只能走占位符支路（现状静默跑同步模式）"
+        );
+    }
+
+    /// placeholder_mount=false → 常规引擎支路（SCM 现有行为不回退）。
+    #[test]
+    fn t21_placeholder_false_dispatches_engine_branch() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let cli = Cli::parse_from(["cloudmountd", "--sync-root", "C:/Cloud"]);
+        let calls = Arc::new(std::sync::Mutex::new(Vec::<&'static str>::new()));
+        let seen = calls.clone();
+        dispatch_service_run(
+            &cli,
+            &Config::default(),
+            |_| {
+                seen.lock().unwrap().push("placeholder");
+                Ok(())
+            },
+            |_| {
+                seen.lock().unwrap().push("engine");
+                Ok(())
+            },
+        )
+        .expect("分派本身不得失败");
+        assert_eq!(
+            *calls.lock().unwrap(),
+            ["engine"],
+            "placeholder_mount=false 必须且只能走常规引擎支路"
+        );
+    }
+
+    /// 两路径产出配置一致：经 apply_config_defaults 的真实优先级链解析
+    /// （文件值注入 clap default）后，placeholder 两种取值下除分派标志外
+    /// 全部计划字段一致，且与前台引擎路径同源构造（engine_config_from_plan）。
+    #[test]
+    fn t21_plan_matches_foreground_construction() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let file_cfg = Config {
+            remote_root: "42".into(),
+            interval: 120,
+            sync: SyncConfig {
+                propagate_remote_deletes: true,
+                propagate_local_deletes: false,
+            },
+            ..Default::default()
+        };
+        let parse = |args: &[&str]| -> Cli {
+            Cli::from_arg_matches(&apply_config_defaults(&file_cfg).get_matches_from(args))
+                .expect("clap 解析")
+        };
+        let root = std::path::PathBuf::from("C:/Cloud");
+        let plan_on = service_run_plan(
+            &parse(&[
+                "cloudmountd",
+                "--placeholder-mount",
+                "--sync-root",
+                "C:/Cloud",
+                "--interval",
+                "15",
+                "--propagate-local-deletes",
+            ]),
+            &file_cfg,
+            root.clone(),
+        );
+        let plan_off = service_run_plan(
+            &parse(&[
+                "cloudmountd",
+                "--sync-root",
+                "C:/Cloud",
+                "--interval",
+                "15",
+                "--propagate-local-deletes",
+            ]),
+            &file_cfg,
+            root.clone(),
+        );
+
+        // 分派标志正确
+        assert!(plan_on.placeholder_mount);
+        assert!(!plan_off.placeholder_mount);
+
+        // 与前台引擎路径同源：engine_config_from_plan 产出的配置
+        let cfg_on = engine_config_from_plan(&plan_on);
+        let cfg_off = engine_config_from_plan(&plan_off);
+        assert_eq!(plan_on.interval_secs, 15, "显式 CLI flag 胜出（clap > 文件）");
+        assert_eq!(plan_off.interval_secs, 15);
+        assert_eq!(plan_on.remote_root, "42", "文件值经 clap default 注入");
+        assert_eq!(plan_off.remote_root, "42");
+        assert_eq!(plan_on.sync_root, root);
+        assert_eq!(cfg_on.local_root, root);
+        assert_eq!(cfg_on.remote_root.0, "42");
+        assert!(
+            cfg_on.policy.propagate_remote_deletes,
+            "文件持久值生效（flag || 文件值，任一为真）"
+        );
+        assert!(
+            cfg_on.policy.propagate_local_deletes,
+            "显式 flag 生效（flag || 文件值，任一为真）"
+        );
+        // 两路径（除分派标志外）产出配置一致
+        assert_eq!(cfg_off.local_root, cfg_on.local_root);
+        assert_eq!(cfg_off.remote_root, cfg_on.remote_root);
+        assert_eq!(
+            cfg_off.policy.propagate_remote_deletes,
+            cfg_on.policy.propagate_remote_deletes
+        );
+        assert_eq!(
+            cfg_off.policy.propagate_local_deletes,
+            cfg_on.policy.propagate_local_deletes
+        );
+        assert_eq!(plan_off.interval_secs, plan_on.interval_secs);
+        assert_eq!(plan_off.remote_root, plan_on.remote_root);
+    }
+
+    /// 未显式给 interval → 计划取配置文件默认（服务模式不再恒内置 30s
+    /// 的语义锚；与 T-29 烘焙配套）。
+    #[test]
+    fn t21_plan_takes_interval_from_config_default() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let file_cfg = Config {
+            interval: 120,
+            ..Default::default()
+        };
+        let cli = Cli::from_arg_matches(
+            &apply_config_defaults(&file_cfg).get_matches_from(["cloudmountd"]),
+        )
+        .expect("clap 解析");
+        let plan = service_run_plan(&cli, &file_cfg, std::path::PathBuf::from("."));
+        assert_eq!(
+            plan.interval_secs, 120,
+            "文件默认注入后计划取 120（不是内置 30）"
+        );
+    }
+
+    // ---- T-29：assemble_service_args 跨平台纯函数快照 ----
+
+    /// 全组合快照：`--interval 120` 必须出现在输出向量中（现状不烘焙 → 红）。
+    #[test]
+    fn t29_snapshot_full_combo_with_interval() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let cli = Cli::try_parse_from([
+            "cloudmountd",
+            "--placeholder-mount",
+            "--sync-root",
+            "D:/Cloud",
+            "--remote-root",
+            "42",
+            "--app-id",
+            "9001",
+            "--interval",
+            "120",
+            "--propagate-remote-deletes",
+            "--propagate-local-deletes",
+        ])
+        .expect("解析");
+        assert_eq!(
+            assemble_service_args(&cli),
+            vec![
+                "--placeholder-mount".to_string(),
+                "--sync-root".to_string(),
+                "D:/Cloud".to_string(),
+                "--remote-root".to_string(),
+                "42".to_string(),
+                "--app-id".to_string(),
+                "9001".to_string(),
+                "--interval".to_string(),
+                "120".to_string(),
+                "--propagate-remote-deletes".to_string(),
+                "--propagate-local-deletes".to_string(),
+            ],
+            "整向量快照：--interval 120 必须无条件烘焙（MA9：现状缺 --interval）"
+        );
+    }
+
+    /// 未显式给 interval → 烘焙内置默认值（30）。
+    #[test]
+    fn t29_bakes_builtin_default_interval() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let cli = Cli::parse_from(["cloudmountd"]);
+        assert_eq!(
+            assemble_service_args(&cli),
+            vec!["--interval".to_string(), "30".to_string()],
+            "缺省 interval 也必须烘焙（快照固化：无\"不烘焙\"分支）"
+        );
+    }
+
+    /// 未显式给 interval 但配置文件给了 → 烘焙文件默认
+    /// （apply_config_defaults 注入 clap default 后的解析结果）。
+    #[test]
+    fn t29_bakes_config_file_interval_default() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let file_cfg = Config {
+            interval: 120,
+            ..Default::default()
+        };
+        let cli = Cli::from_arg_matches(
+            &apply_config_defaults(&file_cfg).get_matches_from(["cloudmountd"]),
+        )
+        .expect("解析");
+        assert_eq!(
+            assemble_service_args(&cli),
+            vec!["--interval".to_string(), "120".to_string()],
+            "烘焙值 = clap 解析结果（含配置文件默认注入）"
+        );
+    }
+
+    /// 部分组合：缺省段不烘焙（remote_root=0 / 无 sync_root / propagate 关）。
+    #[test]
+    fn t29_snapshot_partial_combo_omits_unset() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_mount_env(&_guard);
+        let cli = Cli::parse_from(["cloudmountd", "--sync-root", "E:/Sync"]);
+        assert_eq!(
+            assemble_service_args(&cli),
+            vec![
+                "--sync-root".to_string(),
+                "E:/Sync".to_string(),
+                "--interval".to_string(),
+                "30".to_string(),
+            ]
+        );
+    }
+
+    // ---- T-22：配置 fail-fast（F-13）----
+
+    /// 语法错误 → Err：错误链含「解析失败」统一子串 + 文件路径 + daemon
+    /// 侧恢复提示；Err 本身即"默认值不生效"（现状静默回退 → 红）。
+    #[test]
+    fn t22_malformed_config_fails_fast_with_parse_failure_and_path() {
+        let path = u12_temp_path("t22-syntax");
+        std::fs::write(&path, "not = [valid").unwrap();
+        let err = load_config_or_fail(&path).expect_err("坏配置必须拒绝启动（fail-fast）");
+        let chain = format!("{err:#}");
+        assert!(
+            chain.contains("解析失败"),
+            "错误链须含统一子串「解析失败」（断言锚 = load_from 消息）: {chain}"
+        );
+        assert!(
+            chain.contains(&path.display().to_string()),
+            "错误链须含文件路径: {chain}"
+        );
+        assert!(
+            chain.contains("删除后重启"),
+            "daemon context 须提示恢复默认配置的途径: {chain}"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// 未知字段（deny_unknown_fields 防拼写设计）→ 同样 fail-fast。
+    #[test]
+    fn t22_unknown_field_fails_fast() {
+        let path = u12_temp_path("t22-unknown");
+        std::fs::write(&path, "no_such_field = 1\n").unwrap();
+        let err = load_config_or_fail(&path).expect_err("未知字段必须拒绝启动");
+        let chain = format!("{err:#}");
+        assert!(chain.contains("解析失败"), "错误链须含「解析失败」: {chain}");
+        assert!(
+            chain.contains(&path.display().to_string()),
+            "错误链须含文件路径: {chain}"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// 路径指向目录（"存在但不可读"的跨平台构造）→ Err（拒绝启动）。
+    #[test]
+    fn t22_directory_path_fails_fast() {
+        let dir = u12_temp_path("t22-dir");
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(
+            load_config_or_fail(&dir).is_err(),
+            "存在但不可读（目录）必须拒绝启动"
+        );
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    /// 回归护栏：文件不存在 → 默认值（首次运行正常路径不受 fail-fast 影响）。
+    #[test]
+    fn t22_missing_file_yields_defaults() {
+        let path = u12_temp_path("t22-absent");
+        let cfg = load_config_or_fail(&path).expect("文件不存在必须回默认值");
+        assert_eq!(cfg, Config::default());
+        assert_eq!(cfg.channel, "auto");
+        assert_eq!(cfg.interval, 30);
     }
 }
