@@ -288,11 +288,13 @@ impl DavFileSystem for ProviderFs {
     ) -> FsFuture<'a, Box<dyn DavFile>> {
         let norm = Self::normalize(path);
         async move {
-            // 写路径允许目标不存在（PUT 新文件）：解析失败时解析父目录构造合成条目
+            // 写路径允许目标不存在（PUT 新文件）：仅 NotFound 合成新条目（F-09）；
+            // 权限/网络/频控等打开错误如实上抛（dav-server 映射 5xx），
+            // 关闭"Err(_) 盲当新文件"的静默新建误写路径
             let entry = if options.write || options.create || options.append {
                 match resolve_path(self, &norm).await {
                     Ok(e) => e,
-                    Err(_) => {
+                    Err(FsError::NotFound) => {
                         let (parent, name) = split_last(&norm)?;
                         let parent_entry = resolve_path(self, &parent).await?;
                         RemoteEntry {
@@ -307,6 +309,7 @@ impl DavFileSystem for ProviderFs {
                             deleted: false,
                         }
                     }
+                    Err(e) => return Err(e),
                 }
             } else {
                 resolve_path(self, &norm).await?
@@ -329,6 +332,7 @@ impl DavFileSystem for ProviderFs {
                     file: Arc::new(std::sync::Mutex::new(Some(file))),
                     written: 0,
                     provider: self.provider.clone(),
+                    flushed: false,
                 }) as Box<dyn DavFile>)
             } else {
                 // GET：open_range 全量流
@@ -551,6 +555,9 @@ struct WriteFileWithProvider {
     file: Arc<std::sync::Mutex<Option<std::fs::File>>>,
     written: u64,
     provider: Arc<dyn Provider>,
+    /// 上传确认成功后置位（F-08）：flush 幂等护栏 + Drop 自愈判据。
+    /// 上传尝试失败保持 false——不掩盖失败，spool 留给 Drop 兜底清理。
+    flushed: bool,
 }
 
 impl std::fmt::Debug for WriteFileWithProvider {
@@ -593,18 +600,26 @@ impl DavFile for WriteFileWithProvider {
         futures_util::future::ready(Err(FsError::NotImplemented)).boxed()
     }
     fn flush<'a>(&'a mut self) -> FsFuture<'a, ()> {
-        // flush = PUT 完成：上传 spool 文件（取出文件句柄关闭）
+        // flush = PUT 完成：上传 spool 文件（F-08 所有权收口）
         let spool = self.spool.clone();
         let provider = self.provider.clone();
         let parent = self.meta.entry.parent_id.clone();
         let name = self.meta.entry.name.clone();
         let file = self.file.clone();
         async move {
+            // 幂等护栏：上传确认成功后的再次 flush 直接 no-op
+            //（防 dav-server 多次 flush → 重复上传）
+            if self.flushed {
+                return Ok(());
+            }
+            // 锁内刷缓冲，随后 take 拿出所有权——guard 离开作用域即关闭句柄，
+            // 上传/删除不再与半泄漏句柄冲突（F-08 病灶：as_ref() 留 Option 于锁内）
             {
-                let guard = file.lock().map_err(|_| FsError::GeneralFailure)?;
+                let mut guard = file.lock().map_err(|_| FsError::GeneralFailure)?;
                 if let Some(mut f) = guard.as_ref() {
                     let _ = f.flush();
                 }
+                drop(guard.take());
             }
             let size = std::fs::metadata(&spool).map(|m| m.len()).unwrap_or(0);
             let spool_for_upload = spool.clone();
@@ -614,10 +629,45 @@ impl DavFile for WriteFileWithProvider {
             .await
             .map_err(|_| FsError::GeneralFailure)?
             .map_err(map_err);
-            let _ = std::fs::remove_file(&spool);
+            if r.is_ok() {
+                // 上传确认成功后才置位（尝试失败保持 false——Drop 兜底 + 不掩盖失败）
+                self.flushed = true;
+                // 删除失败 = warn 记路径后接受残留（无重试机制），不掩盖上传结果
+                if let Err(e) = std::fs::remove_file(&spool) {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        tracing::warn!(
+                            path = %spool.display(),
+                            error = %e,
+                            "spool 删除失败（接受残留）"
+                        );
+                    }
+                }
+            }
             r.map(|_| ())
         }
         .boxed()
+    }
+}
+
+impl Drop for WriteFileWithProvider {
+    fn drop(&mut self) {
+        // 关句柄（flush 正常完成后 Option 已空——no-op）
+        if let Ok(mut guard) = self.file.lock() {
+            drop(guard.take());
+        }
+        // 自愈：未确认成功上传的 spool 残留（PUT 中途断连 / 上传失败）——尽力清理；
+        // NotFound（flush 已删或外部已清）视为 no-op 不告警
+        if !self.flushed {
+            if let Err(e) = std::fs::remove_file(&self.spool) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    tracing::warn!(
+                        path = %self.spool.display(),
+                        error = %e,
+                        "Drop 清理未上传 spool 失败（残留）"
+                    );
+                }
+            }
+        }
     }
 }
 
