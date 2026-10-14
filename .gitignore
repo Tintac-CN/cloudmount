@@ -34,3 +34,6 @@ Thumbs.db
 
 # 本地工具（gh CLI 等，不入库）
 /tools/
+
+# AIDLC 逐轮审计过程文件（本地，不入工件链）
+docs/aidlc/*/audit.log
