@@ -11,8 +11,8 @@
 //!   供 UI 常驻角标查询）——永不静默。
 
 use cloudmount_core::{
-    provider::UploadSource, Error, Provider, Quota, RangeSpec, RemoteEntry, RemoteId, Result,
-    UploadResult,
+    provider::UploadSource, ChangeProbe, Error, Provider, Quota, RangeSpec, RemoteEntry, RemoteId,
+    Result, UploadResult,
 };
 use std::io::Read;
 use std::sync::Mutex;
@@ -209,14 +209,20 @@ impl Provider for ProviderRouter {
     fn quota(&self) -> Result<Quota> {
         self.call(|p| p.quota())
     }
+
+    /// 廉价变更探测：转发当前活跃通道（经 [`ProviderRouter::call`]，
+    /// 免费获得 Auth 失效自动切换语义）；不支持探测的通道透传 `None`。
+    fn change_probe(&self, dir: &RemoteId) -> Result<Option<ChangeProbe>> {
+        self.call(|p| p.change_probe(dir))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use cloudmount_core::{ChangeProbe, EntryKind};
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     /// 桩的 `change_probe` 可编程行为（四态）。
     enum ProbeBehavior {
@@ -259,7 +265,11 @@ mod tests {
     }
 
     impl Stub {
-        fn new(entries: Vec<RemoteEntry>, fail_with: Option<Error>, probe: ProbeBehavior) -> Box<Self> {
+        fn new(
+            entries: Vec<RemoteEntry>,
+            fail_with: Option<Error>,
+            probe: ProbeBehavior,
+        ) -> Box<Self> {
             Box::new(Self {
                 entries,
                 fail_with,
@@ -552,7 +562,11 @@ mod tests {
             .expect("活跃通道预置探测值应原样透传，而非默认实现吞成 None");
 
         assert_eq!(probe, open_probe, "应返回活跃通道（Open）的探测值");
-        assert_eq!(open_counts.probe_calls(), 1, "活跃通道 change_probe 应恰好转发一次");
+        assert_eq!(
+            open_counts.probe_calls(),
+            1,
+            "活跃通道 change_probe 应恰好转发一次"
+        );
         assert_eq!(cookie_counts.probe_calls(), 0, "非活跃通道不应被触达");
         assert_eq!(open_counts.list_calls(), 0, "探测路径不得回退全量 list");
         assert_eq!(cookie_counts.list_calls(), 0);
@@ -589,7 +603,11 @@ mod tests {
             matches!(err, Error::Transport(ref m) if m.contains("网络中断")),
             "错误应原样透传（不吞成 None、不换形）：{err:?}"
         );
-        assert_eq!(router.active(), ActiveChannel::Open, "非认证类错误不应切换通道");
+        assert_eq!(
+            router.active(),
+            ActiveChannel::Open,
+            "非认证类错误不应切换通道"
+        );
         assert!(router.last_switch().is_none(), "非认证类错误不应记录切换");
         assert_eq!(open_counts.probe_calls(), 1, "应确经活跃通道透传（仅一次）");
         assert_eq!(open_counts.list_calls(), 0, "不得静默回退全量 list");
@@ -612,20 +630,30 @@ mod tests {
         let first = router
             .change_probe(&dir)
             .expect("Auth 失效切换后应成功，而非吞成 None");
-        assert_eq!(first, Some(preset), "应返回切换后通道（Cookie）的探测值，不吞成 None");
+        assert_eq!(
+            first,
+            Some(preset),
+            "应返回切换后通道（Cookie）的探测值，不吞成 None"
+        );
 
         let sw = router.last_switch().expect("Auth 失效应记录切换");
         assert_eq!(sw.from, ActiveChannel::Open);
         assert_eq!(sw.to, ActiveChannel::Cookie);
-        assert!(sw.reason.contains("token 失效"), "切换原因应携带认证失效信息：{}", sw.reason);
+        assert!(
+            sw.reason.contains("token 失效"),
+            "切换原因应携带认证失效信息：{}",
+            sw.reason
+        );
         assert_eq!(router.active(), ActiveChannel::Cookie);
 
         // 后续调用路由到切换后通道（无感）
-        let second = router
-            .change_probe(&dir)
-            .expect("后续调用应走切换后通道");
+        let second = router.change_probe(&dir).expect("后续调用应走切换后通道");
         assert_eq!(second, Some(preset));
         assert_eq!(open_counts.probe_calls(), 1, "官方通道不应再被探测");
-        assert_eq!(cookie_counts.probe_calls(), 2, "首次切换重试 + 后续调用都应命中 Cookie");
+        assert_eq!(
+            cookie_counts.probe_calls(),
+            2,
+            "首次切换重试 + 后续调用都应命中 Cookie"
+        );
     }
 }
