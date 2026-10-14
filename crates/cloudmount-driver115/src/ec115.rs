@@ -46,12 +46,18 @@ pub struct EcdhCipher {
 }
 
 impl EcdhCipher {
-    /// 生成新的 ECDH 会话。
+    /// 生成新的 ECDH 会话（远端 = 115 固定公钥）。
     pub fn new() -> Result<Self> {
+        Self::with_remote_pub(REMOTE_PUB_KEY)
+    }
+
+    /// 以指定远端公钥构造会话（生产 = [`REMOTE_PUB_KEY`]；
+    /// 测试 = `test_peer` 生成的注入公钥，见 [`test_peer`]）。
+    pub(crate) fn with_remote_pub(remote: [u8; 56]) -> Result<Self> {
         // 远端公钥：未压缩 SEC1（0x04 || X || Y）
-        let mut uncompressed = Vec::with_capacity(1 + REMOTE_PUB_KEY.len());
+        let mut uncompressed = Vec::with_capacity(1 + remote.len());
         uncompressed.push(0x04);
-        uncompressed.extend_from_slice(&REMOTE_PUB_KEY);
+        uncompressed.extend_from_slice(&remote);
         let remote = PublicKey::from_sec1_bytes(&uncompressed)
             .map_err(|e| Error::Other(format!("远端公钥解析失败: {e:?}")))?;
 
@@ -325,38 +331,157 @@ pub fn generate_token(
 ///   请求/响应方向的 CBC + PKCS7 / `[长度(2 LE)][LZ4]` 帧（复用本文件既有代码）。
 #[doc(hidden)]
 pub mod test_peer {
-    /// 测试服务端（持有测试密钥对的私钥）。
-    pub struct TestEcdhPeer {}
+    use super::{crc32_ieee, OsRng, CRC_SALT, P224_LEN};
+    use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
+    use aes::Aes128;
+    use cloudmount_core::{Error, Result};
+    use p224::elliptic_curve::sec1::ToSec1Point;
+    use p224::elliptic_curve::Generate as _;
+    use p224::PublicKey;
+
+    /// 测试服务端（持有测试密钥对的私钥；多次会话复用同一私钥）。
+    pub struct TestEcdhPeer {
+        /// 服务端 P-224 私钥。
+        secret: p224::SecretKey,
+    }
 
     /// 与客户端的一次 ECDH 会话（key/iv 派生与 [`super::EcdhCipher`] 一致）。
-    pub struct PeerSession {}
+    pub struct PeerSession {
+        /// AES-128 密钥（共享密钥前 16 字节）。
+        key: [u8; 16],
+        /// CBC IV（共享密钥后 16 字节，与 key 重叠 4 字节）。
+        iv: [u8; 16],
+    }
 
     impl TestEcdhPeer {
         /// 生成服务端测试密钥对；返回 (peer, 远端公钥 56 字节 = X‖Y)。
         ///
         /// 公钥注入 `Cookie115Provider::with_ecdh_remote_pub`。
         pub fn generate() -> (Self, [u8; 56]) {
-            todo!("U1-GREEN: 生成 P-224 测试密钥对（未压缩公钥 56 字节 = X‖Y）")
+            let secret = p224::SecretKey::generate_from_rng(&mut OsRng);
+            let public = secret.public_key();
+            // 未压缩 SEC1（0x04 || X || Y，57 字节）→ 去前缀 56 字节 = X‖Y
+            let uncompressed = public.to_sec1_point(false);
+            let comp = uncompressed.as_bytes();
+            assert_eq!(
+                comp.len(),
+                2 * P224_LEN + 1,
+                "未压缩 SEC1 公钥应为 57 字节"
+            );
+            let mut remote56 = [0u8; 2 * P224_LEN];
+            remote56.copy_from_slice(&comp[1..]);
+            (Self { secret }, remote56)
         }
 
         /// 从 `k_ec` token 解出客户端公钥（`encode_token` 的逆变换）并派生共享会话。
-        pub fn session(&self, k_ec: &str) -> cloudmount_core::Result<PeerSession> {
-            let _ = k_ec;
-            todo!("U1-GREEN: k_ec 逆解码 → ECDH 共享密钥 → key/iv（重叠 4 字节）")
+        pub fn session(&self, k_ec: &str) -> Result<PeerSession> {
+            use base64::Engine;
+            let raw = base64::engine::general_purpose::STANDARD
+                .decode(k_ec)
+                .map_err(|e| Error::Other(format!("k_ec base64 解码失败: {e}")))?;
+            if raw.len() != 48 {
+                return Err(Error::Other(format!("k_ec 长度异常: {}", raw.len())));
+            }
+            // CRC32 校验（编码时对 盐值前缀+前 44 字节 计算，尾部大端倒序附加）
+            let crc_expected = u32::from_be_bytes([raw[47], raw[46], raw[45], raw[44]]);
+            let mut crc_input = CRC_SALT.to_vec();
+            crc_input.extend_from_slice(&raw[..44]);
+            if crc32_ieee(&crc_input) != crc_expected {
+                return Err(Error::Other("k_ec CRC 校验失败".into()));
+            }
+            // 两个异或盐（编码时原样存于固定槽位，恒非零）
+            let r1 = raw[15];
+            let r2 = raw[39];
+            // 标记字节（编码时为 0x73 / 0x01 异或盐）
+            if raw[16] != (0x73 ^ r1) || raw[40] != (0x01 ^ r2) {
+                return Err(Error::Other("k_ec 标记字节异常".into()));
+            }
+            // 逆解码客户端公钥（30 字节 token 形态：[29, tag, X(28)]）
+            let mut pub_key = [0u8; P224_LEN + 2];
+            for (dst, src) in pub_key[..15].iter_mut().zip(raw[..15].iter()) {
+                *dst = src ^ r1;
+            }
+            for (dst, src) in pub_key[15..].iter_mut().zip(raw[24..39].iter()) {
+                *dst = src ^ r2;
+            }
+            if pub_key[0] != (P224_LEN + 1) as u8 || (pub_key[1] != 0x02 && pub_key[1] != 0x03) {
+                return Err(Error::Other("k_ec 客户端公钥前缀异常".into()));
+            }
+            // 压缩 SEC1（tag || X，29 字节）
+            let client_public = PublicKey::from_sec1_bytes(&pub_key[1..])
+                .map_err(|e| Error::Other(format!("客户端公钥解析失败: {e:?}")))?;
+            // ECDH 共享密钥 → key/iv（与客户端同派生：
+            // key = secret[..16]、iv = secret[len-16..] = secret[12..28]，重叠 4 字节）
+            let shared = p224::ecdh::diffie_hellman(
+                self.secret.to_nonzero_scalar(),
+                client_public.as_affine(),
+            );
+            let secret_bytes = shared.raw_secret_bytes();
+            let mut key = [0u8; 16];
+            let mut iv = [0u8; 16];
+            key.copy_from_slice(&secret_bytes[..16]);
+            iv.copy_from_slice(&secret_bytes[secret_bytes.len() - 16..]);
+            Ok(PeerSession { key, iv })
         }
     }
 
     impl PeerSession {
         /// 解密 initupload 请求体（CBC + PKCS7；请求方向无 LZ4 帧）→ 表单明文。
         pub fn decrypt_request(&self, body: &[u8]) -> Vec<u8> {
-            let _ = body;
-            todo!("U1-GREEN: CBC 解密 + PKCS7 去填充")
+            // 截掉尾部非整块（与客户端 decrypt 同构）
+            let usable = body.len() - body.len() % 16;
+            assert!(usable > 0, "密文不足一个块");
+            let mut buf = body[..usable].to_vec();
+            // CBC 解密：p_i = D(c_i) XOR c_{i-1}（prev 存密文块）
+            let cipher = Aes128::new((&self.key).into());
+            let mut prev: aes::cipher::generic_array::GenericArray<u8, aes::cipher::consts::U16> =
+                self.iv.into();
+            for chunk in buf.chunks_mut(16) {
+                let c_i = *aes::cipher::generic_array::GenericArray::from_slice(chunk);
+                let mut block = c_i;
+                cipher.decrypt_block(&mut block);
+                for i in 0..16 {
+                    block[i] ^= prev[i];
+                }
+                chunk.copy_from_slice(&block);
+                prev = c_i;
+            }
+            // PKCS7 去填充
+            let pad = *buf.last().expect("解密结果非空") as usize;
+            assert!(pad > 0 && pad <= 16 && pad <= buf.len(), "PKCS7 填充非法");
+            buf.truncate(buf.len() - pad);
+            buf
         }
 
         /// 加密响应：LZ4 压缩 + `[长度(2 LE)]` 帧 + CBC → 客户端 `decrypt` 可解。
-        pub fn encrypt_response(&self, plain: &[u8]) -> cloudmount_core::Result<Vec<u8>> {
-            let _ = plain;
-            todo!("U1-GREEN: LZ4 + 长度帧 + CBC 加密")
+        pub fn encrypt_response(&self, plain: &[u8]) -> Result<Vec<u8>> {
+            // LZ4 压缩（客户端 decrypt 预分配 64KB 解压——initupload 响应为小 JSON）
+            let compressed = lz4_flex::compress(plain);
+            let lz4_len = compressed.len();
+            if lz4_len == 0 || lz4_len > 0xFFFF {
+                return Err(Error::Other(format!(
+                    "LZ4 压缩长度 {lz4_len} 超出 2 字节长度帧上限"
+                )));
+            }
+            // [长度(2 字节 LE)][LZ4 块]
+            let mut framed = Vec::with_capacity(2 + lz4_len);
+            framed.extend_from_slice(&(lz4_len as u16).to_le_bytes());
+            framed.extend_from_slice(&compressed);
+            // PKCS7 填充
+            let pad_len = 16 - (framed.len() % 16);
+            framed.extend(std::iter::repeat_n(pad_len as u8, pad_len));
+            // CBC 加密（与客户端 encrypt 逐块语义一致：prev 初始为 IV，其后为密文块）
+            let cipher = Aes128::new((&self.key).into());
+            let mut prev = self.iv;
+            for chunk in framed.chunks_mut(16) {
+                for i in 0..16 {
+                    chunk[i] ^= prev[i];
+                }
+                let block = aes::cipher::generic_array::GenericArray::from_mut_slice(chunk);
+                cipher.encrypt_block(block);
+                prev.copy_from_slice(chunk);
+            }
+            Ok(framed)
         }
     }
 }
@@ -364,6 +489,27 @@ pub mod test_peer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// test_peer 与客户端互为镜像：k_ec 逆解码共享 key/iv、请求/响应帧双向往返。
+    #[test]
+    fn test_peer_k_ec_roundtrip_and_frames() {
+        let (peer, remote56) = test_peer::TestEcdhPeer::generate();
+        // 客户端以注入公钥构造会话 → 对端从 k_ec 逆解码共享 key/iv
+        let injected = EcdhCipher::with_remote_pub(remote56).expect("注入公钥会话");
+        let token = injected.encode_token(1_791_875_040_000);
+        let session = peer.session(&token).expect("对端会话");
+        // 请求方向：客户端 encrypt（CBC+PKCS7）→ 对端 decrypt_request
+        let req = injected.encrypt(b"a=1&b=2");
+        assert_eq!(session.decrypt_request(&req), b"a=1&b=2");
+        // 响应方向：对端 encrypt_response（[2LE len][LZ4] + CBC）→ 客户端 decrypt
+        let resp = session
+            .encrypt_response(br#"{"status":2,"statuscode":0}"#)
+            .expect("对端加密");
+        assert_eq!(
+            injected.decrypt(&resp).expect("客户端解密"),
+            br#"{"status":2,"statuscode":0}"#
+        );
+    }
 
     #[test]
     fn crc32_ieee_known_vector() {

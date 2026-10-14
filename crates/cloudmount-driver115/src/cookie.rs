@@ -482,8 +482,7 @@ impl Cookie115Provider {
     /// 构造 ECDH 会话（生产 = 115 固定公钥；注入替换公钥时用测试对端配对构造）。
     fn ecdh_cipher(&self) -> Result<EcdhCipher> {
         match self.ecdh_remote_pub {
-            // U1-GREEN：远端公钥替换构造（与 ec115::test_peer 配对）——红阶段骨架
-            Some(_) => todo!("U1-GREEN: 用替换的远端公钥构造 EcdhCipher（与 ec115::test_peer 配对）"),
+            Some(remote) => EcdhCipher::with_remote_pub(remote),
             None => EcdhCipher::new(),
         }
     }
