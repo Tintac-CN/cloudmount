@@ -131,7 +131,9 @@ impl OpenApiAuth {
 
     /// 通行证基址（注入优先，缺省生产常量 [`PASSPORT_BASE`]）。
     fn passport_base(&self) -> &str {
-        self.passport_base_override.as_deref().unwrap_or(PASSPORT_BASE)
+        self.passport_base_override
+            .as_deref()
+            .unwrap_or(PASSPORT_BASE)
     }
 
     /// 当前 Unix 秒。

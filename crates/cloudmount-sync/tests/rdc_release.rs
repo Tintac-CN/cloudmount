@@ -68,8 +68,8 @@ fn t09_drop_releases_thread_and_directory_handle() {
     let baseline = active_watcher_count();
 
     for i in 0..ROUNDS {
-        let w = RdcWatcher::new(&root)
-            .unwrap_or_else(|e| panic!("第 {i} 轮创建 watcher 失败: {e}"));
+        let w =
+            RdcWatcher::new(&root).unwrap_or_else(|e| panic!("第 {i} 轮创建 watcher 失败: {e}"));
         drop(w);
     }
 

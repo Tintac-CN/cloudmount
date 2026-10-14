@@ -614,7 +614,9 @@ pub(crate) fn pump_chunks(
     chunk_size: usize,
 ) -> Result<u64> {
     if chunk_size == 0 {
-        return Err(cloudmount_core::Error::Invalid("chunk_size 必须为正".into()));
+        return Err(cloudmount_core::Error::Invalid(
+            "chunk_size 必须为正".into(),
+        ));
     }
     // 单个复用块缓冲：一次分配（容量恰为 chunk_size），循环内零重配零增长
     //（内存峰值 = 1 块，与总范围大小无关）
@@ -976,8 +978,8 @@ const STATUS_UNSUCCESSFUL: i32 = 0xC000_0001u32 as i32;
 mod pump_chunks_tests {
     use super::{pump_chunks, ChunkSink};
     use cloudmount_core::{Error, Result};
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     /// 单元腿用小块上限（64 KiB）：与 1 MiB 同一"几何增长 vs 定长"判别口径，
     /// 测试跑得快；1 MiB 实现值口径另见
@@ -1110,7 +1112,9 @@ mod pump_chunks_tests {
     impl ChunkSink for RecordingSink {
         fn transfer(&mut self, offset: u64, data: &[u8]) -> Result<()> {
             if self.fail_at == Some(self.transfers.len()) {
-                return Err(Error::Other("sink 中止（模拟取消/TRANSFER_DATA 失败）".into()));
+                return Err(Error::Other(
+                    "sink 中止（模拟取消/TRANSFER_DATA 失败）".into(),
+                ));
             }
             self.transfers.push((offset, data.to_vec()));
             Ok(())
@@ -1245,7 +1249,10 @@ mod pump_chunks_tests {
 
         let result = pump_chunks(&mut reader, &mut sink, 0, CHUNK);
         let err = result.expect_err("取消必须以 Err 中止泵送");
-        assert!(err.to_string().contains("取消"), "取消错误原样传播，实际 {err:?}");
+        assert!(
+            err.to_string().contains("取消"),
+            "取消错误原样传播，实际 {err:?}"
+        );
 
         assert!(
             reader.requests.len() <= 4,
@@ -1256,6 +1263,10 @@ mod pump_chunks_tests {
 
         // 实现形态：取消 → Err 返回 → 调用方丢弃 reader（关闭下游 HTTP 连接）
         drop(reader);
-        assert_eq!(drops.load(Ordering::SeqCst), 1, "桩 Reader 应被 drop（下游关闭）");
+        assert_eq!(
+            drops.load(Ordering::SeqCst),
+            1,
+            "桩 Reader 应被 drop（下游关闭）"
+        );
     }
 }

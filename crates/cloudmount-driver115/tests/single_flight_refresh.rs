@@ -285,7 +285,10 @@ fn t17_access_token_entry_concurrent_expiry_refreshes_exactly_once() {
             tokens.iter().all(|t| t == &tokens[0]),
             "第 {round} 轮：全体应共享同一次刷新结果，实际 {tokens:?}"
         );
-        assert_eq!(tokens[0], new_token, "第 {round} 轮：应持有 mock 签发的新 token");
+        assert_eq!(
+            tokens[0], new_token,
+            "第 {round} 轮：应持有 mock 签发的新 token"
+        );
     }
 }
 
@@ -410,7 +413,10 @@ fn t17_with_token_retry_invalid_token_envelope_refreshes_exactly_once() {
                             .to_string(),
                     )
                 } else {
-                    (200, r#"{"state":true,"code":0,"data":{"ok":true}}"#.to_string())
+                    (
+                        200,
+                        r#"{"state":true,"code":0,"data":{"ok":true}}"#.to_string(),
+                    )
                 }
             }
             "/open/refreshToken" => (200, refresh_ok_body(&new_token)),
@@ -434,9 +440,7 @@ fn t17_with_token_retry_invalid_token_envelope_refreshes_exactly_once() {
             })
             .collect();
         for h in handles {
-            h.join()
-                .expect("线程应完成")
-                .expect("失效重试后请求应成功");
+            h.join().expect("线程应完成").expect("失效重试后请求应成功");
         }
 
         assert_eq!(
@@ -595,8 +599,7 @@ fn t18_refresh_stale_entry_refresh_500_all_consistent_err_then_retry_ok() {
 
     // 锁已释放：翻转 mock 后，单线程重试成功
     *flipped.lock().expect("lock") = true;
-    auth.refresh_stale(&stale)
-        .expect("失败后单线程重试应成功");
+    auth.refresh_stale(&stale).expect("失败后单线程重试应成功");
     assert_eq!(auth.access_token().expect("token 可用"), "new-at-ok");
     let after_retry = mock.refresh_count();
     assert_eq!(auth.access_token().expect("token 可用"), "new-at-ok");

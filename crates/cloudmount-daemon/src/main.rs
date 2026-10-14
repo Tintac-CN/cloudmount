@@ -250,9 +250,7 @@ fn main() -> anyhow::Result<()> {
 ///
 /// 位于 main 入口、先于一切子命令分派 → 作用于全部子命令
 /// （含 `service stop/uninstall` 等管理命令；sc.exe 直接操作服务是用户侧兜底）。
-fn load_config_or_fail(
-    path: &std::path::Path,
-) -> anyhow::Result<cloudmount_core::config::Config> {
+fn load_config_or_fail(path: &std::path::Path) -> anyhow::Result<cloudmount_core::config::Config> {
     cloudmount_core::config::load_from(path)
         .context("配置文件加载失败（修正该文件，或删除后重启以恢复默认配置）")
 }
@@ -1054,7 +1052,12 @@ mod u12_scm_config {
     fn t21_placeholder_true_dispatches_placeholder_branch() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_mount_env(&_guard);
-        let cli = Cli::parse_from(["cloudmountd", "--placeholder-mount", "--sync-root", "C:/Cloud"]);
+        let cli = Cli::parse_from([
+            "cloudmountd",
+            "--placeholder-mount",
+            "--sync-root",
+            "C:/Cloud",
+        ]);
         let calls = Arc::new(std::sync::Mutex::new(Vec::<&'static str>::new()));
         let seen = calls.clone();
         dispatch_service_run(
@@ -1159,7 +1162,10 @@ mod u12_scm_config {
         // 与前台引擎路径同源：engine_config_from_plan 产出的配置
         let cfg_on = engine_config_from_plan(&plan_on);
         let cfg_off = engine_config_from_plan(&plan_off);
-        assert_eq!(plan_on.interval_secs, 15, "显式 CLI flag 胜出（clap > 文件）");
+        assert_eq!(
+            plan_on.interval_secs, 15,
+            "显式 CLI flag 胜出（clap > 文件）"
+        );
         assert_eq!(plan_off.interval_secs, 15);
         assert_eq!(plan_on.remote_root, "42", "文件值经 clap default 注入");
         assert_eq!(plan_off.remote_root, "42");
@@ -1334,7 +1340,10 @@ mod u12_scm_config {
         std::fs::write(&path, "no_such_field = 1\n").unwrap();
         let err = load_config_or_fail(&path).expect_err("未知字段必须拒绝启动");
         let chain = format!("{err:#}");
-        assert!(chain.contains("解析失败"), "错误链须含「解析失败」: {chain}");
+        assert!(
+            chain.contains("解析失败"),
+            "错误链须含「解析失败」: {chain}"
+        );
         assert!(
             chain.contains(&path.display().to_string()),
             "错误链须含文件路径: {chain}"

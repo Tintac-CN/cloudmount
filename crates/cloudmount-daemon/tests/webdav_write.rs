@@ -18,7 +18,7 @@ use cloudmount_core::{
     Error as CoreError, Provider, RangeSpec, RemoteEntry, RemoteId, Result, UploadResult,
     UploadSource,
 };
-use cloudmount_daemon::webdav::{ProviderFs, serve};
+use cloudmount_daemon::webdav::{serve, ProviderFs};
 use cloudmount_sync::testutil::MockRemote;
 use dav_server::davpath::DavPath;
 use dav_server::fs::{DavFile, DavFileSystem};
@@ -339,7 +339,11 @@ mod log_capture {
                 fields: Vec::new(),
             };
             event.record(&mut v);
-            let mut line = format!("{:?} {}", event.metadata().level(), event.metadata().target());
+            let mut line = format!(
+                "{:?} {}",
+                event.metadata().level(),
+                event.metadata().target()
+            );
             if !v.message.is_empty() {
                 line.push(' ');
                 line.push_str(&v.message);
@@ -492,9 +496,16 @@ async fn failed_upload_drop_self_heals_spool() {
     );
 
     drop(file);
-    assert!(!spool.exists(), "Drop 应自愈清理未上传的 spool 残留: {spool:?}");
+    assert!(
+        !spool.exists(),
+        "Drop 应自愈清理未上传的 spool 残留: {spool:?}"
+    );
     assert_eq!(failing.uploads().len(), 1, "Drop 不得再次尝试上传");
-    assert_eq!(remote.ops().upload.load(Ordering::SeqCst), 0, "不得有成功上传");
+    assert_eq!(
+        remote.ops().upload.load(Ordering::SeqCst),
+        0,
+        "不得有成功上传"
+    );
 }
 
 // ==== T-13 集成腿：PUT 全链路（dav-server → ProviderFs → flush → upload）====
@@ -656,13 +667,7 @@ async fn put_notfound_creates_and_existing_overwrites() {
     assert_eq!(remote.read("t16-new.txt").unwrap(), b"v1");
 
     // 存在且可打开 → 正常覆盖
-    let (status, _) = request(
-        port,
-        "PUT",
-        "/dav/t16-new.txt",
-        Some(b"v2-longer".to_vec()),
-    )
-    .await;
+    let (status, _) = request(port, "PUT", "/dav/t16-new.txt", Some(b"v2-longer".to_vec())).await;
     assert_eq!(status, 204, "PUT 覆盖既有文件应 204 No Content");
     assert_eq!(remote.read("t16-new.txt").unwrap(), b"v2-longer");
 

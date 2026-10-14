@@ -537,10 +537,7 @@ impl<'a> Executor<'a> {
             // 只清理"自己这把"门锁——若条目已被移除并被更晚的规划者重建（新 Arc），
             // 说明有新的在途创建，不得误删其门锁。
             if let Ok(mut creating) = self.dir_creating.lock() {
-                if creating
-                    .get(&prefix)
-                    .is_some_and(|g| Arc::ptr_eq(g, &gate))
-                {
+                if creating.get(&prefix).is_some_and(|g| Arc::ptr_eq(g, &gate)) {
                     creating.remove(&prefix);
                 }
             }

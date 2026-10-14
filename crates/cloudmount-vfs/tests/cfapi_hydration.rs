@@ -345,7 +345,11 @@ fn fetch_data_cancel_consistency_placeholder() {
     let expected = pseudo_random(size, 0xCA4CE);
     cfapi::create_placeholders_ordered(
         &root,
-        &[PlaceholderSpec::file("cancel.bin", size as u64, 1_700_000_000)],
+        &[PlaceholderSpec::file(
+            "cancel.bin",
+            size as u64,
+            1_700_000_000,
+        )],
     )
     .unwrap();
 

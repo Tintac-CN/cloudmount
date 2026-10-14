@@ -228,17 +228,15 @@ fn upload_miss_flow_logs_never_contain_secret_values() {
     let data = b"canary-flow-payload";
     let sha1 = sha1_hex_upper(data);
     let (peer, peer_pub) = TestEcdhPeer::generate();
-    let (addr, _records) = spawn_mock(move |req| {
-        match (req.method.as_str(), req.path_only()) {
-            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
-            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
-            ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
-            ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(200, Vec::new()),
-            ("GET", "/files") => {
-                MockResponse::json(200, list_ok("999", "f.bin", &sha1, data.len() as u64))
-            }
-            other => panic!("mock 收到未预期请求: {other:?}"),
+    let (addr, _records) = spawn_mock(move |req| match (req.method.as_str(), req.path_only()) {
+        ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+        ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
+        ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
+        ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(200, Vec::new()),
+        ("GET", "/files") => {
+            MockResponse::json(200, list_ok("999", "f.bin", &sha1, data.len() as u64))
         }
+        other => panic!("mock 收到未预期请求: {other:?}"),
     });
 
     let provider = cookie_provider(addr, Some(peer_pub));
@@ -253,11 +251,7 @@ fn upload_miss_flow_logs_never_contain_secret_values() {
     result.expect("直传成功路径应成功");
 
     // 捕获完备性守卫：三处上传侧施工面都必须有事件
-    for target in [
-        "cm_cookie_uploadinfo",
-        "cm_initupload",
-        "cm_oss_token",
-    ] {
+    for target in ["cm_cookie_uploadinfo", "cm_initupload", "cm_oss_token"] {
         assert_target_logged(&events, target);
     }
     // 核心断言：逐值缺席（红 = 现状原始 JSON/表单落日志含金丝雀明文）
@@ -320,13 +314,11 @@ fn uploadinfo_non2xx_failure_logs_never_contain_secret_values() {
 #[test]
 fn gettoken_failure_logs_never_contain_secret_values() {
     let (peer, peer_pub) = TestEcdhPeer::generate();
-    let (addr, records) = spawn_mock(move |req| {
-        match (req.method.as_str(), req.path_only()) {
-            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
-            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
-            ("GET", "/3.0/gettoken.php") => MockResponse::json(200, FAIL_GETTOKEN),
-            other => panic!("mock 收到未预期请求: {other:?}"),
-        }
+    let (addr, records) = spawn_mock(move |req| match (req.method.as_str(), req.path_only()) {
+        ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+        ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
+        ("GET", "/3.0/gettoken.php") => MockResponse::json(200, FAIL_GETTOKEN),
+        other => panic!("mock 收到未预期请求: {other:?}"),
     });
 
     let provider = cookie_provider(addr, Some(peer_pub));
@@ -344,11 +336,7 @@ fn gettoken_failure_logs_never_contain_secret_values() {
         result
     );
     assert!(
-        !records
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|r| r.method == "PUT"),
+        !records.lock().unwrap().iter().any(|r| r.method == "PUT"),
         "token 获取失败后不得继续 OSS PUT"
     );
     assert_target_logged(&events, "cm_oss_token");
@@ -367,7 +355,11 @@ fn stat_logs_never_contain_secret_values() {
     let provider = cookie_provider(addr, None);
     let (entry, events) = capture_events(|| provider.stat(&RemoteId("321".into())));
     let entry = entry.expect("stat 应成功");
-    assert_eq!(entry.pick_code.as_deref(), Some(PICKCODE), "桩 pickcode 应解析");
+    assert_eq!(
+        entry.pick_code.as_deref(),
+        Some(PICKCODE),
+        "桩 pickcode 应解析"
+    );
 
     assert_target_logged(&events, "cm_cookie_stat");
     assert_no_secrets(&events, &ALL_CANARIES);
@@ -403,10 +395,7 @@ fn ecdh_decrypt_logs_never_contain_key_iv_or_plaintext_hex() {
     /// 32 字符全互异（任意 4-gram 唯一）的明文金丝雀。
     const PLAIN_CANARY: &str = "qZ3xK8vN2mW7pQ4rT9cB5dJ0fH6sL1yG";
     // 与生产 `plain_hex` 同为小写 hex（{b:02x}）
-    let hex_canary: String = PLAIN_CANARY
-        .bytes()
-        .map(|b| format!("{b:02x}"))
-        .collect();
+    let hex_canary: String = PLAIN_CANARY.bytes().map(|b| format!("{b:02x}")).collect();
     assert_eq!(hex_canary.len(), PLAIN_CANARY.len() * 2);
 
     // initupload 响应明文注入金丝雀字段（InitUploadResp 忽略未知字段）
@@ -427,17 +416,15 @@ fn ecdh_decrypt_logs_never_contain_key_iv_or_plaintext_hex() {
     let data = b"ec115-canary-payload";
     let sha1 = sha1_hex_upper(data);
     let (peer, peer_pub) = TestEcdhPeer::generate();
-    let (addr, _records) = spawn_mock(move |req| {
-        match (req.method.as_str(), req.path_only()) {
-            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
-            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, &init_plain),
-            ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
-            ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(200, Vec::new()),
-            ("GET", "/files") => {
-                MockResponse::json(200, list_ok("998", "f.bin", &sha1, data.len() as u64))
-            }
-            other => panic!("mock 收到未预期请求: {other:?}"),
+    let (addr, _records) = spawn_mock(move |req| match (req.method.as_str(), req.path_only()) {
+        ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+        ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, &init_plain),
+        ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
+        ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(200, Vec::new()),
+        ("GET", "/files") => {
+            MockResponse::json(200, list_ok("998", "f.bin", &sha1, data.len() as u64))
         }
+        other => panic!("mock 收到未预期请求: {other:?}"),
     });
 
     let provider = cookie_provider(addr, Some(peer_pub));
@@ -456,10 +443,7 @@ fn ecdh_decrypt_logs_never_contain_key_iv_or_plaintext_hex() {
 
     // key/iv hex 不得落日志：泄漏字段标记一律缺席（值为随机 ECDH 派生，
     // 无法逐值断言；标记出现即值出现——捕获 Subscriber 逐字段渲染）
-    let ec_events: Vec<&String> = events
-        .iter()
-        .filter(|l| l.contains("cm_ec115"))
-        .collect();
+    let ec_events: Vec<&String> = events.iter().filter(|l| l.contains("cm_ec115")).collect();
     assert!(
         !ec_events.is_empty(),
         "应有 cm_ec115 事件；实际: {events:?}"

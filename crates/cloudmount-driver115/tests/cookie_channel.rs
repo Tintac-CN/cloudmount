@@ -193,16 +193,14 @@ fn initupload_undecryptable_response_is_err() {
 #[test]
 fn gettoken_non_200_status_is_auth_error() {
     let (peer, peer_pub) = TestEcdhPeer::generate();
-    let (addr, records) = spawn_mock(move |req| {
-        match (req.method.as_str(), req.path_only()) {
-            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
-            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
-            ("GET", "/3.0/gettoken.php") => MockResponse::json(
-                200,
-                r#"{"AccessKeyId":"A","AccessKeySecret":"S","SecurityToken":"T","StatusCode":"403"}"#,
-            ),
-            other => panic!("mock 收到未预期请求: {other:?}"),
-        }
+    let (addr, records) = spawn_mock(move |req| match (req.method.as_str(), req.path_only()) {
+        ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+        ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
+        ("GET", "/3.0/gettoken.php") => MockResponse::json(
+            200,
+            r#"{"AccessKeyId":"A","AccessKeySecret":"S","SecurityToken":"T","StatusCode":"403"}"#,
+        ),
+        other => panic!("mock 收到未预期请求: {other:?}"),
     });
 
     let provider = cookie_provider(addr, Some(peer_pub));
@@ -281,20 +279,18 @@ fn oss_put_403_fails_fast_without_retry() {
     let data = b"oss-403-payload";
     let sha1 = sha1_hex_upper(data);
     let (peer, peer_pub) = TestEcdhPeer::generate();
-    let (addr, records) = spawn_mock(move |req| {
-        match (req.method.as_str(), req.path_only()) {
-            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
-            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
-            ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
-            ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(
-                403,
-                br#"<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>"#.to_vec(),
-            ),
-            ("GET", "/files") => {
-                MockResponse::json(200, list_ok("403", "f.bin", &sha1, data.len() as u64))
-            }
-            other => panic!("mock 收到未预期请求: {other:?}"),
+    let (addr, records) = spawn_mock(move |req| match (req.method.as_str(), req.path_only()) {
+        ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+        ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
+        ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
+        ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(
+            403,
+            br#"<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>"#.to_vec(),
+        ),
+        ("GET", "/files") => {
+            MockResponse::json(200, list_ok("403", "f.bin", &sha1, data.len() as u64))
         }
+        other => panic!("mock 收到未预期请求: {other:?}"),
     });
 
     let provider = cookie_provider(addr, Some(peer_pub));
@@ -346,10 +342,7 @@ fn rapid_upload_hits_zero_transfer_and_skips_gettoken() {
                     form.contains("target=U_1_0"),
                     "秒传 target 应为 U_1_0: {form}"
                 );
-                assert!(
-                    form.contains("filename=hello.txt"),
-                    "应含文件名: {form}"
-                );
+                assert!(form.contains("filename=hello.txt"), "应含文件名: {form}");
                 assert!(
                     form.contains(&format!("fileid={sha1}")),
                     "fileid 应为大写 SHA1: {form}"
@@ -357,10 +350,9 @@ fn rapid_upload_hits_zero_transfer_and_skips_gettoken() {
                 assert!(form.contains("userid=123"), "应含 user_id: {form}");
                 resp
             }
-            ("GET", "/files") => MockResponse::json(
-                200,
-                list_ok("777", "hello.txt", &sha1, data.len() as u64),
-            ),
+            ("GET", "/files") => {
+                MockResponse::json(200, list_ok("777", "hello.txt", &sha1, data.len() as u64))
+            }
             other => panic!("mock 收到未预期请求: {other:?}"),
         }
     });
@@ -400,31 +392,28 @@ fn upload_miss_goes_through_gettoken_and_oss_direct_put() {
     let data = b"direct-upload-payload";
     let sha1 = sha1_hex_upper(data);
     let (peer, peer_pub) = TestEcdhPeer::generate();
-    let (addr, records) = spawn_mock(move |req| {
-        match (req.method.as_str(), req.path_only()) {
-            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
-            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
-            ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
-            ("PUT", "/bkt/obj/f.bin") => {
-                assert_eq!(req.body, data.to_vec(), "OSS PUT 体应为原文件字节");
-                let auth = req.header("authorization").expect("应带 Authorization");
-                assert!(auth.starts_with("OSS "), "应为 OSS V1 签名: {auth}");
-                assert!(
-                    req.header("x-oss-security-token").is_some(),
-                    "应带 STS SecurityToken 头"
-                );
-                assert!(
-                    req.header("x-oss-callback").is_some(),
-                    "应带回调头（initupload 下发的 callback base64）"
-                );
-                MockResponse::bytes(200, Vec::new())
-            }
-            ("GET", "/files") => MockResponse::json(
-                200,
-                list_ok("888", "f.bin", &sha1, data.len() as u64),
-            ),
-            other => panic!("mock 收到未预期请求: {other:?}"),
+    let (addr, records) = spawn_mock(move |req| match (req.method.as_str(), req.path_only()) {
+        ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+        ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, INIT_MISS),
+        ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
+        ("PUT", "/bkt/obj/f.bin") => {
+            assert_eq!(req.body, data.to_vec(), "OSS PUT 体应为原文件字节");
+            let auth = req.header("authorization").expect("应带 Authorization");
+            assert!(auth.starts_with("OSS "), "应为 OSS V1 签名: {auth}");
+            assert!(
+                req.header("x-oss-security-token").is_some(),
+                "应带 STS SecurityToken 头"
+            );
+            assert!(
+                req.header("x-oss-callback").is_some(),
+                "应带回调头（initupload 下发的 callback base64）"
+            );
+            MockResponse::bytes(200, Vec::new())
         }
+        ("GET", "/files") => {
+            MockResponse::json(200, list_ok("888", "f.bin", &sha1, data.len() as u64))
+        }
+        other => panic!("mock 收到未预期请求: {other:?}"),
     });
 
     let provider = cookie_provider(addr, Some(peer_pub));

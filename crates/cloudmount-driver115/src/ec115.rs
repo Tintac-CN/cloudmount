@@ -364,11 +364,7 @@ pub mod test_peer {
             // 未压缩 SEC1（0x04 || X || Y，57 字节）→ 去前缀 56 字节 = X‖Y
             let uncompressed = public.to_sec1_point(false);
             let comp = uncompressed.as_bytes();
-            assert_eq!(
-                comp.len(),
-                2 * P224_LEN + 1,
-                "未压缩 SEC1 公钥应为 57 字节"
-            );
+            assert_eq!(comp.len(), 2 * P224_LEN + 1, "未压缩 SEC1 公钥应为 57 字节");
             let mut remote56 = [0u8; 2 * P224_LEN];
             remote56.copy_from_slice(&comp[1..]);
             (Self { secret }, remote56)

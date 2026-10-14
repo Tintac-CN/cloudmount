@@ -11,7 +11,6 @@
 
 mod common;
 
-use common::MockRemote;
 use cloudmount_core::{
     ChangeProbe, Error, Provider, Quota, RangeSpec, RemoteEntry, RemoteId, Result, UploadResult,
     UploadSource,
@@ -19,6 +18,7 @@ use cloudmount_core::{
 use cloudmount_sync::cache::BlockCache;
 use cloudmount_sync::exec::Executor;
 use cloudmount_sync::reconcile::{Action, SyncPolicy};
+use common::MockRemote;
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
@@ -241,7 +241,9 @@ impl Workspace {
     }
 
     fn write(&self, rel: &str, data: &[u8]) {
-        let p = self.root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+        let p = self
+            .root
+            .join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
         if let Some(parent) = p.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
@@ -418,7 +420,10 @@ fn t12_create_dir_error_releases_lock_and_later_events_continue() {
             path: "jinx".to_string(),
         })
         .expect_err("注入的 create_dir 失败必须上抛");
-    assert!(err.to_string().contains("jinx"), "错误应指明失败条目: {err}");
+    assert!(
+        err.to_string().contains("jinx"),
+        "错误应指明失败条目: {err}"
+    );
 
     // 锁已释放（未被毒化/持有）：后续事件继续处理
     exec.execute(&Action::MkdirRemote {
@@ -447,7 +452,10 @@ fn t12_concurrent_same_deep_dir_creates_each_component_exactly_once() {
     const N: usize = 8;
     // 8 线程并发上传同一深层目录下的不同文件 → 内部并发 ensure_remote_dir("p/q/r")
     for i in 0..N {
-        ws.write(&format!("p/q/r/f{i}.txt"), format!("content-{i}").as_bytes());
+        ws.write(
+            &format!("p/q/r/f{i}.txt"),
+            format!("content-{i}").as_bytes(),
+        );
     }
 
     let exec = Arc::new(Executor::new(
@@ -475,7 +483,10 @@ fn t12_concurrent_same_deep_dir_creates_each_component_exactly_once() {
 
     // create_dir 恰好每组件一次：p、p/q、p/q/r（不因并发而重复）
     let create_dirs = mock.ops().create_dir.load(Ordering::SeqCst);
-    assert_eq!(create_dirs, 3, "三个缺失组件各恰建一次，实际 {create_dirs} 次");
+    assert_eq!(
+        create_dirs, 3,
+        "三个缺失组件各恰建一次，实际 {create_dirs} 次"
+    );
 
     // 全体同一 ID：远端树无重复节点——8 个文件全部落在同一个 p/q/r 节点下
     let mut paths = mock.all_paths();
@@ -483,7 +494,10 @@ fn t12_concurrent_same_deep_dir_creates_each_component_exactly_once() {
     expected.extend((0..N).map(|i| format!("p/q/r/f{i}.txt")));
     expected.sort();
     paths.sort();
-    assert_eq!(paths, expected, "远端应恰为 3 个目录 + {N} 个文件（无重复节点）");
+    assert_eq!(
+        paths, expected,
+        "远端应恰为 3 个目录 + {N} 个文件（无重复节点）"
+    );
 
     for i in 0..N {
         assert_eq!(

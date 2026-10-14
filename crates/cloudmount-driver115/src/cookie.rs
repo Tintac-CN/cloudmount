@@ -50,8 +50,7 @@ const GETTOKEN_PATH: &str = "/3.0/gettoken.php";
 ///
 /// 默认渲染与原 `format!("https://{bucket}.{OSS_ENDPOINT}/{object}")` 逐字节一致；
 /// 模板形态使本地明文 mock（无 DNS 子域能力）可用路径段承载 bucket。
-const OSS_BASE_TEMPLATE_DEFAULT: &str =
-    "https://{bucket}.cn-shenzhen.oss.aliyuncs.com/{object}";
+const OSS_BASE_TEMPLATE_DEFAULT: &str = "https://{bucket}.cn-shenzhen.oss.aliyuncs.com/{object}";
 /// 上传 app 版本（p115client 现行值；27.0.5.7/30.5.1/36.0.1 均被拒）。
 const APP_VER: &str = "36.2.28";
 /// sign_check 重试上限。
@@ -1198,8 +1197,7 @@ mod tests {
             enabled: true,
             consent_acknowledged: true,
         };
-        let p = Cookie115Provider::try_new(policy, CookieAuth::new(policy, store))
-            .expect("构造");
+        let p = Cookie115Provider::try_new(policy, CookieAuth::new(policy, store)).expect("构造");
         assert_eq!(p.upload_base, "https://uplb.115.com");
         assert_eq!(
             p.oss_base,
