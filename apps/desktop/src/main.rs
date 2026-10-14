@@ -1,23 +1,24 @@
-//! # CloudMount 桌面应用（纯 Rust）
+//! # CloudMount 桌面应用（纯 Rust，ArtCraft 风格）
 //!
-//! egui + wgpu + rfd——**无 WebView、无 HTML/JS**。服务端/边缘模式仍走
-//! web-ui（`cloudmountd --serve`），两端 UI 各自独立。
+//! egui + wgpu + rfd——**无 WebView、无 HTML/JS**。UI 参考
+//! storytold/artcraft 的 brutalist 暗色系统（近黑表面、发丝线、
+//! 3px 圆角、HUD 等宽标签、左侧导航栏）。
 //!
-//! 职责：
-//! - **状态页**：引擎统计 + 云端配额
-//! - **缓存页**：占用/命中率 + 一键清理
-//! - **设置页**：同步根（rfd 目录选择）、暂停/恢复、日志导出
-//! - **登录页**：扫码二维码渲染（qrcode → egui 纹理）
+//! 布局：左侧导航栏（chrome 底色）+ 右侧内容面板（BG 底色）。
 //!
 //! 引擎线程与 daemon 同构：`Arc<Mutex<SyncEngine>>` 句柄槽 +
 //! `AtomicBool` 暂停 + 日志环形缓冲。
+
+mod theme;
+mod widgets;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use eframe::egui;
 use cloudmount_auth::Authenticator as _;
+use eframe::egui;
+use theme::*;
 
 /// 引擎线程与 UI 共享的状态快照。
 #[derive(Debug, Clone, Default)]
@@ -38,9 +39,7 @@ struct AppState {
     paused: Arc<AtomicBool>,
     status: Arc<Mutex<StatusSnapshot>>,
     sync_root: Mutex<Option<std::path::PathBuf>>,
-    /// 引擎句柄（引擎线程启动后注入；None = 引擎不可用）。
     engine: Arc<Mutex<Option<Arc<Mutex<cloudmount_sync::SyncEngine>>>>>,
-    /// 日志环形缓冲（导出用）。
     logs: Arc<LogBuffer>,
 }
 
@@ -93,17 +92,31 @@ impl std::io::Write for SharedWriter {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-enum Tab {
+enum Page {
     Status,
     Cache,
     Settings,
     Login,
 }
 
+impl Page {
+    fn label(self) -> &'static str {
+        match self {
+            Page::Status => "状态",
+            Page::Cache => "缓存",
+            Page::Settings => "设置",
+            Page::Login => "登录",
+        }
+    }
+}
+
+/// 侧边栏宽度。
+const SIDEBAR_W: f32 = 180.0;
+
 /// egui 应用。
 struct CloudMountApp {
     state: Arc<AppState>,
-    tab: Tab,
+    page: Page,
     /// 登录页的二维码纹理。
     qr_texture: Option<egui::TextureHandle>,
     /// 登录挑战（轮询用）。
@@ -115,10 +128,11 @@ struct CloudMountApp {
 }
 
 impl CloudMountApp {
-    fn new(_cc: &eframe::CreationContext<'_>, state: Arc<AppState>) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, state: Arc<AppState>) -> Self {
+        theme::apply(&cc.egui_ctx);
         Self {
             state,
-            tab: Tab::Status,
+            page: Page::Status,
             qr_texture: None,
             login_challenge: None,
             login_polling: false,
@@ -153,27 +167,73 @@ impl eframe::App for CloudMountApp {
             );
         }
 
-        egui::TopBottomPanel::top("nav").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("CloudMount 云挂");
-                ui.separator();
-                ui.selectable_value(&mut self.tab, Tab::Status, "状态");
-                ui.selectable_value(&mut self.tab, Tab::Cache, "缓存");
-                ui.selectable_value(&mut self.tab, Tab::Settings, "设置");
-                ui.selectable_value(&mut self.tab, Tab::Login, "登录");
+        // ---- 左侧导航栏（chrome 底色，同 artcraft） ----
+        let chrome = egui::Frame::NONE.fill(CHROME);
+        egui::SidePanel::left("sidebar")
+            .exact_width(SIDEBAR_W)
+            .resizable(false)
+            .frame(chrome)
+            .show(ctx, |ui| {
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(12.0);
+                    ui.heading("CloudMount");
+                });
+                let ver = self.state.status.lock().map(|s| s.version.clone()).unwrap_or_default();
+                ui.colored_label(FAINT, format!("云挂 · v{ver}"));
+                ui.add_space(16.0);
+
+                // 导航
+                ui.spacing_mut().item_spacing.y = 2.0;
+                let pages = [Page::Status, Page::Cache, Page::Settings, Page::Login];
+                for p in pages {
+                    if widgets::nav_row(ui, p.label(), self.page == p) {
+                        self.page = p;
+                    }
+                }
+
+                // 底部状态指示（同步状态灯）
+                let bottom = egui::Rect::from_min_max(
+                    egui::pos2(12.0, ui.max_rect().bottom() - 60.0),
+                    egui::pos2(ui.max_rect().right() - 12.0, ui.max_rect().bottom() - 12.0),
+                );
+                let s = self.state.status.lock().map(|s| s.clone()).unwrap_or_default();
+                let (color, label) = if s.paused {
+                    (BADGE_BETA, "已暂停")
+                } else if s.syncing {
+                    (ACCENT_INK, "同步中")
+                } else {
+                    (MUTED, "空闲")
+                };
+                let p = ui.painter();
+                p.rect(bottom, RADIUS, WASH, hairline(), egui::StrokeKind::Inside);
+                p.circle_filled(
+                    egui::pos2(bottom.left() + 16.0, bottom.center().y),
+                    4.0,
+                    color,
+                );
+                p.text(
+                    egui::pos2(bottom.left() + 28.0, bottom.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    label,
+                    egui::FontId::new(13.0, egui::FontFamily::Proportional),
+                    INK,
+                );
             });
-        });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match self.tab {
-                Tab::Status => self.status_panel(ui),
-                Tab::Cache => self.cache_panel(ui),
-                Tab::Settings => self.settings_panel(ui),
-                Tab::Login => self.login_panel(ui, ctx),
-            }
-        });
+        // ---- 右侧内容面板（BG 底色） ----
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(BG).inner_margin(egui::Margin::same(24)))
+            .show(ctx, |ui| {
+                match self.page {
+                    Page::Status => self.status_page(ui),
+                    Page::Cache => self.cache_page(ui),
+                    Page::Settings => self.settings_page(ui),
+                    Page::Login => self.login_page(ui, ctx),
+                }
+            });
 
-        // 登录轮询（每帧检查——轮询接口是短轮询立即返回，不阻塞）
+        // 登录轮询（每帧检查——短轮询立即返回）
         if self.login_polling {
             if let Some(challenge) = &self.login_challenge {
                 let auth = self.login_auth();
@@ -187,7 +247,7 @@ impl eframe::App for CloudMountApp {
                             s.last_message = "登录成功（Cookie 已入独立容器）".into();
                         }
                     }
-                    Ok(None) => {} // 继续等待
+                    Ok(None) => {}
                     Err(e) => {
                         self.login_polling = false;
                         self.login_challenge = None;
@@ -200,7 +260,7 @@ impl eframe::App for CloudMountApp {
             }
         }
 
-        // 状态刷新节奏（登录轮询时更快）
+        // 状态刷新节奏
         ctx.request_repaint_after(if self.login_polling {
             Duration::from_millis(500)
         } else {
@@ -209,74 +269,62 @@ impl eframe::App for CloudMountApp {
     }
 }
 
-impl CloudMountApp {
-    fn status_panel(&self, ui: &mut egui::Ui) {
-        let s = self
-            .state
-            .status
-            .lock()
-            .map(|s| s.clone())
-            .unwrap_or_default();
-        ui.heading("状态");
-        ui.separator();
+// ============ 页面 ============
 
-        egui::Grid::new("status").num_columns(2).show(ui, |ui| {
-            ui.strong("版本").on_hover_text("CloudMount 版本");
-            ui.label(&s.version);
-            ui.end_row();
-            ui.strong("登录");
-            ui.label(if s.logged_in { "已登录" } else { "未登录" });
-            ui.end_row();
-            ui.strong("同步");
-            ui.label(if s.paused {
+impl CloudMountApp {
+    fn status_page(&self, ui: &mut egui::Ui) {
+        let s = self.state.status.lock().map(|s| s.clone()).unwrap_or_default();
+        widgets::hud(ui, "Status", FAINT);
+        ui.add_space(8.0);
+        ui.heading("状态");
+        ui.add_space(12.0);
+
+        widgets::kv_row(ui, "版本", &s.version);
+        widgets::kv_row(ui, "登录", if s.logged_in { "已登录" } else { "未登录" });
+        widgets::kv_row(
+            ui,
+            "同步",
+            if s.paused {
                 "已暂停"
             } else if s.syncing {
                 "进行中"
             } else {
                 "空闲"
-            });
-            ui.end_row();
-            ui.strong("累计上传");
-            ui.label(format!("{}", s.total_uploaded));
-            ui.end_row();
-            ui.strong("累计下载");
-            ui.label(format!("{}", s.total_downloaded));
-            ui.end_row();
-            ui.strong("冲突");
-            ui.label(format!("{}", s.conflicts));
-            ui.end_row();
-            ui.strong("错误");
-            ui.label(format!("{}", s.errors));
-            ui.end_row();
-        });
+            },
+        );
+        widgets::kv_row(ui, "累计上传", &format!("{}", s.total_uploaded));
+        widgets::kv_row(ui, "累计下载", &format!("{}", s.total_downloaded));
+        widgets::kv_row(ui, "冲突", &format!("{}", s.conflicts));
+        widgets::kv_row(ui, "错误", &format!("{}", s.errors));
 
         if !s.last_message.is_empty() {
-            ui.separator();
-            ui.weak(format!("最近：{}", s.last_message));
+            ui.add_space(12.0);
+            ui.colored_label(MUTED, format!("最近：{}", s.last_message));
         }
 
         // 配额（引擎可用时）
         if let Some(engine) = self.engine() {
             if let Ok(q) = engine.lock().unwrap().provider().quota() {
                 if q.total > 0 {
-                    ui.separator();
-                    ui.heading("云端配额");
+                    ui.add_space(20.0);
+                    widgets::hud(ui, "Cloud Quota", FAINT);
+                    ui.add_space(8.0);
                     let ratio = q.used as f32 / q.total as f32;
-                    ui.add(
-                        egui::ProgressBar::new(ratio).text(format!(
-                            "{}/{}",
-                            human_bytes(q.used),
-                            human_bytes(q.total)
-                        )),
+                    widgets::progress(
+                        ui,
+                        ratio,
+                        &format!("{}/{}", human_bytes(q.used), human_bytes(q.total)),
                     );
                 }
             }
         }
     }
 
-    fn cache_panel(&self, ui: &mut egui::Ui) {
+    fn cache_page(&self, ui: &mut egui::Ui) {
+        widgets::hud(ui, "Cache", FAINT);
+        ui.add_space(8.0);
         ui.heading("内容缓存");
-        ui.separator();
+        ui.add_space(12.0);
 
         if let Some(engine) = self.engine() {
             if let Ok(stats) = engine.lock().unwrap().cache_stats() {
@@ -286,54 +334,57 @@ impl CloudMountApp {
                 } else {
                     0.0
                 };
-                egui::Grid::new("cache").num_columns(2).show(ui, |ui| {
-                    ui.strong("占用");
-                    ui.label(format!(
-                        "{} / {}",
-                        human_bytes(stats.bytes),
-                        human_bytes(stats.limit_bytes)
-                    ));
-                    ui.end_row();
-                    ui.strong("命中率");
-                    ui.label(format!(
-                        "{:.1}%（{}/{}）",
-                        hit_rate * 100.0,
-                        stats.hits,
-                        total
-                    ));
-                    ui.end_row();
-                    ui.strong("写入");
-                    ui.label(format!("{}", stats.inserts));
-                    ui.end_row();
-                    ui.strong("淘汰");
-                    ui.label(format!("{}", stats.evictions));
-                    ui.end_row();
-                });
+                widgets::kv_row(
+                    ui,
+                    "占用",
+                    &format!("{}/{}", human_bytes(stats.bytes), human_bytes(stats.limit_bytes)),
+                );
+                widgets::kv_row(
+                    ui,
+                    "命中率",
+                    &format!("{:.1}%（{}/{}）", hit_rate * 100.0, stats.hits, total),
+                );
+                widgets::kv_row(ui, "写入", &format!("{}", stats.inserts));
+                widgets::kv_row(ui, "淘汰", &format!("{}", stats.evictions));
+
+                ui.add_space(12.0);
                 let ratio = if stats.limit_bytes > 0 {
                     stats.bytes as f32 / stats.limit_bytes as f32
                 } else {
                     0.0
                 };
-                ui.add_space(8.0);
-                ui.add(egui::ProgressBar::new(ratio).text(human_bytes(stats.bytes)));
+                widgets::progress(ui, ratio, &human_bytes(stats.bytes));
 
-                ui.add_space(12.0);
-                if ui.button("一键清理").clicked() {
+                ui.add_space(16.0);
+                if widgets::button(ui, "一键清理", widgets::Kind::Secondary, 120.0, 36.0)
+                    .clicked()
+                {
                     let _ = engine.lock().unwrap().cache().clear();
                 }
             }
         } else {
-            ui.weak("引擎未运行（未配置同步根或未登录）");
+            ui.colored_label(MUTED, "引擎未运行（未配置同步根或未登录）");
         }
     }
 
-    fn settings_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading("同步控制");
-        ui.separator();
+    fn settings_page(&mut self, ui: &mut egui::Ui) {
+        widgets::hud(ui, "Settings", FAINT);
+        ui.add_space(8.0);
+        ui.heading("设置");
+        ui.add_space(12.0);
+
+        // 同步控制
+        widgets::section_label(ui, "Sync", SIDEBAR_INK);
+        ui.add_space(4.0);
         let paused = self.state.paused.load(Ordering::SeqCst);
-        if ui
-            .button(if paused { "▶ 恢复同步" } else { "⏸ 暂停同步" })
-            .clicked()
+        if widgets::button(
+            ui,
+            if paused { "恢复同步" } else { "暂停同步" },
+            widgets::Kind::Primary,
+            140.0,
+            36.0,
+        )
+        .clicked()
         {
             let was = self.state.paused.fetch_xor(true, Ordering::SeqCst);
             if let Ok(mut s) = self.state.status.lock() {
@@ -341,19 +392,22 @@ impl CloudMountApp {
             }
         }
 
-        ui.add_space(16.0);
-        ui.heading("同步根目录");
-        ui.separator();
+        ui.add_space(20.0);
+
+        // 同步根
+        widgets::section_label(ui, "Root", SIDEBAR_INK);
+        ui.add_space(4.0);
         let root = self.state.sync_root.lock().unwrap().clone();
-        ui.label(
+        ui.colored_label(
+            INK,
             root.as_ref()
                 .map(|r| r.display().to_string())
                 .unwrap_or_else(|| "（未设置）".into()),
         );
-        if ui.button("选择目录…").clicked() {
+        ui.add_space(4.0);
+        if widgets::button(ui, "选择目录", widgets::Kind::Secondary, 120.0, 36.0).clicked() {
             if let Some(dir) = rfd::FileDialog::new().pick_folder() {
                 *self.state.sync_root.lock().unwrap() = Some(dir.clone());
-                // 持久化到配置文件
                 if let Ok(mut cfg) = cloudmount_core::config::load() {
                     cfg.sync_root = Some(dir.display().to_string());
                     let _ = cloudmount_core::config::save(&cfg);
@@ -361,10 +415,12 @@ impl CloudMountApp {
             }
         }
 
-        ui.add_space(16.0);
-        ui.heading("日志");
-        ui.separator();
-        if ui.button("导出日志…").clicked() {
+        ui.add_space(20.0);
+
+        // 日志
+        widgets::section_label(ui, "Logs", SIDEBAR_INK);
+        ui.add_space(4.0);
+        if widgets::button(ui, "导出日志", widgets::Kind::Secondary, 120.0, 36.0).clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .set_file_name("cloudmount-log.txt")
                 .save_file()
@@ -373,29 +429,40 @@ impl CloudMountApp {
                 let _ = std::fs::write(&path, lines.join("\n"));
             }
         }
-        ui.weak(format!("最近 {} 行（INFO 及以上）", self.state.logs.snapshot().len()));
+        ui.colored_label(
+            FAINT,
+            format!("最近 {} 行（INFO 及以上）", self.state.logs.snapshot().len()),
+        );
     }
 
-    fn login_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("登录（Cookie 补充通道）");
-        ui.weak("该通道违反 115 服务协议（可能封号/互踢）——详见 README 风险声明");
-        ui.separator();
+    fn login_page(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        widgets::hud(ui, "Login", FAINT);
+        ui.add_space(8.0);
+        ui.heading("登录");
+        ui.add_space(4.0);
+        ui.colored_label(
+            MUTED,
+            "Cookie 补充通道——违反 115 服务协议（详见 README）",
+        );
+        ui.add_space(16.0);
 
         if self.login_polling {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label("等待手机确认…");
+                ui.colored_label(INK, "等待手机确认…");
             });
-            if ui.button("取消").clicked() {
+            ui.add_space(8.0);
+            if widgets::button(ui, "取消", widgets::Kind::Secondary, 100.0, 32.0).clicked() {
                 self.login_polling = false;
                 self.login_challenge = None;
                 self.qr_texture = None;
             }
-        } else if ui.button("开始扫码登录").clicked() {
+        } else if widgets::button(ui, "开始扫码登录", widgets::Kind::Accent, 180.0, 40.0)
+            .clicked()
+        {
             let auth = self.login_auth();
             match auth.begin_login() {
                 Ok(challenge) => {
-                    // 二维码 → egui 纹理
                     let qr = qrcode::QrCode::new(challenge.qr_content.as_bytes())
                         .expect("二维码编码");
                     let size = qr.width();
@@ -426,11 +493,12 @@ impl CloudMountApp {
         }
 
         if let Some(texture) = &self.qr_texture {
-            ui.add_space(8.0);
-            // 白底（深色主题下二维码可扫）
+            ui.add_space(16.0);
+            // 白底 Frame（深色主题下二维码可扫）
             egui::Frame::new()
                 .fill(egui::Color32::WHITE)
-                .inner_margin(egui::Margin::same(12))
+                .inner_margin(egui::Margin::same(16))
+                .corner_radius(4)
                 .show(ui, |ui| {
                     ui.add(egui::Image::new(texture).fit_to_exact_size(egui::vec2(280.0, 280.0)));
                 });
@@ -558,8 +626,8 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([520.0, 560.0])
-            .with_min_inner_size([400.0, 400.0])
+            .with_inner_size([720.0, 560.0])
+            .with_min_inner_size([560.0, 420.0])
             .with_title("CloudMount 云挂"),
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
