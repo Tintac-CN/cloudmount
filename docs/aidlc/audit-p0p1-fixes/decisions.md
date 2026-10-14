@@ -134,3 +134,11 @@ GATE-APPROVED gate1 2026-10-14
 - **U9 完成**（绿）：pump_chunks 真实现 + HydrateFn → ChunkSink 契约切换 + FETCH_DATA 逐块取消检查/失败收尾 + 水合闭包单次建流；lib 8 绿（5 红全转绿）、真机集成 8 绿、crate 全量 32 绿、clippy -D warnings 零警告；cfapi_hydration.rs 4 处闭包机械适配（断言面零变化，符合临时解锁留痕条款）→ 该路径重新纳入 tddLockPaths。unitStatus U9 = done。
 - **U1/U4 绿阶段代理双双触发账户速率限制（error 1302）失败**：经工作区核查均为零实现产出（test_peer/refresh_locked 仍 todo!()），红测与骨架完好（已提交 @ 9daacd0/a375829）。按 §8 降级协议处置：先重派一次（改为**串行**派发避免并行触限：先 U1 后 U4）；再失败则编排者内联代跑并在此留痕，产出列为 Gate#2 追认项。
 - U9 完成后 cfapi_hydration.rs 重新纳入锁清单。
+
+---
+
+2026-10-14 U1 完成（绿）记录（编排者）：
+- test_peer 四处 todo 全实现（k_ec 逆解码含 CRC 盐/r1r2 槽位校验、P-224 DH、key/iv 重叠 4 字节派生、[2LE][LZ4]+CBC 响应帧）+ k_ec 往返单测；修复过程自纠一处公钥缓冲长度误写（58→30 字节）。
+- cookie_channel 7 绿（gettoken 非200→Auth、秒传命中零传输且对端解密表单断言、未命中直传 5 步请求序列含 V1 签名/STS/回调头断言）+ 4 绿护栏不回退；**残留 2 预期红 = F-11 吞状态码缺陷的精确暴露（oss_put_500/oss_put_403），属 U3 范围，U3 完成后转绿**。
+- lib 50/50、mock_api 6/6、clippy -D warnings 零警告；锁定测试文件零改动。unitStatus U1 = done（附注：2 预期红挂 U3）。
+- 调序说明：U4 绿完成后优先插队 U3（F-11，单文件小 unit）以消掉 U1 的 2 预期红，使 driver115 全绿后再进 U2/Wave 2。

@@ -12,7 +12,7 @@
   ],
   "tddLockOverride": null,
   "unitStatus": {
-    "U1": "red-committed",
+    "U1": "done",
     "U2": "pending",
     "U3": "pending",
     "U4": "red-committed",
@@ -25,7 +25,7 @@
     "U11": "pending",
     "U12": "pending"
   },
-  "updatedAt": "2026-10-14T23:24:49+08:00",
+  "updatedAt": "2026-10-14T23:35:36+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -86,6 +86,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U9 完成（绿，全测试绿 + clippy 净，cfapi_hydration.rs 重锁）；U1/U4 绿阶段代理触发账户速率限制（1302）零产出，按 §8 串行重派（先 U1 后 U4），再失败则内联代跑并留痕"
+    },
+    {
+      "at": "2026-10-14T23:35:36+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 完成（绿，cookie_channel 7绿/2预期红挂U3、lib 50绿、clippy 净）；调序：U4 后优先 U3 消预期红；U4 绿串行派发中"
     }
   ]
 }
