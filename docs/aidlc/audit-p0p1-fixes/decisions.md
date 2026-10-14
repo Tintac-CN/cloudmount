@@ -120,3 +120,10 @@ GATE-APPROVED gate1 2026-10-14
 - tddLock 置位：true；tddLockPaths（并集）= crates/cloudmount-driver115/tests/cookie_channel.rs、crates/cloudmount-driver115/tests/cookie_mock/mod.rs、crates/cloudmount-driver115/tests/single_flight_refresh.rs、crates/cloudmount-vfs/tests/cfapi_hydration.rs。
 - **例外留痕**：U9 的 5 个单元红测为 cfapi.rs 内联 `#[cfg(test)] mod`（Rust 同文件测试模块），路径锁会阻断同文件实现——该模块不列入锁清单，以"绿阶段测试断言零修改 + gate2 verifier 对照红测提交 diff"兜底（U4 的 open.rs 骨架同理，其测试在独立 tests/ 文件已锁定）。
 - U4 遗留口径备注（供 gate2 verifier/qa 核验，非阻塞）：trait `refresh()` 直连并发入口的断言为"无并发在途窗口（串行化）"而非"恰 1 次"——晚到观察者会触发一次串行多余刷新，"恰 1 次"契约由 `refresh_stale` 显式同锚入口与 with_token_retry 生产路径承载（架构关键决策 #7 的动机）；理由已写入测试文件头注释。
+
+---
+
+2026-10-14 U9 实现阶段临时解锁留痕（编排者）：
+- 解锁路径：crates/cloudmount-vfs/tests/cfapi_hydration.rs（自 tddLockPaths 临时移除）。
+- 理由：U9 绿阶段将把 HydrateFn 契约切换为 ChunkSink（F-01 核心修复），该文件 :190/:246 一带的既有 HydrateFn 闭包调用点必须做**机械签名适配**（断言面不变，仅闭包签名/包装方式跟随新契约）——路径锁会阻断这一合法性改动。非"契约错误"情形，系 Rust 同文件/契约切换与路径锁的结构性冲突；本文件红阶段的 2 个新集成骨架（fetch_data_multiblock/cancel）断言不得削弱。
+- 适配完成并验证绿后，该路径重新纳入 tddLockPaths（并集），本条作为 /aidlc:unlock-tests 等价留痕。
