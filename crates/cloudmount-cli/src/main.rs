@@ -195,6 +195,46 @@ fn cmd_login(app_id: &Option<String>) -> anyhow::Result<()> {
     }
 }
 
+/// 字段名集合去重追加（保持首次出现顺序）。
+fn push_field_name<'a>(received: &mut Vec<&'a str>, name: &'a str) {
+    if !received.contains(&name) {
+        received.push(name);
+    }
+}
+
+/// F-04（安全不变量 #2）：Cookie 必需字段校验——错误信息只记**缺失字段名**
+/// 与**实际收到的字段名集合**，一律不回显任何 cookie 值。
+fn validate_cookie_fields(
+    uid: &str,
+    cid: &str,
+    seid: &str,
+    received: &[&str],
+) -> anyhow::Result<()> {
+    let mut missing: Vec<&str> = Vec::new();
+    if uid.is_empty() {
+        missing.push("UID");
+    }
+    if cid.is_empty() {
+        missing.push("CID");
+    }
+    if seid.is_empty() {
+        missing.push("SEID");
+    }
+    if missing.is_empty() {
+        return Ok(());
+    }
+    let received = if received.is_empty() {
+        "（无有效字段）".to_string()
+    } else {
+        received.join(",")
+    };
+    anyhow::bail!(
+        "Cookie 缺少必需字段（{}）；实际收到字段: {}",
+        missing.join("/"),
+        received
+    )
+}
+
 /// 直接注入浏览器复制的 Cookie（跳过扫码；测试/高级用途）。
 fn cmd_inject_cookie(cookie_str: &str, consent: bool) -> anyhow::Result<()> {
     use cloudmount_auth::cookie::CookieJar;
@@ -211,27 +251,39 @@ fn cmd_inject_cookie(cookie_str: &str, consent: bool) -> anyhow::Result<()> {
         }
     }
 
-    // 解析 "UID=..;CID=..;SEID=..;KID=.."（分号/换行/空格分隔均可）
+    // 解析 "UID=..;CID=..;SEID=..;KID=.."（分号/换行/空格分隔均可）；
+    // 记录实际收到的字段名集合（校验失败消息只用字段名，不回显值）
     let mut uid = String::new();
     let mut cid = String::new();
     let mut seid = String::new();
     let mut kid = None;
+    let mut received: Vec<&'static str> = Vec::new();
     for part in cookie_str.split([';', ',', '\n']) {
         let part = part.trim();
         if let Some((k, v)) = part.split_once('=') {
             let v = v.trim().trim_matches('"');
             match k.trim() {
-                "UID" => uid = v.to_string(),
-                "CID" => cid = v.to_string(),
-                "SEID" => seid = v.to_string(),
-                "KID" => kid = Some(v.to_string()),
+                "UID" => {
+                    uid = v.to_string();
+                    push_field_name(&mut received, "UID");
+                }
+                "CID" => {
+                    cid = v.to_string();
+                    push_field_name(&mut received, "CID");
+                }
+                "SEID" => {
+                    seid = v.to_string();
+                    push_field_name(&mut received, "SEID");
+                }
+                "KID" => {
+                    kid = Some(v.to_string());
+                    push_field_name(&mut received, "KID");
+                }
                 _ => {}
             }
         }
     }
-    if uid.is_empty() || cid.is_empty() || seid.is_empty() {
-        anyhow::bail!("Cookie 缺少必需字段（UID/CID/SEID）；收到: {cookie_str}");
-    }
+    validate_cookie_fields(&uid, &cid, &seid, &received)?;
 
     let store = default_store()?;
     let jar = CookieJar {
@@ -596,5 +648,27 @@ mod tests {
     fn time_formats_epoch() {
         assert_eq!(format_time(0), "-", "0 视为无效时间");
         assert_eq!(format_time(1), "1970-01-01 00:00:01");
+    }
+
+    /// F-04 / T-07②：Cookie 校验失败的错误消息不得回显原始 cookie 值
+    /// （安全不变量 #2：凭据永不落错误输出；只允许缺失/收到字段名）。
+    #[test]
+    fn inject_cookie_error_does_not_echo_cookie_values() {
+        const UID_CANARY: &str = "UID-CANARY-123";
+        const CID_CANARY: &str = "CID-CANARY-123";
+        let cookie = format!("UID={UID_CANARY}; CID={CID_CANARY}"); // 缺 SEID
+        let err = cmd_inject_cookie(&cookie, true).expect_err("缺少 SEID 必须校验失败");
+        let msg = format!("{err:#}");
+        assert!(msg.contains("SEID"), "错误应指明缺失字段名: {msg}");
+        assert!(
+            msg.contains("实际收到字段"),
+            "错误应给出实际收到的字段名集合: {msg}"
+        );
+        assert!(!msg.contains(UID_CANARY), "错误不得回显 UID 值: {msg}");
+        assert!(!msg.contains(CID_CANARY), "错误不得回显 CID 值: {msg}");
+        assert!(
+            !msg.contains("UID=") && !msg.contains("CID="),
+            "错误不得含键值对形态的 cookie 片段: {msg}"
+        );
     }
 }

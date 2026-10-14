@@ -449,7 +449,7 @@ impl Cookie115Provider {
     fn upload_info(&self) -> Result<UploadCtx> {
         let url = format!("{}/app/uploadinfo", self.proapi_base);
         let value = self.post_form_json(&url, &[])?;
-        tracing::debug!(target: "cm_cookie_uploadinfo", raw = %value, "uploadinfo 原始响应");
+        tracing::debug!(target: "cm_cookie_uploadinfo", fields = %redact_fields(&json_top_fields(&value)), "uploadinfo 响应（凭据脱敏：只记字段名:长度）");
         // 响应为**扁平结构**（user_id/userkey/size_limit 在顶层，无 data 包裹）
         // ——直接读顶层（Envelope.into_value 只回 data 字段，会拿到 null）
         if value.get("state").and_then(|v| v.as_bool()) == Some(false) {
@@ -548,7 +548,7 @@ impl Cookie115Provider {
         }
         form.sort_by(|a, b| a.0.cmp(&b.0));
 
-        tracing::debug!(target: "cm_initupload", form = ?form, "initupload 表单");
+        tracing::debug!(target: "cm_initupload", fields = %redact_fields(&form), "initupload 表单（凭据脱敏：只记字段名:长度）");
         // ECDH 加密表单体
         let body = form
             .iter()
@@ -617,9 +617,9 @@ impl Cookie115Provider {
             .into_body()
             .read_to_string()
             .map_err(|e| Error::Transport(format!("读取 token 响应失败: {e}")))?;
-        tracing::debug!(target: "cm_oss_token", raw = %text, "gettoken 响应");
         let token: OssStsToken = serde_json::from_str(&text)
             .map_err(|e| Error::Other(format!("token 响应解析失败: {e}")))?;
+        tracing::debug!(target: "cm_oss_token", fields = %redact_fields(&sts_fields(&token)), "gettoken 响应（凭据脱敏：只记字段名:长度）");
         if token.status_code != "200" {
             return Err(Error::Auth(format!(
                 "OSS token 获取失败: {}",
@@ -860,6 +860,49 @@ fn urlencode_component(s: &str) -> String {
     out
 }
 
+/// F-04 凭据脱敏（安全不变量 #2：凭据永不落日志）：字段级脱敏纯函数——
+/// **值一律不落日志**，输出 `名:长度` 列表（字段名与长度保留诊断线索）。
+///
+/// uploadinfo（顶层 JSON）/ initupload（表单）/ gettoken（STS）/
+/// get_info（顶层 JSON）四处 debug 日志复用；零行为变化（只改日志面）。
+fn redact_fields(fields: &[(String, String)]) -> String {
+    fields
+        .iter()
+        .map(|(k, v)| format!("{k}:{}", v.len()))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// 顶层 JSON 对象 → `(字段名, 值文本)` 列表供 [`redact_fields`] 脱敏：
+/// 字符串字段取原值（长度 = 字符串字节数），其余取 JSON 渲染文本；
+/// 非对象顶层退化为单项 `<非对象>`（同样只记长度）。
+fn json_top_fields(value: &serde_json::Value) -> Vec<(String, String)> {
+    match value.as_object() {
+        Some(obj) => obj
+            .iter()
+            .map(|(k, v)| {
+                let text = match v.as_str() {
+                    Some(s) => s.to_string(),
+                    None => v.to_string(),
+                };
+                (k.clone(), text)
+            })
+            .collect(),
+        None => vec![("<非对象>".into(), value.to_string())],
+    }
+}
+
+/// gettoken STS 响应的脱敏字段表：三元组（AccessKeyId/Secret/SecurityToken）
+/// 一律只记名与长度，值不落日志。
+fn sts_fields(token: &OssStsToken) -> Vec<(String, String)> {
+    vec![
+        ("AccessKeyId".into(), token.access_key_id.clone()),
+        ("AccessKeySecret".into(), token.access_key_secret.clone()),
+        ("SecurityToken".into(), token.security_token.clone()),
+        ("StatusCode".into(), token.status_code.clone()),
+    ]
+}
+
 impl Provider for Cookie115Provider {
     fn name(&self) -> &'static str {
         "115-cookie"
@@ -889,7 +932,7 @@ impl Provider for Cookie115Provider {
         // v1 用 get_info 尽力而为
         let url = format!("{}/files/get_info?fid={}", self.webapi_base, id.0);
         let value = self.get_json(&url)?;
-        tracing::debug!(target: "cm_cookie_stat", raw = %value, "get_info 响应");
+        tracing::debug!(target: "cm_cookie_stat", fields = %redact_fields(&json_top_fields(&value)), "get_info 响应（凭据脱敏：只记字段名:长度）");
         let env = Envelope::from_value(value)?;
         if !env.is_ok() {
             return Err(Error::NotFound(format!(
