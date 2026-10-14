@@ -2,6 +2,7 @@
 
 > 产出者：architect　日期：2026-10-14（**修订轮 v2**，Gate#1 打回后重写）　来源：intent.md + audit-findings.md + 源码核实（逐 F-xx 对照 D:\OneDrive\Devops\cloudmount 当前 HEAD）
 > 修订依据：`reviews/gate1-ai.md`（互审点名）+ `decisions.md`（人类 Gate#1 裁决与编排者代行裁决，逐字落实）。修订面：MA1/MA2/MA3/MA4/MA6/MA8/MA9、m1/m2/m3/m9/m10/m11/m12/m13/m18 及语义对齐表/关键决策表相应更新；F-01…F-14 逐项结构与编号保持可追溯。
+> 收敛修订（r2 轮，2026-10-14）：依据 `reviews/gate1-ai-r2.md`（本工件点名条目 = B-R2-1 / M-R2-1 / M-R2-2 / M-R2-3 / MINOR 2/8/15/16）+ `decisions.md` Gate#1 复审人类裁决（**desktop 统一口径 = 点击即同意**，逐字落实）。仅收敛点名条目，其余逐字保留 v2。
 
 ### Gate#1 裁决落实摘要（修订对照）
 
@@ -87,7 +88,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
   - `RdcWatcher` 字段改为 `handle: Option<Arc<RawHandle>>`、`thread: Option<JoinHandle<()>>`；新增 `exited: Arc<AtomicBool>`（`event_loop` 全部退出路径统一置位——线程真正退出的信号）。
   - `Drop`：`shutdown.store(true)` → `handle.take()` 并 `close()`（尽力唤醒阻塞读）→ **有界收割**：以 50ms 间隔轮询 `exited`，上限 **5s**；观测到退出 → `join()` 收割；**超时 → `tracing::warn!`（含 root 路径）→ 放弃 join（detach）**——线程与句柄泄漏回到**可观测**形态（warn 日志 + 活跃计数不回落），Drop 绝不挂起。`tx.send` 在无界 mpsc 上永不阻塞，不构成额外挂起源。
   - 选择"join 超时"而非 `CancelSynchronousIo` 的理由见关键决策 #13。
-  - **生产 seam（MA6）**：rdc.rs 模块级 `static ACTIVE_WATCHERS: AtomicUsize`（`new()` 成功后 +1，`event_loop` 退出时 -1；**cfg 无关**——不设 `cfg(test)`，生产构建常驻，代价为每次创建/退出各一次原子加减，可忽略）+ `#[doc(hidden)] pub fn active_watcher_count() -> usize`。T-09 以该计数轮询回落基线（上限 5s）。
+  - **生产 seam（MA6）**：rdc.rs 模块级 `static ACTIVE_WATCHERS: AtomicUsize`（**+1 在线程 spawn 成功后立即执行**；`event_loop` 退出时 -1 **用 `saturating_sub`**——防 `scan_tree` 失败路径 `new()` 返回 `Err` 时线程退出仍 -1 造成的 `usize` 下溢污染 T-09 基线（复审 dev m-A）；**cfg 无关**——不设 `cfg(test)`，生产构建常驻，代价为每次创建/退出各一次原子加减，可忽略）+ `#[doc(hidden)] pub fn active_watcher_count() -> usize`。T-09 以该计数轮询回落基线（上限 5s）。
 - 调用方影响：无外部 API 变化（`RdcWatcher::new/poll/snapshot/root` 不变）。
 - 回归风险：低-中。测试：**50-100 轮**（编排者数值口径，断言下限 50 轮）"创建+drop"循环后 `active_watcher_count()` 回落基线（泄漏信号放大为 +N，单轮时序抖动不误报）；Windows 上 drop 后可 rename/remove 被监视目录（句柄确已释放）；事件洪峰后 drop 有界完成、不 panic、不悬挂（T-10）。
 
@@ -98,7 +99,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
   2. **锁外做网络**：对每个缺失前缀——取 `dir_creating: Mutex<HashMap<String, Arc<Mutex<()>>>>` 中的 per-prefix 锁（取锁本身不持 map 锁过夜，只克隆 Arc）→ **双检** `dir_ids`（其它线程可能已完成）→ 仍缺失才做 `provider.list` 查重 / `provider.create_dir` → 结果写回 `dir_ids`。
   - 锁序固定为"父前缀先于子前缀"（与遍历顺序一致），无环，无死锁。`dir_creating` 中已完成的条目可在插入 `dir_ids` 时顺手移除，防 map 无界增长。
 - 调用方影响：`ensure_remote_dir` 私有方法签名不变；"并发上传不重复建远端目录"的确定性由 per-prefix 锁 + 双检保持（`exec.rs:9` 声明的安全性设计不回退）。
-- 回归风险：低-中。测试：并发 N 线程对同一深层目录 `ensure_remote_dir`，断言远端 `create_dir` 恰好一次、全部返回同一 ID；弱网（慢 mock provider，list 与 create_dir 均注入延迟）期间其它动作不被阻塞的时序断言（锁时序记录为主判据）。
+- 回归风险：低-中。测试：并发 N 线程对同一深层目录 `ensure_remote_dir`，断言远端 `create_dir` 恰好一次、全部返回同一 ID；**"锁未跨网络"由纯测试侧判据证明（M-R2-1 收敛，零生产 seam）**——不同前缀双目录并发 `ensure_remote_dir` + SlowMockRemote（桩侧记录每次 `list`/`create_dir` 调用的起止时间窗），断言存在**时间窗交叠**：交叠 ⇒ 锁未跨网络持有；现状整段持锁则严格串行、无交叠（红测判别成立）。**不新增任何生产观测 hook**（F-07 不设 Executor 内持锁标志/计数；T-11/AC7 判据不再引用"架构修订声明的 seam"）。
 
 #### cloudmount-auth
 
@@ -210,7 +211,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
     }
     ```
     `cookie.rs::init_upload`（`:443` `EcdhCipher::new()`）改为经 `self.ecdh_cipher()`：`ecdh_remote_pub` 字段有值时用 test_peer 的替换构造，否则 `EcdhCipher::new()`（生产路径不变）。peer 的加解密复用 ec115.rs 既有 CBC/PKCS7/LZ4 代码（同文件可见私有字段），协议怪癖（key/iv 重叠 4 字节、[len][LZ4] 帧、k_ec 编码）单点维护。
-  - **覆盖矩阵**：uploadinfo 成功 / `state=false`；gettoken 成功 / `status_code != 200`；initupload 传输错误 / 响应不可解密（错误路径）+ **解密成功回环**（status=1 未命中 → 走 gettoken + OSS 直传；status=2 秒传零传输不请求 gettoken；status=7 sign_check 二次区间）；oss_put 500/403 → `Err`（F-11 回归）；oss_put 200 → `Ok`；list/downurl 失效映射。**归属写明（MA3③）**：`mock_api.rs:225-263` 既有秒传测试属 **Open 通道**（Open115Provider/ApiClient），本套为 **Cookie 通道**独立用例（不同驱动、不同端点族），不重复；AC14 的 initupload 成功用例经 Gate#1 裁决生效，错误路径基线保留为其子集（T-24 保留）。
+  - **覆盖矩阵**：uploadinfo 成功 / `state=false`；gettoken 成功 / `status_code != 200`；initupload 传输错误 / 响应不可解密（错误路径）+ **解密成功回环**（status=1 未命中 → 走 gettoken + OSS 直传；status=2 秒传零传输不请求 gettoken；status=7 sign_check 二次区间——**延后（本期不设用例，记入 test-strategy 缺口节）**）；oss_put 500/403 → `Err`（F-11 回归）；oss_put 200 → `Ok`；list/downurl 失效映射。**归属写明（MA3③）**：`mock_api.rs:225-263` 既有秒传测试属 **Open 通道**（Open115Provider/ApiClient），本套为 **Cookie 通道**独立用例（不同驱动、不同端点族），不重复；AC14 的 initupload 成功用例经 Gate#1 裁决生效，错误路径基线保留为其子集（T-24 保留）。
   - 前提确认（沿 test-strategy）：本地明文 HTTP mock 需 ureq Agent 不强制 https——mock_api.rs 先例证明 Open 通道可行，cookie 通道同一 Agent 家族；OSS 模板注入 `http://` 形态依赖同一前提。
 - 调用方影响：无（纯加法 builder，默认渲染与现状逐字节一致；既有调用方零改动——`with_base_urls` 全仓零调用方，签名不动）。回归风险：低（默认路径字节等价；ECDH 注入仅 `#[doc(hidden)]` 测试路径）。
 
@@ -231,7 +232,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
 - 修复策略：
   - `cloudmount-core/config.rs` 新增子配置 `CookieChannelConfig { enabled: bool = false, consent_acknowledged: bool = false }`，挂为 `Config.cookie` 字段（`serde(default)` + 既有 `deny_unknown_fields`，旧配置文件完全兼容）。
   - `build_channel_provider` / `try_cookie_provider` 改为从 `file_cfg.cookie` 构造 `CookiePolicy` 传入（私有函数签名下传 file_cfg，无外部 API 影响）；`check_enabled()`（`cloudmount-auth/cookie.rs:72`）原样把关：未开启/未同意 → 明确 `Err`（`--channel cookie` 时 fail 并提示"先 `cloudmount login --with-cookie-channel`"），auto 时静默跳过 Cookie 兜底（纯官方）并补一条 info 日志（"Cookie 通道未启用（配置 [cookie]），auto 模式纯官方"）——行为变化可观测，为 AC5 的 auto 断言提供锚点。
-  - 配套：`cloudmount-cli::cmd_login_cookie` 登录成功后把 `cookie.enabled=true, consent_acknowledged=true` 写回 `config.toml`（`config::load` → 变更 → `save`，原子写），形成"登录即同意即持久化"闭环。
+  - 配套：`cloudmount-cli::cmd_login_cookie` 登录成功后把 `cookie.enabled=true, consent_acknowledged=true` 写回 `config.toml`（`config::load` → **同一 core 写回纯函数 `set_cookie_consent`** → `save`，原子写），形成"登录即同意即持久化"闭环。
 - **升级行为注（m12 补记，双向）**：
   - 正向（原有）：已登录 Cookie 但无 `[cookie]` 配置段的用户升级后通道回到默认关闭——恢复产品边界（缺陷即错误行为），见开放问题 #2。
   - **反向窗口（m12 新记）**：新 CLI/desktop 登录成功写入 `[cookie]` 段后，**旧版** daemon/desktop（`deny_unknown_fields`）读同一配置将解析失败——旧 daemon 叠加 F-13 未修的静默回退（warn + 默认值 → **全配置丢失**回默认），旧 desktop `load_effective().unwrap_or_default()` 同样吞错。缓解：发布说明提示升级顺序（先升级 daemon/desktop，再用新 CLI 登录/重新登录）；备选"仅对 `[cookie]` 段宽容解析"与 `deny_unknown_fields` 防拼写设计冲突，默认不做——开放问题 #2 扩记。
@@ -258,6 +259,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
   - `run_placeholder_mount` 重构：把挂载主循环抽出，增加参数 `stop_check: &dyn Fn() -> bool`（前台传 `|| false`；SCM 传 `stop.should_stop() || service::should_exit()`），循环体内轮次间与分段 sleep 处检查；停止后走既有 `control.stop()` + `Arc::try_unwrap` + `unmount` 干净卸载路径。
   - service.rs：**保留**全部在用部分，**删除**死 FFI 入口（`define_windows_service!` + `service_main` 手写解析，共约 70 行）——消除与 clap 的双份解析；保留手动 `run_service_scm_executor` 模式（已在用、可测）。
   - `build_launch_args` 补 `--interval`：**无条件烘焙**（值即 clap 解析结果，含配置文件默认注入——`apply_config_defaults` 已把文件值注入 clap default）。
+  - **跨平台提取注（M-R2-3 收敛）**：`build_launch_args` 的参数向量组装（纯 `Vec<String>`，含 `--interval` 无条件烘焙）提取为**跨平台纯函数**；windows 专属执行面（SCM 注册/控制处理器）留原处。T-29/T-21 测试**无门控**——原 `#[cfg(windows)]` 位置使测试在 Linux CI 直接编译失败（比 skip 更糟），提取后消除。
 - **验收落点（MA9）**：`build_launch_args` 快照/单元测试——`Cli::try_parse_from(["cloudmountd", "--placeholder-mount", "--interval", "15", "--sync-root", <root>, ...])` 构造 Cli → 断言输出参数序列含 `--placeholder-mount`、`--sync-root <root>`、`--interval 15`（**`--interval` 与 `--placeholder-mount` 均烘焙**；修复前 `--interval` 缺失即红）。`run_placeholder_mount` 的 stop_check 抽象为纯函数可单测（placeholder_mount=true/false 两路径构造一致）。
 - 调用方影响：Windows 服务用户行为与前台运行对齐（缺陷修复本身）；`--hold-secs/--once` 不参与服务路径（服务即常驻），无需烘焙。
 - 回归风险：中（SCM 路径只能集成验证；真实服务生命周期进人工清单）。
@@ -273,21 +275,24 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
 
 **现状核实（MA2）**：`apps/desktop/src/main.rs:143-150` `login_auth()` 硬编码 `CookiePolicy{true,true}` 且每帧重建 CookieAuth；登录流程 = 登录页"开始扫码登录"（`:460-493`）→ `begin_login` → `update()` 内每帧 `poll_login`（`:237-261`）→ `Ok(Some(_))` 仅更新内存状态（"登录成功（Cookie 已入独立容器）"），**不写 `[cookie]` 段**；登录页已有风险声明文案（`:443-446`）但无显式同意交互。`apps/desktop/Cargo.toml`（独立项目，根 workspace exclude）**已含** `cloudmount-core/auth/driver115/sync` 全部 path 依赖 → **依赖调整 = 零**。desktop 引擎线程（`engine_loop`）仅构造 Open 通道 Provider，Cookie 仅用于登录——无其它 CookiePolicy 构造点。三个二进制共用同一份 config.toml（`config.rs` 模块文档）。
 
-**最小改动设计（决策 #14）**：
+**最小改动设计（决策 #14；复审 r2 人类裁决统一口径 = 点击即同意，B-R2-1 收敛）**：
 1. **知情同意交互**：登录页风险文案升级为完整版（对齐 CLI 四条风险声明），下方增加 egui 勾选框「我已阅读并知悉上述风险，同意启用 Cookie 通道」——**初值 = 配置 `cookie.consent_acknowledged`**（已同意过的用户不重复打扰）；未勾选时"开始扫码登录"按钮禁用。勾选框是 CLI"输入 yes"的 GUI 等价物（不变量 #4：同意仅由登录交互产生）。
-2. **CookiePolicy 从配置构造**：点击"开始扫码登录"时构造**会话级** `CookieAuth`（一次构造、轮询复用——顺带消除现状每帧重建的低效）：policy = `{ enabled: true, consent_acknowledged: true }`（点击即显式开启 + 勾选即同意）；`check_enabled()`（auth crate 既有把关）在未同意场景拒绝 `begin_login`，desktop 不重复实现校验。会话 auth 存为 `CloudMountApp` 字段（`Option<CookieAuth>`），`update()` 轮询复用。
-3. **登录成功写回 `[cookie]`**（`update()` 的 `Ok(Some(_))` 分支）：
+2. **CookiePolicy 点击登录时构造（点击即同意）**：点击"开始扫码登录"时构造**会话级** `CookieAuth`（一次构造、轮询复用——顺带消除现状每帧重建的低效）：policy = `{ enabled: true, consent_acknowledged: <勾选框状态> }`——**enabled=true 恒真**（点击即显式开启）、**consent_acknowledged=勾选状态**（按钮未勾选时禁用，可点击即蕴含已勾选）。**配置不参与 policy 构造**（仅驱动勾选框初值与写回）——若从配置构造，全新安装无 `[cookie]` 段时 policy={false,false} 会被 `check_enabled()` 首行拒绝（auth/cookie.rs:279-280），desktop 永远无法扫码登录、AC16 写回闭环不可达（复审 B-R2-1 指出的死锁，人类裁决"点击即同意"消除）；`check_enabled()`（auth crate 既有把关）在未同意场景拒绝 `begin_login`，desktop 不重复实现校验。会话 auth 存为 `CloudMountApp` 字段（`Option<CookieAuth>`），`update()` 轮询复用。
+3. **登录成功写回 `[cookie]`**（`update()` 的 `Ok(Some(_))` 分支）：写回逻辑提取为 **cloudmount-core 纯函数 `set_cookie_consent(&mut Config)`**（`cookie` 双字段置真；M-R2-2 收敛方案①），desktop 侧接线仅"load → 纯函数 → save"三行调用：
    ```rust
-   if let Ok(mut cfg) = cloudmount_core::config::load() {
-       cfg.cookie.enabled = true;
-       cfg.cookie.consent_acknowledged = true;
-       if let Err(e) = cloudmount_core::config::save(&cfg) {   // save 内部走 save_to 原子写（tmp + rename）
-           tracing::warn!(error = %e, "Cookie 同意标志持久化失败（下次启动需重新同意）");
+   match cloudmount_core::config::load() {
+       Ok(mut cfg) => {
+           cloudmount_core::config::set_cookie_consent(&mut cfg);   // core 纯函数：cookie.enabled / consent_acknowledged 双置真
+           if let Err(e) = cloudmount_core::config::save(&cfg) {    // save 内部走 save_to 原子写（tmp + rename）
+               tracing::warn!(error = %e, "Cookie 同意标志持久化失败（下次启动需重新同意）");
+           }
        }
+       Err(e) => tracing::warn!(error = %e, "登录成功但 config::load 失败，Cookie 同意标志未写回（同意记录丢失，下次启动需重新同意）"),   // 复审 MINOR-3/arch MIN-3：load 失败不再静默跳过
    }
    ```
-   写回模式与 desktop 设置页 `sync_root` 写回（`main.rs:411-413`）同构——文件内既有先例。
-- **测试口径**：desktop 为 GUI 独立 crate（workspace exclude、无测试基建），写回逻辑为对已测 pub API（`config::load/save`，cloudmount-core 往返测试压住）的三行调用——**不新增自动化测试**；人工清单：扫码登录成功 → config.toml 出现 `[cookie]` 双真 → 重启 desktop 勾选框预勾、可直接再登录 → daemon `--channel cookie` 读同一配置可用。
+   `set_cookie_consent` 单元测落 cloudmount-core（配合既有 `load_from`/`save_to` 路径注入变体，`cargo test --workspace` CI 可见）；**desktop 接线（登录成功回调调用该函数）归人工清单⑦**（M-R2-2：desktop 被 workspace exclude，测试放 desktop crate 则 CI 永不触达）。写回模式与 desktop 设置页 `sync_root` 写回（`main.rs:411-413`）同构——文件内既有先例。
+- **测试口径（M-R2-2 收敛，方案①）**：写回语义的可自动化部分 = cloudmount-core 纯函数 `set_cookie_consent` 单元测（core 层 CI 可见，守护 `[cookie]` 写回语义）；desktop crate 内**不新增自动化测试**；**desktop 接线（登录成功回调调用该函数）归人工清单⑦**。人工清单：扫码登录成功 → config.toml 出现 `[cookie]` 双真 → 重启 desktop 勾选框预勾、可直接再登录 → daemon `--channel cookie` 读同一配置可用。
+- **结构性断言口径（与 AC16 对齐，B-R2-1/qa min-9 收敛）**：U5/AC16 的结构性断言按复审裁决**收窄**为——引擎/组装路径（`build_channel_provider`/`try_cookie_provider`/`engine_loop`）不复存在硬编码 `CookiePolicy{true,true}`（组装一律经配置）；**登录会话构造点豁免**（desktop 点击登录时构造 policy = "勾选即同意"，实现处带注释标明豁免依据，见上文第 2 点）。
 - 回归风险：低（纯 GUI 流程内改动，引擎线程零触及）。
 
 #### CI 与门控设计（MA8，设计先行声明；IaC 于 Construction 落地）
@@ -302,7 +307,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
 
 | 实体/结构 | 变更 | 键/字段 | 约束 |
 |---|---|---|---|
-| `config.toml`（cloudmount-core::Config） | **新增** `cookie` 子配置 | `[cookie] enabled: bool, consent_acknowledged: bool`（默认均 false） | `serde(default)` + `deny_unknown_fields`：旧文件可解析；缺段 = 双 false = 通道关闭；仅 `enabled=true` 无 consent 仍拒绝启用。**写入方两处**：CLI `cmd_login_cookie` 与 desktop 登录成功回调（均经 `config::save` 原子写：tmp + rename） |
+| `config.toml`（cloudmount-core::Config） | **新增** `cookie` 子配置 | `[cookie] enabled: bool, consent_acknowledged: bool`（默认均 false） | `serde(default)` + `deny_unknown_fields`：旧文件可解析；缺段 = 双 false = 通道关闭；仅 `enabled=true` 无 consent 仍拒绝启用。**写入方两处**：CLI `cmd_login_cookie` 与 desktop 登录成功回调——均经 cloudmount-core 写回纯函数 `set_cookie_consent(&mut Config)` + `config::save`/`save_to` 原子写（tmp + rename；desktop 接线归人工清单⑦，M-R2-2） |
 | 令牌（cloudmount-auth::TokenSet，内存+SecretStore） | **无 schema 变更** | `access_token/refresh_token/expires_at` | 不变量：刷新全程持 `tokens` 锁（**双入口**：access_token 与 refresh/refresh_stale 共用同一助手）；持久化顺序 = 先经守卫更新内存、锁外写 SecretStore（崩溃窗口内内存与磁盘至多差一次刷新，不产生互踩） |
 
 进程内瞬态结构（不落盘）：
@@ -331,10 +336,10 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
 | F-09 | 精确匹配 | 仅 `FsError::NotFound` 走"合成新文件"路径；其它打开错误原样上抛（5xx） | `Err(_)` 盲当新文件废除 |
 | F-10 | 单飞（**双入口**） | 同一 `OpenApiAuth` 实例的并发刷新被 `tokens` 锁串行化，覆盖两条入口——`access_token()`（时间性过期）与 `Authenticator::refresh()`（服务端判失效，`client.rs:244` 并发重试路径经 `refresh_stale` 显式传失效 token）：每时刻至多一个在途刷新请求；等待者共享刷新结果（双检命中）；并发 refresh 经 token 身份双检去重为恰 1 次；刷新失败则等待者依次串行重试 | "拿锁后、网络前丢锁"在**两条入口**都废除（互审 MA1） |
 | F-11 | 显式失败 | OSS PUT 非 2xx → `Err(Error::Http{status, 摘要})`：5xx 进既有轮内重试（is_retryable）、4xx（含 403）快速失败不无限重试；"上传成功"判定必须以 2xx + 既有 verify 命中为准 | 吞状态码废除；错误分类边界：HTTP 状态 → Http，业务码 → Remote/Auth（维持现状） |
-| F-12 | 接线 + 删死码 | SCM Run 分支按 `--placeholder-mount` 分派到停止感知的占位符挂载循环（与前台同一循环体 + stop_check 闭包）；service.rs 保留在用部分、删除无调用方的 FFI 入口 | 服务/前台行为一致；`binPath` 烘焙补 `--interval`（无条件）+ `build_launch_args` 快照测试（--interval 与 --placeholder-mount 均断言） |
+| F-12 | 接线 + 删死码 | SCM Run 分支按 `--placeholder-mount` 分派到停止感知的占位符挂载循环（与前台同一循环体 + stop_check 闭包）；service.rs 保留在用部分、删除无调用方的 FFI 入口 | 服务/前台行为一致；`binPath` 烘焙补 `--interval`（无条件）+ `build_launch_args` 快照测试（--interval 与 --placeholder-mount 均断言；参数组装 = 跨平台纯函数、T-29/T-21 测试无门控） |
 | F-13 | fail-fast | config.toml 存在但解析失败 → 进程非零退出并指明文件路径（断言锚 = load_from 消息"解析失败"+路径）；文件不存在 → 默认值（首次运行不受影响）；边界 = 全部子命令（含 service stop/uninstall，sc.exe 为用户侧兜底） | 静默回退默认值废除 |
-| F-14 | 补网 + 回环 | cookie.rs 获得 HTTP 级回归测试（driver115/tests/ 集成层 + 本地 mock 服务器，零新依赖）；**initupload 解密成功回环纳入本期**（ec115.rs test_peer ECDH 对端）；注入面 = `with_base_urls` 纯加法扩展（完整基址含 scheme，消 :605 https:// 字面量） | 零生产代码行为变化（默认渲染逐字节等价；ECDH 注入仅 doc(hidden) 测试路径）；作为 F-04/F-11 的安全网先行提交（TDD） |
-| **desktop**（Gate#1 裁决新增） | 登录 + 写回 | GUI 登录成功 → `config.toml [cookie]` 双真（`config::save` 原子写）；CookiePolicy 从配置构造（勾选初值取配置、会话级构造一次）；同意交互 = 登录页显式勾选（CLI "输入 yes" 的 GUI 等价物） | U5"所有组装路径一致生效"（daemon/CLI/desktop 三处）完整成立；desktop 独立 Cargo.toml 零依赖调整 |
+| F-14 | 补网 + 回环 | cookie.rs 获得 HTTP 级回归测试（driver115/tests/ 集成层 + 本地 mock 服务器，零新依赖）；**initupload 解密成功回环纳入本期**（ec115.rs test_peer ECDH 对端）；注入面 = `with_base_urls` 纯加法扩展（完整基址含 scheme，消 :605 https:// 字面量） | 零生产代码行为变化（默认渲染逐字节等价；ECDH 注入仅 doc(hidden) 测试路径）；作为 F-04/F-11 的安全网先行提交（TDD）；sign_check（status=7）二次区间分支延后（本期不设用例，记入 test-strategy 缺口节） |
+| **desktop**（Gate#1 裁决新增） | 登录 + 写回 | GUI 登录成功 → `config.toml [cookie]` 双真（经 core 纯函数 `set_cookie_consent` + `config::save` 原子写；desktop 接线归人工清单⑦）；CookiePolicy **点击登录时构造**（enabled=true 恒真、consent_acknowledged=勾选状态；勾选框初值取配置、会话级构造一次——点击即同意口径，配置不参与 policy 构造）；同意交互 = 登录页显式勾选（CLI "输入 yes" 的 GUI 等价物） | U5"所有组装路径一致生效"（daemon/CLI/desktop 三处）完整成立（结构性断言口径：组装路径硬编码废除、登录会话构造点豁免——见 apps/desktop 节）；desktop 独立 Cargo.toml 零依赖调整 |
 
 ## 关键决策与理由
 
@@ -353,7 +358,7 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
 | 11 | **TDD 顺序**：每个 F-xx 先失败测试后实现；F-14 的测试基建（mock 服务器 + 注入 builder + ECDH test_peer）最先落地 | intent 约束；F-04/F-11 明确依赖 F-14 安全网 |
 | 12 | **F-14 ECDH 对端形态 = ec115.rs 内 `#[doc(hidden)] pub mod test_peer`**（而非 tests/ 集成测试 + dev-dependencies p224/aes/lz4_flex） | ①回环硬前提是替换 115 固定远端公钥（无人持有其私钥），替换 seam 无论选哪案都必须落生产 crate——方案二"测试逻辑全在 tests/"的优势因此残缺；②k_ec 逆解码/key-iv 重叠 4 字节派生/[len][LZ4] 帧等协议怪癖与客户端同居一文件**单点维护**，tests/ 独立重实现约百行协议代码会随生产改动静默漂移（假红/假绿）；③维持零 dev-deps（决策 #1 最强形式）——方案二需 dev-dep 声明且集成测试是独立 crate、需人工与正式依赖保持版本同步；④同文件镜像的"同 bug 假绿"风险（ec115.rs:121 注释自述过）以"peer 加解密复用 ec115.rs 既有 CBC/PKCS7/LZ4 代码"与"回环价值定位 = 压 init_upload 编排链（表单/k_ec/HTTP/解密/JSON/status 分支），对真实 115 的互操作仍走人工清单"缓解 |
 | 13 | **F-06 Drop 有界收割 = join 超时 5s**（50ms 轮询 exited 标志）→ 超时 detach + `tracing::warn` 降级；**不采用 CancelSynchronousIo** | `CloseHandle` 唤醒在途同步读是尽力而为、非文档化保证（MA4）——超时兜底把失败模式从"Drop 永久挂起（不可观测）"降级为"可观测泄漏"（warn 日志 + ACTIVE_WATCHERS 计数不回落），泄漏可观测严格优于挂起；`CancelSynchronousIo` 需另行管理线程 HANDLE 生命周期（OpenThread + 新句柄 + windows feature 面），且与 CloseHandle 同属尽力而为类手段，收益不抵复杂度；5s 取值与 AC6"有限超时（如 5s）"对齐（本地目录句柄关闭后实践上 promptly 返回，5s 覆盖慢速 FS） |
-| 14 | **desktop 最小改动**：登录页显式勾选同意（初值取配置）+ 会话级 CookieAuth（从配置构造 policy、一次构造轮询复用）+ 成功后 `config::save` 写回 `[cookie]`；**零依赖调整**（cloudmount-core 已在 apps/desktop 独立 Cargo.toml 的 path 依赖内） | Gate#1 裁决纳入；复用 config 既有原子写与 auth crate `check_enabled` 把关（desktop 不重复实现校验）；勾选框是 CLI"输入 yes"的 GUI 等价物（同意语义等强）；写回模式与 desktop 设置页 sync_root 写回（main.rs:411-413）文件内同构；会话级构造顺带消除现状每帧重建 CookieAuth 的低效 |
+| 14 | **desktop 最小改动**：登录页显式勾选同意（初值取配置）+ 会话级 CookieAuth（**勾选框初值取配置；点击登录时构造 CookiePolicy：enabled=true 恒真、consent_acknowledged=勾选状态**——一次构造轮询复用）+ 成功后经 cloudmount-core 纯函数 `set_cookie_consent(&mut Config)` + `config::save` 写回 `[cookie]`（core 层单元测 CI 可见，desktop 接线归人工清单⑦）；**零依赖调整**（cloudmount-core 已在 apps/desktop 独立 Cargo.toml 的 path 依赖内） | Gate#1 裁决纳入；复审 r2 人类裁决统一口径 = **点击即同意**（B-R2-1：配置仅驱动勾选框初值与写回、不参与 policy 构造——若从配置构造，全新安装无 `[cookie]` 段时 policy={false,false} 被 `check_enabled` 拒绝，登录闭环死锁）；复用 config 既有原子写与 auth crate `check_enabled` 把关（desktop 不重复实现校验）；勾选框是 CLI"输入 yes"的 GUI 等价物（同意语义等强）；写回提取 core 纯函数（M-R2-2 方案①：desktop 被 workspace exclude，crate 内测试 CI 永不触达，core 单测配合 `load_from`/`save_to` 路径注入变体守护写回语义）；写回模式与 desktop 设置页 sync_root 写回（main.rs:411-413）文件内同构；会话级构造顺带消除现状每帧重建 CookieAuth 的低效 |
 | 15 | **F-04 扩围收口（三处 → 五处）**：并入 cli main.rs:233 cookie 回显脱敏与 cookie.rs:796 get_info 日志脱敏 | 同一安全不变量 #2 的已知反例（回显）与同类原样打印（get_info），一行级脱敏非新需求（编排者代行裁决 #1/#2）；get_info 落点经源码核实修正为 cookie.rs:796（互审记 webdav.rs:796 属文件归属笔误，发现本身属实） |
 | 16 | **CI 增加 features job**：`cargo test --workspace --features cloudmount-daemon/mock`（设计先行声明，IaC/workflow 修改于 Construction 落地） | 现状 webdav_serve 整文件 `cfg(feature="mock")` 而 CI 不带 features → F-03/F-08/F-09 安全集成测试从不执行（安全项空绿，互审 MA8）；带 features 的并列 job 使其进入门控，三平台矩阵语义不变 |
 
@@ -364,14 +369,14 @@ cloudmount-vfs  cloudmount-sync  cloudmount-auth  cloudmount-driver115
 1. **路径边界不变量**：任何由外部输入（HTTP 请求路径、控制通道参数）推导出的文件系统访问，必须满足"校验先于访问"，且最终访问路径 canonicalize 后严格位于服务根内。覆盖点：webdav `serve_static`（F-03，成分级 + canonicalize 双检）；既有 `dehydrate_via_mount`（`main.rs:666-681` 的 `strip_prefix(root_canon)`）维持不变。Windows 特化：拒绝盘符段（`X:`）、UNC（`\\`）、备用数据流（`:`）、保留设备名。
 2. **凭据不出现在日志与错误输出的不变量**：userkey、OSS STS（AccessKeyId/AccessKeySecret/SecurityToken）、Cookie 值（UID/CID/SEID/KID）、access_token/refresh_token 在任何 trace 级别的日志产物与错误输出中都不得以明文出现；唯一合法格式是字段名 + 长度（`redact_fields` 纯函数，F-04 五处施工面：cookie.rs:401/492/560/796 + cli main.rs:233）；该不变量由捕获型日志回归测试（手写 tracing Subscriber，trace 全开）固化。
 3. **上传成功判定不变量**：远端写操作只有在获得显式服务端确认（OSS PUT 2xx，且既有 `verify_upload` 命中）后才允许记为成功；任何非 2xx、解析失败、传输错误都必须产生 `Err` 并进入既有重试分类（F-11：`Error::Http{status}`——5xx 轮内可重试、4xx 快速失败）。禁止任何"静默当成功"路径。
-4. **Cookie 通道边界不变量**：Cookie 通道保持"默认关闭 + 显式开启 + 知情同意"双标志把关（F-05）；同意仅由登录交互产生并持久化（CLI yes / **desktop 勾选**，Gate#1 裁决补全）；daemon 与 desktop 引擎是消费者、永不自产同意；**所有组装路径（daemon/CLI/desktop）一致生效**（U5 语义完整成立）。
+4. **Cookie 通道边界不变量**：Cookie 通道保持"默认关闭 + 显式开启 + 知情同意"双标志把关（F-05）；同意仅由登录交互产生并持久化（CLI yes / **desktop 勾选**，Gate#1 裁决补全）；daemon 与 desktop 引擎是消费者、永不自产同意；**所有组装路径（daemon/CLI/desktop）一致生效**（U5 语义完整成立；结构性断言口径 = 组装路径硬编码废除、登录会话构造点豁免——见 apps/desktop 节）。
 5. **权限面**：本 intent 不涉及 IAM/网络策略/密钥管理变更；无新增监听端口（控制通道维持本地回环 + 挂载根前缀校验）；SCM 服务仍以 LocalSystem 运行既有能力，占位符挂载接线（F-12）不扩大攻击面（同一挂载 API、同一 stop 语义）。密钥存储维持 cloudmount-auth 独立容器（OpenApiToken / CookieJar 物理隔离）现状。
 
 ## 开放问题（需人类裁决）
 
 - [ ] **F-13 失败语义确认**：fail-fast 意味着"配置文件坏 → 服务/前台都拒绝启动"（含 service stop/uninstall 等管理子命令，sc.exe 为用户侧兜底）。备选是"显式横幅告警 + 拒绝破坏性开关下继续"。另请确认"文件存在但**不可读**（权限/IO）"是否同样 fail-fast（默认：是，只有文件不存在走默认值）。默认按 fail-fast 设计。
 - [ ] **F-05 升级行为（双向）**：①正向：已登录 Cookie 通道但配置文件无 `[cookie]` 段的用户，升级后通道回到关闭状态（需重新登录或手动补配置）——恢复产品边界的预期结果，但属用户可感知变化，请确认接受；②**反向窗口（m12 补记）**：新 CLI/desktop 写入 `[cookie]` 段后，**旧版** daemon/desktop（deny_unknown_fields）读同一配置解析失败——旧 daemon 叠加 F-13 未修的静默回退、旧 desktop `unwrap_or_default`，均导致全配置丢失回默认。建议发布说明提示升级顺序（先升 daemon/desktop 再用新 CLI 登录）；备选"仅对 [cookie] 宽容解析"与防拼写设计冲突，默认不做。③同意标志落 config.toml（方案 A）还是独立 marker 文件（方案 B）仍请定夺（本稿按 A 设计）。
-- [ ] **F-12 service.rs 处置**：推荐"保留在用部分 + 删除死 FFI 入口"（关键决策 #3）；备选是改走 `windows-service` 标准 `service_dispatcher` 模式（更正统但属无收益重构，且与 clap 解析需重新融合）。
+- [x] **F-12 service.rs 处置（已裁决，复审 pm MIN-2 同步）**：采关键决策 #3——"保留在用部分 + 删除死 FFI 入口"，Gate#1 2026-10-14 裁决（见 decisions.md 编排者代行裁决备案）；备选"改走 `windows-service` 标准 `service_dispatcher` 模式"已否决（无收益重构，且与 clap 解析需重新融合）。
 - [ ] **F-01 块大小**：1 MiB 为缺省值（关键决策 #2）；若对超低速链路上的 `TRANSFER_DATA` 调用次数有顾虑，可调成 2/4 MiB（仍是常数内存）。
 - [ ] **F-10 锁副作用**：刷新期间（≤30s）`logout/is_logged_in` 将阻塞等待同一把锁。语义正确但属可感知变化；若不可接受，需引入独立刷新锁 + 双检（复杂度更高），默认不采用。
 - [ ] **desktop 同意交互形态确认**：本稿按"登录页显式勾选框（初值取配置）"设计（决策 #14）；若产品侧要求更强的同意形态（如每次登录强制重读声明），请指出——改动限于 desktop 登录页，不影响其余设计。
