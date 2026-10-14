@@ -6,7 +6,20 @@
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
-  "unitStatus": {},
+  "unitStatus": {
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending",
+    "U6": "pending",
+    "U7": "pending",
+    "U8": "pending",
+    "U9": "pending",
+    "U10": "pending",
+    "U11": "pending",
+    "U12": "pending"
+  },
   "updatedAt": "2026-10-14T22:41:51+08:00",
   "history": [
     {

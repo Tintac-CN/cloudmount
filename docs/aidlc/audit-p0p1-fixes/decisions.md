@@ -104,3 +104,11 @@ GATE-REJECTED gate1 2026-10-14
   3. 残留 8 条 MINOR（reviews/gate1-ai-r3.md 清单）作为 Construction 前置微调落 plan.md 首个 unit（或随首个相关 unit 顺带回填），不阻塞。
 
 GATE-APPROVED gate1 2026-10-14
+
+---
+
+2026-10-14 Construction/Sprint Planning 记录（编排者）：
+- gate1 approved（@ 671de97）后拆分 12 个 unit（plan.md + units/1-12.md）：U1=F-14 基建（关键路径）、U2=F-04 五处脱敏、U3=F-11 oss_put、U4=F-10 双入口单飞、U5=F-05+desktop、U6=F-02 probe 转发、U7=F-06 RdcWatcher、U8=F-07 锁重构、U9=F-01 水合分块（P0）、U10=F-03+CI mock 腿、U11=F-08+F-09 写路径、U12=F-12+F-13。
+- 泳道/波次：①U1+U4+U9（三 crate 并行）→ ②U2+U5+U7+U10 → ③U3+U6+U8+U11 → ④U12 → ⑤全量验证（cargo test --workspace 两腿）→ gate2。同 crate 文件冲突面已串行化（U10→U11 同 webdav.rs）。
+- r3 残留 8 条 MINOR 按终审决议由编排者顺带回填（prd 3 处：AC1 末块口径/AC16 分支 3 括注更正/已裁决节溯源标注；test-strategy 5 处：头部版本标签 v3/映射口径 v3/T-05 向量几何更正/T-08 锚统一/T-11 副判据场景归属/T-30 注释断言成分）——属终审批准的"随首个提交顺带回填"授权，措辞级、零语义变更。
+- unitStatus 全部 pending；TDD 锁未置位（各 unit 失败测试提交后按序置锁，tddLockPaths 并集只增不减）。
