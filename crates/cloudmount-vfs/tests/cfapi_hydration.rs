@@ -11,6 +11,7 @@
 #![cfg(windows)]
 
 use cloudmount_vfs::cfapi::{self, PlaceholderSpec};
+use std::io::Read;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -255,6 +256,121 @@ fn hydration_of_subdirectory_file() {
 
     let got = std::fs::read(root.join("docs/2026/report.txt")).unwrap();
     assert_eq!(got, b"nested hydration works!");
+
+    let _ = conn;
+    cleanup(&root);
+}
+
+/// 确定性伪随机字节（xorshift64*，测试零依赖）。
+fn pseudo_random(len: usize, seed: u64) -> Vec<u8> {
+    let mut s = seed | 1;
+    (0..len)
+        .map(|_| {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            (s >> 21) as u8
+        })
+        .collect()
+}
+
+/// **U9 骨架（T-01 集成腿）**：多块规模占位符的 FETCH_DATA 分块水合拼接一致。
+///
+/// 2 MiB + 奇数尾：读取全程必然跨多个 FETCH_DATA 块；端到端内容逐字节一致。
+/// 红测判别在单元腿（`pump_chunks` 读取序列，`cargo test -p cloudmount-vfs
+/// --lib`）；本用例为真机端到端回归——实现阶段随 HydrateFn 契约切换
+/// 机械适配 ChunkSink 形态（同 `golden_hydration_flow` 的调用点）。
+#[test]
+fn fetch_data_multiblock_hydration_content_identical() {
+    if !cfapi::platform_available() {
+        return;
+    }
+    let Some(root) = setup_or_skip("u9-multiblock") else {
+        return;
+    };
+
+    let size = 2 * 1024 * 1024 + 12345;
+    let expected = pseudo_random(size, 0xB10B);
+    cfapi::create_placeholders_ordered(
+        &root,
+        &[PlaceholderSpec::file("big.bin", size as u64, 1_700_000_000)],
+    )
+    .unwrap();
+
+    let hydrate_data = expected.clone();
+    let conn = cfapi::connect(
+        &root,
+        Box::new(move |rel, offset, len| {
+            assert_eq!(rel, "big.bin");
+            let start = (offset as usize).min(hydrate_data.len());
+            let end = (offset as usize + len as usize).min(hydrate_data.len());
+            Ok(hydrate_data[start..end].to_vec())
+        }),
+    )
+    .expect("连接同步根");
+
+    // 等待过滤器完全建立连接（连接是异步生效的）
+    std::thread::sleep(Duration::from_millis(300));
+
+    let got = std::fs::read(root.join("big.bin")).expect("多块水合读取");
+    assert_eq!(got.len(), expected.len(), "读取长度应等于远端大小");
+    assert_eq!(got, expected, "多块 FETCH_DATA 拼接必须与云端逐字节一致");
+
+    let _ = conn;
+    cleanup(&root);
+}
+
+/// **U9 骨架（T-02 集成腿，占位——真机验证）**：水合中途取消后系统一致。
+///
+/// 真机语义：读取方提前关闭句柄 → 过滤器对挂起 FETCH_DATA 发 CANCEL
+/// → 实现（ChunkSink 契约）逐块查 `cancelled` → Err 停止并丢弃 reader。
+/// 当前口径：部分读取后取消，重新完整读取仍逐字节正确（无残留损坏）；
+/// "逐块取消即停"的强断言由单元腿 T-02 守护，真机取消行为在实现阶段
+/// 适配 ChunkSink 契约后于此补强。
+#[test]
+fn fetch_data_cancel_consistency_placeholder() {
+    if !cfapi::platform_available() {
+        return;
+    }
+    let Some(root) = setup_or_skip("u9-cancel") else {
+        return;
+    };
+
+    let size = 8 * 1024 * 1024;
+    let expected = pseudo_random(size, 0xCA4CE);
+    cfapi::create_placeholders_ordered(
+        &root,
+        &[PlaceholderSpec::file("cancel.bin", size as u64, 1_700_000_000)],
+    )
+    .unwrap();
+
+    let hydrate_data = expected.clone();
+    let conn = cfapi::connect(
+        &root,
+        Box::new(move |rel, offset, len| {
+            assert_eq!(rel, "cancel.bin");
+            let start = (offset as usize).min(hydrate_data.len());
+            let end = (offset as usize + len as usize).min(hydrate_data.len());
+            Ok(hydrate_data[start..end].to_vec())
+        }),
+    )
+    .expect("连接同步根");
+
+    std::thread::sleep(Duration::from_millis(300));
+
+    // 部分读取后提前关闭句柄（挂起传输被 CANCEL 的真机路径）
+    {
+        let mut f = std::fs::File::open(root.join("cancel.bin")).expect("打开占位符");
+        let mut head = vec![0u8; 64 * 1024];
+        f.read_exact(&mut head).expect("读取头部触发水合");
+        assert_eq!(head, &expected[..head.len()], "部分读取内容一致");
+    } // 句柄关闭 → 挂起 FETCH_DATA 取消
+
+    std::thread::sleep(Duration::from_millis(500));
+
+    // 取消后一致性：重新完整读取仍逐字节正确
+    let got = std::fs::read(root.join("cancel.bin")).expect("取消后完整读取");
+    assert_eq!(got, expected, "取消后重新读取必须逐字节一致（无残留损坏）");
 
     let _ = conn;
     cleanup(&root);

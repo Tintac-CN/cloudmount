@@ -585,6 +585,37 @@ pub fn create_placeholders(sync_root: &Path, specs: &[PlaceholderSpec]) -> Resul
 /// 水合函数：给定相对路径与请求范围，返回内容。
 pub type HydrateFn = Box<dyn Fn(&str, u64, u64) -> Result<Vec<u8>> + Send + Sync>;
 
+/// 分块推送 sink（F-01 水合分块契约的回调侧接口）。
+///
+/// U9 后水合方不再一次性返回整块 `Vec<u8>`，而是逐块调用 [`ChunkSink::transfer`]
+/// 回传内容；回调侧每块完成一次 `TRANSFER_DATA`（同步返回 → 天然背压，
+/// 任一时刻至多一个块在途，内存峰值 = 1 块）。`offset` 为该块在文件内的
+/// 绝对偏移；实现方返回 `Err`（含取消：每块发送前查 `cancelled` 集合）时，
+/// 分块泵送立即中止并丢弃 reader（关闭下游连接）。
+pub trait ChunkSink {
+    fn transfer(&mut self, offset: u64, data: &[u8]) -> Result<()>;
+}
+
+/// F-01 分块泵送核心循环（crate 内可测 seam：T-01/T-02 单元腿的注入点，
+/// 短读/错误/取消语义直接压循环体；水合闭包经它循环读单个复用块缓冲）。
+///
+/// 契约（T-01 断言口径 = **reader 级读取序列**）：
+/// - 除末块外每次 `read` 请求恒为 `chunk_size`，全部 ≤ `chunk_size`；
+/// - `transfer` 序列自 `offset` 起连续覆盖已读内容，拼接逐字节一致；
+/// - reader 或 sink 的任一错误原样传播并立即停止（不再发起后续读取，
+///   失败的读取不产生伪造 transfer）。
+///
+/// 返回成功泵送的总字节数。
+#[allow(dead_code)] // TDD 骨架期占位：实现阶段由水合闭包接入后移除
+pub(crate) fn pump_chunks(
+    _reader: &mut dyn std::io::Read,
+    _sink: &mut dyn ChunkSink,
+    _offset: u64,
+    _chunk_size: usize,
+) -> Result<u64> {
+    todo!("U9（F-01）红阶段骨架：分块泵送循环于实现阶段落地")
+}
+
 /// 水合记录（rel_path → 完成后 mtime），连接回调与挂载层共享。
 ///
 /// 双向同步的关键：过滤器的按需水合会写文件（触发 RDC 修改事件），
@@ -890,3 +921,297 @@ unsafe fn transfer_data(
 
 /// STATUS_UNSUCCESSFUL（NTSTATUS）。
 const STATUS_UNSUCCESSFUL: i32 = 0xC000_0001u32 as i32;
+
+/// F-01（U9）TDD 失败测试 —— T-01/T-02 单元腿。
+///
+/// 断言口径（test-strategy m1）：**reader 级读取序列** —— 桩 Reader 记录每次
+/// `read()` 的请求长度：修复前 `read_to_end` 呈几何增长直至总范围等大；
+/// 修复后除末块外恒为块上限。勿以 `open_range` 的 RangeSpec 断言
+/// （修复前后都只调用一次 open_range，无判别力）。
+#[cfg(test)]
+mod pump_chunks_tests {
+    use super::{pump_chunks, ChunkSink};
+    use cloudmount_core::{Error, Result};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// 单元腿用小块上限（64 KiB）：与 1 MiB 同一"几何增长 vs 定长"判别口径，
+    /// 测试跑得快；1 MiB 实现值口径另见
+    /// [`pump_chunks_1mib_cap_medium_body_from_random_offset`]。
+    const CHUNK: usize = 64 * 1024;
+
+    /// 确定性伪随机字节（xorshift64*，测试零依赖）。
+    fn pseudo_random(len: usize, seed: u64) -> Vec<u8> {
+        let mut s = seed | 1;
+        (0..len)
+            .map(|_| {
+                s ^= s << 13;
+                s ^= s >> 7;
+                s ^= s << 17;
+                (s >> 21) as u8
+            })
+            .collect()
+    }
+
+    /// 桩 Reader：记录每次 `read` 的（请求长度，返回长度）序列。
+    ///
+    /// `short`：每次至多返回请求长度的一半（短读形态，T-02）；
+    /// `fail_at`：第 N 次调用（0 起）注入 io 错误（T-02 错误传播）。
+    /// drop 时向计数器 +1（T-02 取消路径的 drop 计数断言）。
+    struct RecordingReader {
+        data: Vec<u8>,
+        pos: usize,
+        short: bool,
+        fail_at: Option<usize>,
+        calls: usize,
+        requests: Vec<usize>,
+        returned: Vec<usize>,
+        drops: Arc<AtomicUsize>,
+    }
+
+    impl RecordingReader {
+        fn with(data: Vec<u8>) -> Self {
+            Self {
+                data,
+                pos: 0,
+                short: false,
+                fail_at: None,
+                calls: 0,
+                requests: Vec::new(),
+                returned: Vec::new(),
+                drops: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        /// 短读形态：每次至多返回请求长度的一半。
+        fn short(mut self) -> Self {
+            self.short = true;
+            self
+        }
+
+        /// 第 `call` 次（0 起）读取注入 io 错误。
+        fn failing_at(mut self, call: usize) -> Self {
+            self.fail_at = Some(call);
+            self
+        }
+
+        fn drop_counter(&self) -> Arc<AtomicUsize> {
+            self.drops.clone()
+        }
+    }
+
+    impl std::io::Read for RecordingReader {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.calls += 1;
+            self.requests.push(buf.len());
+            if self.fail_at == Some(self.calls - 1) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "reader 中途故障（T-02 注入）",
+                ));
+            }
+            if self.pos >= self.data.len() || buf.is_empty() {
+                self.returned.push(0);
+                return Ok(0);
+            }
+            let want = if self.short {
+                (buf.len() / 2).max(1)
+            } else {
+                buf.len()
+            };
+            let n = want.min(self.data.len() - self.pos);
+            buf[..n].copy_from_slice(&self.data[self.pos..self.pos + n]);
+            self.pos += n;
+            self.returned.push(n);
+            Ok(n)
+        }
+    }
+
+    impl Drop for RecordingReader {
+        fn drop(&mut self) {
+            self.drops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// 桩 Sink：收集 (offset, data) 序列；第 N 次 `transfer`（0 起）可注入
+    /// 错误（模拟 FETCH_DATA 侧取消：每块发送前查 `cancelled` → Err）。
+    struct RecordingSink {
+        transfers: Vec<(u64, Vec<u8>)>,
+        fail_at: Option<usize>,
+    }
+
+    impl RecordingSink {
+        fn new() -> Self {
+            Self {
+                transfers: Vec::new(),
+                fail_at: None,
+            }
+        }
+
+        fn failing_at(n: usize) -> Self {
+            Self {
+                transfers: Vec::new(),
+                fail_at: Some(n),
+            }
+        }
+
+        fn concatenated(&self) -> Vec<u8> {
+            self.transfers
+                .iter()
+                .flat_map(|(_, d)| d.iter().copied())
+                .collect()
+        }
+    }
+
+    impl ChunkSink for RecordingSink {
+        fn transfer(&mut self, offset: u64, data: &[u8]) -> Result<()> {
+            if self.fail_at == Some(self.transfers.len()) {
+                return Err(Error::Other("sink 中止（模拟取消/TRANSFER_DATA 失败）".into()));
+            }
+            self.transfers.push((offset, data.to_vec()));
+            Ok(())
+        }
+    }
+
+    /// T-01：除末块外每次读取请求恒为块上限、全部 ≤ 上限；transfer 序列自 0
+    /// 连续覆盖、拼接逐字节一致；以 0 长度读取探测 EOF 干净收尾。
+    ///
+    /// 红测判别：现状水合闭包 `read_to_end` 一次性填满整个容量缓冲（几何增长）。
+    #[test]
+    fn pump_chunks_requests_bounded_at_chunk_cap_and_content_identical() {
+        let body = pseudo_random(CHUNK * 5 + 12345, 0xDA7A_115);
+        let mut reader = RecordingReader::with(body.clone());
+        let mut sink = RecordingSink::new();
+
+        let total = pump_chunks(&mut reader, &mut sink, 0, CHUNK).expect("泵送成功");
+
+        assert_eq!(total as usize, body.len(), "应返回泵送总字节数");
+        // reader 级读取序列：除末次外恒为块上限，全部 ≤ 上限
+        let (last, head) = reader.requests.split_last().expect("至少一次读取");
+        assert!(
+            head.iter().all(|&r| r == CHUNK),
+            "除末次外读取请求恒为块上限（几何增长即红），实际 {head:?}"
+        );
+        assert!(*last <= CHUNK, "末次读取请求 ≤ 块上限");
+        assert_eq!(
+            reader.returned.iter().sum::<usize>(),
+            body.len(),
+            "读出字节总数 = 数据长度"
+        );
+        assert_eq!(
+            reader.returned.last(),
+            Some(&0),
+            "以 0 长度读取探测 EOF 干净收尾"
+        );
+        // transfer 序列：自 0 连续覆盖、无零长度块、末块短读不假红
+        let mut expect_off = 0u64;
+        for (off, data) in &sink.transfers {
+            assert_eq!(*off, expect_off, "transfer 偏移必须连续");
+            assert!(!data.is_empty(), "不产生零长度 transfer");
+            assert!(data.len() <= CHUNK, "单块 ≤ 块上限");
+            expect_off += data.len() as u64;
+        }
+        assert_eq!(sink.concatenated(), body, "拼接内容逐字节一致");
+        assert!(
+            sink.transfers.last().unwrap().1.len() < CHUNK,
+            "非对齐尾 → 末块为短块（末块短读不假红）"
+        );
+    }
+
+    /// T-01（1 MiB 实现值口径，关键决策 #2）：12 MiB + 奇数尾、自非零随机
+    /// 偏移起泵送，内容逐字节一致，除末次外读取请求恒为 1 MiB。
+    #[test]
+    fn pump_chunks_1mib_cap_medium_body_from_random_offset() {
+        const MIB: usize = 1024 * 1024;
+        let base: u64 = 4_210_197; // 随机偏移（文件内绝对偏移由调用方给定）
+        let body = pseudo_random(MIB * 12 + 3777, 0x115_5A7);
+        let mut reader = RecordingReader::with(body.clone());
+        let mut sink = RecordingSink::new();
+
+        let total = pump_chunks(&mut reader, &mut sink, base, MIB).expect("泵送成功");
+
+        assert_eq!(total as usize, body.len());
+        let (last, head) = reader.requests.split_last().unwrap();
+        assert!(head.iter().all(|&r| r == MIB), "除末次外恒为 1 MiB 读取");
+        assert!(*last <= MIB);
+        let mut expect_off = base;
+        for (off, data) in &sink.transfers {
+            assert_eq!(*off, expect_off, "transfer 偏移自给定起点连续推进");
+            expect_off += data.len() as u64;
+        }
+        assert_eq!(sink.concatenated(), body, "拼接内容逐字节一致");
+    }
+
+    /// T-02：短读 Reader（每次至多返回半个块）——读取请求仍只按块上限发起
+    /// （不放大缓冲补偿短读），内容拼接不受短读影响，无 panic。
+    #[test]
+    fn pump_chunks_short_reads_still_request_within_cap() {
+        let body = pseudo_random(CHUNK * 3 + 7, 0x510D_0A7);
+        let mut reader = RecordingReader::with(body.clone()).short();
+        let mut sink = RecordingSink::new();
+
+        let total = pump_chunks(&mut reader, &mut sink, 0, CHUNK).expect("短读下仍应泵送成功");
+
+        assert_eq!(total as usize, body.len());
+        // 只按块上限断言读取请求（返回值序列允许半块）
+        assert!(
+            reader.requests.iter().all(|&r| r <= CHUNK),
+            "短读下读取请求仍恒 ≤ 块上限（放大缓冲补偿即红），实际 {:?}",
+            reader.requests
+        );
+        assert_eq!(sink.concatenated(), body, "短读不影响内容一致性");
+    }
+
+    /// T-02：Reader 中途 Err → 以 `Error::Io` 原样传播（保留原始错误消息）、
+    /// 立即停止读取、失败的读取不产生伪造 transfer（无部分写入残留）、无 panic。
+    #[test]
+    fn pump_chunks_reader_error_propagates_without_partial_writes() {
+        let body = pseudo_random(CHUNK * 2, 0xE115);
+        let mut reader = RecordingReader::with(body.clone()).failing_at(2); // 第 3 次读取注入错误
+        let mut sink = RecordingSink::new();
+
+        let err = pump_chunks(&mut reader, &mut sink, 0, CHUNK).expect_err("错误必须传播");
+
+        match &err {
+            Error::Io(e) => assert!(
+                e.to_string().contains("T-02 注入"),
+                "应保留原始 io 错误，实际 {err:?}"
+            ),
+            other => panic!("io 错误应映射为 Error::Io 传播，实际 {other:?}"),
+        }
+        assert_eq!(reader.calls, 3, "错误后立即停止，不再发起后续读取");
+        assert_eq!(sink.transfers.len(), 2, "仅错误前完整读出的块进入 sink");
+        assert!(sink.transfers.iter().all(|(_, d)| d.len() == CHUNK));
+        assert_eq!(
+            sink.concatenated(),
+            body,
+            "已成功读出的内容完整推送，无丢失/重复/伪造"
+        );
+    }
+
+    /// T-02：取消位（FETCH_DATA 回调的 sink 每块发送前查 `cancelled` → Err）
+    /// → 泵送立即以该错误中止：不再向下游发起读取（不吸干 reader）、
+    /// 被取消的块不进入 sink、reader 随调用方丢弃（drop 计数 = 下游连接关闭）。
+    #[test]
+    fn pump_chunks_sink_cancel_stops_reading_and_drops_reader() {
+        let body = pseudo_random(CHUNK * 8, 0xCA4CE);
+        let mut reader = RecordingReader::with(body);
+        let drops = reader.drop_counter();
+        let mut sink = RecordingSink::failing_at(3); // 第 4 块前取消
+
+        let result = pump_chunks(&mut reader, &mut sink, 0, CHUNK);
+        let err = result.expect_err("取消必须以 Err 中止泵送");
+        assert!(err.to_string().contains("取消"), "取消错误原样传播，实际 {err:?}");
+
+        assert!(
+            reader.requests.len() <= 4,
+            "取消后立即停止读取（继续吸干 reader 即红），实际 {} 次",
+            reader.requests.len()
+        );
+        assert_eq!(sink.transfers.len(), 3, "被取消的块不得进入 sink");
+
+        // 实现形态：取消 → Err 返回 → 调用方丢弃 reader（关闭下游 HTTP 连接）
+        drop(reader);
+        assert_eq!(drops.load(Ordering::SeqCst), 1, "桩 Reader 应被 drop（下游关闭）");
+    }
+}
