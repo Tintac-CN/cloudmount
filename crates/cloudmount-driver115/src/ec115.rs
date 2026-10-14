@@ -109,13 +109,12 @@ impl EcdhCipher {
 
     /// 解密（AES-128-CBC）→ `[长度(2 LE)][LZ4 块]` → LZ4 解压。
     pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+        // F-04 扩围（安全不变量 #2）：会话 key/iv 与密文材料一律不落日志
+        // （曾记 key/iv/ct_head hex——密钥材料泄漏；只保留帧长度标量）
         tracing::debug!(
             target: "cm_ec115",
             ct_len = ciphertext.len(),
-            ct_head = %ciphertext.iter().take(24).map(|b| format!("{b:02x}")).collect::<String>(),
-            key = %self.key.iter().map(|b| format!("{b:02x}")).collect::<String>(),
-            iv = %self.iv.iter().map(|b| format!("{b:02x}")).collect::<String>(),
-            "decrypt 输入"
+            "decrypt 输入（凭据脱敏：只记帧长度）"
         );
         // 截掉尾部非整块（Go 原样处理）
         let usable = ciphertext.len() - ciphertext.len() % 16;
@@ -143,10 +142,12 @@ impl EcdhCipher {
         if buf.len() < 2 {
             return Err(Error::Other("ec115 明文不足长度头".into()));
         }
+        // F-04 扩围（安全不变量 #2）：解密缓冲区全量 hex 不落日志（曾记
+        // plain_hex——明文/压缩块材料泄漏；只保留帧长度标量）
         tracing::debug!(
             target: "cm_ec115",
-            plain_hex = %buf.iter().map(|b| format!("{b:02x}")).collect::<String>(),
-            "CBC 解密后（全量）"
+            plain_len = buf.len(),
+            "CBC 解密后（凭据脱敏：只记帧长度）"
         );
         let lz4_len = buf[0] as usize | ((buf[1] as usize) << 8);
         if lz4_len == 0 || 2 + lz4_len > buf.len() {

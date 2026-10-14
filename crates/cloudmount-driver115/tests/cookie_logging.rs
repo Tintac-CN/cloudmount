@@ -380,3 +380,103 @@ fn stat_logs_never_contain_secret_values() {
         "get_info 脱敏日志应保留顶层字段名（名:长度形态）: {events:?}"
     );
 }
+
+// ============ F-04 扩围（m13/m18 追认并入）：ec115 会话密钥/明文 hex ============
+
+/// ec115 `decrypt` 的会话 key/iv 与解密缓冲区 hex 不得落日志
+/// （现状：`ct_head`/`key=`/`iv=` 于 decrypt 输入、`plain_hex` 于 CBC 解密后）。
+///
+/// 金丝雀策略：
+/// - 会话 key/iv 为每次随机的 ECDH 派生值，无法预知具体 hex——以**字段名
+///   标记缺席**断言（` key=`/` iv=`/`ct_head=`/`plain_hex=` 出现即泄漏；
+///   脱敏后只允许 `ct_len`/`plain_len` 等非敏感标量）；
+/// - 解密明文片段以 **hex 形态**金丝雀断言：mock 的 initupload 响应明文
+///   注入 32 字符全互异串（任意 4-gram 必唯一 → LZ4 最小匹配 4 字节找不到
+///   任何匹配 → 金丝雀整体留在字面量区）→ 现状 `plain_hex`（解密缓冲区
+///   `[2LE len][LZ4 块]` 的全量 hex）必然包含其 hex 编码。
+///
+/// 注：明文金丝雀**本身**会出现在 cookie.rs 保留的 "initupload 解密响应"
+/// 明文日志（架构附注：该响应不含凭据，保留）——故只断言 **hex 片段**缺席，
+/// 不断言明文缺席；hex 形态仅出现于 ec115 的泄漏字段，红绿判别面唯一。
+#[test]
+fn ecdh_decrypt_logs_never_contain_key_iv_or_plaintext_hex() {
+    /// 32 字符全互异（任意 4-gram 唯一）的明文金丝雀。
+    const PLAIN_CANARY: &str = "qZ3xK8vN2mW7pQ4rT9cB5dJ0fH6sL1yG";
+    // 与生产 `plain_hex` 同为小写 hex（{b:02x}）
+    let hex_canary: String = PLAIN_CANARY
+        .bytes()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    assert_eq!(hex_canary.len(), PLAIN_CANARY.len() * 2);
+
+    // initupload 响应明文注入金丝雀字段（InitUploadResp 忽略未知字段）
+    let init_plain = INIT_MISS.replace(
+        "\"statuscode\":0",
+        &format!("\"statuscode\":0,\"note\":\"{PLAIN_CANARY}\""),
+    );
+    // 前置自校验：LZ4 块必须把金丝雀**原样连续**保留在字面量区
+    // （4-gram 唯一性前提；若失败请更换全互异金丝雀，而非弱化断言）
+    let block = lz4_flex::compress(init_plain.as_bytes());
+    assert!(
+        block
+            .windows(PLAIN_CANARY.len())
+            .any(|w| w == PLAIN_CANARY.as_bytes()),
+        "前置自校验失败：LZ4 未原样保留金丝雀（4-gram 应全唯一）"
+    );
+
+    let data = b"ec115-canary-payload";
+    let sha1 = sha1_hex_upper(data);
+    let (peer, peer_pub) = TestEcdhPeer::generate();
+    let (addr, _records) = spawn_mock(move |req| {
+        match (req.method.as_str(), req.path_only()) {
+            ("POST", "/app/uploadinfo") => MockResponse::json(200, OK_UPLOADINFO),
+            ("POST", "/4.0/initupload.php") => encrypted_init_response(&peer, req, &init_plain),
+            ("GET", "/3.0/gettoken.php") => MockResponse::json(200, OK_GETTOKEN),
+            ("PUT", "/bkt/obj/f.bin") => MockResponse::bytes(200, Vec::new()),
+            ("GET", "/files") => {
+                MockResponse::json(200, list_ok("998", "f.bin", &sha1, data.len() as u64))
+            }
+            other => panic!("mock 收到未预期请求: {other:?}"),
+        }
+    });
+
+    let provider = cookie_provider(addr, Some(peer_pub));
+    let (result, events) = capture_events(|| {
+        provider.upload(
+            &RemoteId("0".into()),
+            "f.bin",
+            UploadSource::Bytes(data),
+            data.len() as u64,
+        )
+    });
+    result.expect("直传成功路径应成功");
+
+    // 捕获完备性守卫：ECDH 解密必须发生（cm_ec115 事件存在）
+    assert_target_logged(&events, "cm_ec115");
+
+    // key/iv hex 不得落日志：泄漏字段标记一律缺席（值为随机 ECDH 派生，
+    // 无法逐值断言；标记出现即值出现——捕获 Subscriber 逐字段渲染）
+    let ec_events: Vec<&String> = events
+        .iter()
+        .filter(|l| l.contains("cm_ec115"))
+        .collect();
+    assert!(
+        !ec_events.is_empty(),
+        "应有 cm_ec115 事件；实际: {events:?}"
+    );
+    for marker in [" key=", " iv=", "ct_head=", "plain_hex="] {
+        for line in &ec_events {
+            assert!(
+                !line.contains(marker),
+                "安全不变量 #2 违例：`{marker}` 泄漏会话密钥材料/明文——事件: {line}"
+            );
+        }
+    }
+    // 解密明文片段（hex 形态）不得落日志：现状 plain_hex 含解密缓冲区全量 hex
+    for line in &events {
+        assert!(
+            !line.contains(&hex_canary),
+            "安全不变量 #2 违例：日志含解密明文金丝雀的 hex 片段——事件: {line}"
+        );
+    }
+}
