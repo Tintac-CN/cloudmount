@@ -80,6 +80,8 @@ pub struct OpenApiAuth {
     pending: Mutex<Option<PendingLogin>>,
     /// 凭据持久化。
     store: Arc<dyn SecretStore>,
+    /// 通行证基址覆盖（测试注入 mock 服务端用；None = 生产地址）。
+    passport_base_override: Option<String>,
 }
 
 impl OpenApiAuth {
@@ -95,6 +97,7 @@ impl OpenApiAuth {
             tokens: Mutex::new(None),
             pending: Mutex::new(None),
             store,
+            passport_base_override: None,
         };
         if let Ok(Some(blob)) = auth.store.get(SecretKind::OpenApiToken) {
             match serde_json::from_slice::<TokenSet>(&blob) {
@@ -117,6 +120,18 @@ impl OpenApiAuth {
         let auth = Self::new(app_id, store);
         *auth.tokens.lock().expect("lock") = Some(tokens);
         auth
+    }
+
+    /// 指定通行证基址（测试注入 mock 服务端用；沿 `CookieAuth::with_base_url` 既有模式）。
+    #[doc(hidden)]
+    pub fn with_passport_base(mut self, base: impl Into<String>) -> Self {
+        self.passport_base_override = Some(base.into().trim_end_matches('/').to_string());
+        self
+    }
+
+    /// 通行证基址（注入优先，缺省生产常量 [`PASSPORT_BASE`]）。
+    fn passport_base(&self) -> &str {
+        self.passport_base_override.as_deref().unwrap_or(PASSPORT_BASE)
     }
 
     /// 当前 Unix 秒。
@@ -194,7 +209,7 @@ impl OpenApiAuth {
 
     /// 实际执行刷新请求。
     fn do_refresh(&self, refresh_token: &str) -> Result<TokenSet> {
-        let url = format!("{PASSPORT_BASE}/open/refreshToken");
+        let url = format!("{}/open/refreshToken", self.passport_base());
         let value = self.post_form(&url, &[("refresh_token", refresh_token)], |env| {
             (!env.is_ok()).then(|| env.clone().into_error())
         })?;
@@ -206,6 +221,31 @@ impl OpenApiAuth {
             refresh_token: data.refresh_token,
             expires_at: Self::now() + data.expires_in as i64,
         })
+    }
+
+    /// 持锁刷新助手——single-flight 的唯一实现（`access_token` 与 `refresh`/`refresh_stale`
+    /// 双入口共用；见 architecture.md F-10 / 关键决策 #7）。
+    ///
+    /// `skip_if`：持锁后的双检谓词（true = 无需刷新，直接共享他人结果）。
+    ///
+    /// TODO(U4-实现阶段)：持锁双检 → `do_refresh` 持锁跨网络 → 经守卫写回（**绝不调
+    /// `persist()`**，防重入死锁）→ `drop(guard)` → 锁外 `store.put` 持久化。
+    /// TDD 红阶段仅落签名；双入口当前仍走旧逻辑（丢锁 → 网络 → persist），
+    /// T-17 以 mock 刷新计数 >1 呈现合法红。
+    // TODO(U4-实现阶段)：接入双入口后移除本 allow。
+    #[allow(dead_code)]
+    fn refresh_locked(&self, _skip_if: impl FnOnce(&TokenSet) -> bool) -> Result<()> {
+        todo!("U4 实现阶段：单飞刷新助手")
+    }
+
+    /// 以“显式失效 token”为双检谓词的强刷入口（token 失效自动重试路径用）。
+    ///
+    /// TODO(U4-实现阶段)：改为 `self.refresh_locked(|ts| ts.access_token != stale)`——
+    /// 显式 stale 锚点使并发重试者在他人已换新后命中双检而跳过（关闭“背靠背多余刷新”
+    /// 窗口，即 40140117 的触发形态）。红阶段暂走旧的无条件刷新逻辑，
+    /// 并发下会重复刷新——T-17 的合法红由此呈现。
+    pub fn refresh_stale(&self, _stale: &str) -> Result<()> {
+        Authenticator::refresh(self)
     }
 
     /// 是否已登录（不校验有效性）。
