@@ -88,3 +88,19 @@ GATE-REJECTED gate1 2026-10-14
   5. **其余 MINOR**：T-01 除末块口径、T-03 None 透传、T-05 单层向量+编码向量回归面注、T-14 句柄保持时长、T-10 容错断言、T-08 锚 check_enabled、ACTIVE_WATCHERS saturating_sub、F-12 开放问题已裁决、sign_check 延后（arch+qa 双侧）、人工清单⑧ Linux RSS——全部落位（qa"修订落点对照"节可查）。
 - 新计数：AC1–AC16 ↔ T-01…T-30 全部有映射落点；P0 = 9、P1 = 20、P2 = 1，共 30 点。
 - 相位转移：gate1 复位 pending（重审前复位），phase → gate1；第三次复审按打回裁决**只核对新收敛点**（B-R2-1/三 MAJOR/MINOR 清单），不重跑全量四方互审。
+
+
+---
+
+2026-10-14 Gate#1 第三次复审（r3 轻量）与人类终审（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate1-ai-r3.md`（轻量复审，按 r2 打回裁决只核对收敛点：B-R2-1 + 3 MAJOR + 15 MINOR 全部经源码级核验实质消解；残留 0 BLOCKER / 0 MAJOR / 8 MINOR 一句话级措辞残句，两评审角色均认定不构成 Construction 闸门障碍）。
+- 问：「Gate#1 第三次复审：收敛点全部实质消解，残留 0 BLOCKER / 0 MAJOR / 8 MINOR（一句话级措辞，两评审角色均认定不阻塞 Construction）。如何裁决？」
+  答：「通过进 Construction（推荐）」
+- 问：「追认项打包：两轮修订中编排者代行裁决共 11 条（m13/m18 升格 F-04 五处施工面、数值口径统一、T-11 纯测试侧判据、set_cookie_consent 方案①、build_launch_args 跨平台提取、sign_check 延后、desktop 写回补 warn 等，逐字在 decisions.md）。是否全部追认？」
+  答：「全部追认（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate1，此前两条 GATE-REJECTED gate1 2026-10-14 均已被本轮新回执覆盖新鲜度），phase → construction。
+  2. 11 条代行裁决全部追认入档；Construction 中如有异议可随时推翻并记入本文件。
+  3. 残留 8 条 MINOR（reviews/gate1-ai-r3.md 清单）作为 Construction 前置微调落 plan.md 首个 unit（或随首个相关 unit 顺带回填），不阻塞。
+
+GATE-APPROVED gate1 2026-10-14
