@@ -142,3 +142,10 @@ GATE-APPROVED gate1 2026-10-14
 - cookie_channel 7 绿（gettoken 非200→Auth、秒传命中零传输且对端解密表单断言、未命中直传 5 步请求序列含 V1 签名/STS/回调头断言）+ 4 绿护栏不回退；**残留 2 预期红 = F-11 吞状态码缺陷的精确暴露（oss_put_500/oss_put_403），属 U3 范围，U3 完成后转绿**。
 - lib 50/50、mock_api 6/6、clippy -D warnings 零警告；锁定测试文件零改动。unitStatus U1 = done（附注：2 预期红挂 U3）。
 - 调序说明：U4 绿完成后优先插队 U3（F-11，单文件小 unit）以消掉 U1 的 2 预期红，使 driver115 全绿后再进 U2/Wave 2。
+
+---
+
+2026-10-14 U4 完成（绿）记录（编排者）：
+- refresh_locked 持锁双检→do_refresh 跨网络→守卫写回（未调 persist，无重入死锁）→锁外持久化；access_token/refresh()/refresh_stale 三入口并入同一助手；client.rs:244 改传显式 stale（附带清理死 import）。
+- single_flight_refresh 8/8 绿（4 红转绿：恰 1 次/无并发窗口；4 护栏保持）；auth 13/13、driver115 lib 50/50、mock_api 6/6、clippy -D warnings 零警告；锁定测试零改动。unitStatus U4 = done。
+- 派发序列：U4 后按调序插入 U3（F-11，失败测试已存在于 U1 锁定套件——纯实现转绿），随后 Wave 2（U2+U5+U7+U10，限流约束下并发 ≤2 串行推进）。

@@ -15,7 +15,7 @@
     "U1": "done",
     "U2": "pending",
     "U3": "pending",
-    "U4": "red-committed",
+    "U4": "done",
     "U5": "pending",
     "U6": "pending",
     "U7": "pending",
@@ -25,7 +25,7 @@
     "U11": "pending",
     "U12": "pending"
   },
-  "updatedAt": "2026-10-14T23:35:36+08:00",
+  "updatedAt": "2026-10-14T23:40:09+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -92,6 +92,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U1 完成（绿，cookie_channel 7绿/2预期红挂U3、lib 50绿、clippy 净）；调序：U4 后优先 U3 消预期红；U4 绿串行派发中"
+    },
+    {
+      "at": "2026-10-14T23:40:09+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U4 完成（绿，single_flight 8/8、auth 13/13、三入口单飞落地）；派发序列：U3（纯实现转绿）→ Wave 2（并发≤2）"
     }
   ]
 }
