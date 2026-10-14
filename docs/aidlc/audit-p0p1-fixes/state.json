@@ -1,13 +1,13 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "inception",
-  "gates": { "gate1": "rejected", "gate2": "pending" },
+  "phase": "gate1",
+  "gates": { "gate1": "pending", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-14T22:04:25+08:00",
+  "updatedAt": "2026-10-14T22:20:27+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -38,6 +38,12 @@
       "from": "gate1",
       "to": "inception",
       "why": "Gate#1 复审打回（decisions.md 2026-10-14 第二条 GATE-REJECTED gate1）：上轮发现全部确认消解，新发现 1B/3M/15m 措辞级收敛问题；人类裁决 desktop 口径=点击即同意；轻量收敛修订后再审（复审只核对新收敛点）"
+    },
+    {
+      "at": "2026-10-14T22:20:27+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "收敛轮三工件 v3 齐（prd-v3 @ ba295c9 / architecture-v3 @ a0e1a03 / test-strategy-v3 @ d45af6a），收敛点三方一致性自查通过（点击即同意/set_cookie_consent/时间窗交叠/T-30，30 测试点），gate1 复位 pending 待第三次复审（轻量）"
     }
   ]
 }

@@ -75,3 +75,16 @@ GATE-REJECTED gate1 2026-10-14
   6. MINOR 清单第 17 条（AC16 结构性断言 T 点）随 B-R2-1 收敛一并落点（T-28 或新增 T-30 grep 式断言）。
 
 GATE-REJECTED gate1 2026-10-14
+
+---
+
+2026-10-14 收敛轮对齐拍记录（编排者）：
+- 三个角色完成收敛修订（仅动被点名条目）：prd-v3 @ ba295c9、architecture-v3 @ a0e1a03、test-strategy-v3 @ d45af6a。pm 顺带标出两处超出点名范围的残留（U16 目标列旧口径、AC7 When 场景与新主判据并存），经编排者核实为"点击即同意"裁决的直接推论，已派回 pm 一并回填。
+- **收敛点三方一致性自查（关键锚点全部通过）**：
+  1. **点击即同意口径**：prd U16/AC16（点击登录时构造、enabled=true 恒真、consent_acknowledged=勾选状态、初值取配置、死锁理由注）↔ arch desktop 设计节 + 决策 #14（"配置不参与 policy 构造"）↔ qa T-28/T-30（点击口径 + 结构性断言收窄为组装路径、登录会话豁免带注释）。
+  2. **set_cookie_consent**：prd AC16 分支 1（core 纯函数 + T-27 + desktop 接线归人工清单⑦）↔ arch desktop 节/数据模型/F-05 配套（CLI 与 desktop 双写入方均经同一函数）↔ qa T-27（三断言 + 负基线 + workspace exclude 理由）。
+  3. **时间窗交叠判据**：prd AC7（双场景 When：主判据=不同前缀双目录交叠、副判据=缓存 Y 提前返回）↔ arch F-07（零生产 seam、不新增观测 hook）↔ qa T-11（500ms 钉死、交叠主判据、60% 副判据）。
+  4. **windows 编译面**：arch F-12 跨平台提取注 ↔ qa T-29（无门控 + 烘焙默认值钉死）/T-25② 清单补全（T-09 全腿 windows-only）。
+  5. **其余 MINOR**：T-01 除末块口径、T-03 None 透传、T-05 单层向量+编码向量回归面注、T-14 句柄保持时长、T-10 容错断言、T-08 锚 check_enabled、ACTIVE_WATCHERS saturating_sub、F-12 开放问题已裁决、sign_check 延后（arch+qa 双侧）、人工清单⑧ Linux RSS——全部落位（qa"修订落点对照"节可查）。
+- 新计数：AC1–AC16 ↔ T-01…T-30 全部有映射落点；P0 = 9、P1 = 20、P2 = 1，共 30 点。
+- 相位转移：gate1 复位 pending（重审前复位），phase → gate1；第三次复审按打回裁决**只核对新收敛点**（B-R2-1/三 MAJOR/MINOR 清单），不重跑全量四方互审。
