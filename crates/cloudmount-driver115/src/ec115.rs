@@ -312,6 +312,55 @@ pub fn generate_token(
     hex::encode(h.finalize())
 }
 
+/// ECDH 测试对端（**仅测试辅助**；`#[doc(hidden)]`，生产路径绝不依赖）。
+///
+/// 回环硬前提（F-14 / T-24）：无人持有 115 固定公钥（`REMOTE_PUB_KEY`）对应的
+/// 私钥，测试必须以**测试密钥对替换远端公钥**：
+/// - [`TestEcdhPeer::generate`] 生成服务端密钥对，公钥（56 字节 = X‖Y）经
+///   `Cookie115Provider::with_ecdh_remote_pub` 注入驱动；
+/// - [`TestEcdhPeer::session`] 从请求 URL 的 `k_ec` token 逆解码客户端公钥
+///   （[`EcdhCipher::encode_token`] 的逆变换）→ ECDH 共享密钥 → 与客户端同构的
+///   key/iv（重叠 4 字节派生）；
+/// - [`PeerSession::decrypt_request`] / [`PeerSession::encrypt_response`] 镜像
+///   请求/响应方向的 CBC + PKCS7 / `[长度(2 LE)][LZ4]` 帧（复用本文件既有代码）。
+#[doc(hidden)]
+pub mod test_peer {
+    /// 测试服务端（持有测试密钥对的私钥）。
+    pub struct TestEcdhPeer {}
+
+    /// 与客户端的一次 ECDH 会话（key/iv 派生与 [`super::EcdhCipher`] 一致）。
+    pub struct PeerSession {}
+
+    impl TestEcdhPeer {
+        /// 生成服务端测试密钥对；返回 (peer, 远端公钥 56 字节 = X‖Y)。
+        ///
+        /// 公钥注入 `Cookie115Provider::with_ecdh_remote_pub`。
+        pub fn generate() -> (Self, [u8; 56]) {
+            todo!("U1-GREEN: 生成 P-224 测试密钥对（未压缩公钥 56 字节 = X‖Y）")
+        }
+
+        /// 从 `k_ec` token 解出客户端公钥（`encode_token` 的逆变换）并派生共享会话。
+        pub fn session(&self, k_ec: &str) -> cloudmount_core::Result<PeerSession> {
+            let _ = k_ec;
+            todo!("U1-GREEN: k_ec 逆解码 → ECDH 共享密钥 → key/iv（重叠 4 字节）")
+        }
+    }
+
+    impl PeerSession {
+        /// 解密 initupload 请求体（CBC + PKCS7；请求方向无 LZ4 帧）→ 表单明文。
+        pub fn decrypt_request(&self, body: &[u8]) -> Vec<u8> {
+            let _ = body;
+            todo!("U1-GREEN: CBC 解密 + PKCS7 去填充")
+        }
+
+        /// 加密响应：LZ4 压缩 + `[长度(2 LE)]` 帧 + CBC → 客户端 `decrypt` 可解。
+        pub fn encrypt_response(&self, plain: &[u8]) -> cloudmount_core::Result<Vec<u8>> {
+            let _ = plain;
+            todo!("U1-GREEN: LZ4 + 长度帧 + CBC 加密")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

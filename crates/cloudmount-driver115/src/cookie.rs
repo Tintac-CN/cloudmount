@@ -36,12 +36,22 @@ pub const PROAPI_BASE: &str = "https://proapi.115.com";
 /// 列表分页大小（web 接口上限约 1150，保守取 1000）。
 const PAGE_LIMIT: i64 = 1000;
 
-/// 上传初始化端点（ECDH 加密通道）。
-const UPLOAD_INIT_URL: &str = "https://uplb.115.com/4.0/initupload.php";
-/// OSS STS token 端点。
-const UPLOAD_TOKEN_URL: &str = "https://uplb.115.com/3.0/gettoken.php";
-/// OSS 默认端点（115driver 常量：双栈域名）。
-const OSS_ENDPOINT: &str = "cn-shenzhen.oss.aliyuncs.com";
+/// 上传基址（**完整基址含 scheme**；默认 = 生产 uplb 域名，测试可注入本地 mock）。
+///
+/// F-14 注入面：initupload/gettoken 渲染为 `{upload_base}{路径}` 拼接，
+/// 默认渲染与拆分前常量（`https://uplb.115.com/4.0/initupload.php`、
+/// `https://uplb.115.com/3.0/gettoken.php`）逐字节一致（等价回归单测锁定）。
+const UPLOAD_BASE_DEFAULT: &str = "https://uplb.115.com";
+/// initupload 端点路径（拼接在上传基址后）。
+const INITUPLOAD_PATH: &str = "/4.0/initupload.php";
+/// gettoken 端点路径（拼接在上传基址后）。
+const GETTOKEN_PATH: &str = "/3.0/gettoken.php";
+/// OSS 直传 URL 模板（**完整模板含 scheme**，含 `{bucket}`/`{object}` 占位）。
+///
+/// 默认渲染与原 `format!("https://{bucket}.{OSS_ENDPOINT}/{object}")` 逐字节一致；
+/// 模板形态使本地明文 mock（无 DNS 子域能力）可用路径段承载 bucket。
+const OSS_BASE_TEMPLATE_DEFAULT: &str =
+    "https://{bucket}.cn-shenzhen.oss.aliyuncs.com/{object}";
 /// 上传 app 版本（p115client 现行值；27.0.5.7/30.5.1/36.0.1 均被拒）。
 const APP_VER: &str = "36.2.28";
 /// sign_check 重试上限。
@@ -187,6 +197,13 @@ pub struct Cookie115Provider {
     webapi_base: String,
     /// pro 资源域（测试注入）。
     proapi_base: String,
+    /// 上传基址（完整基址含 scheme；默认 = [`UPLOAD_BASE_DEFAULT`]）。
+    upload_base: String,
+    /// OSS 直传 URL 模板（含 `{bucket}`/`{object}` 占位；默认 =
+    /// [`OSS_BASE_TEMPLATE_DEFAULT`]）。
+    oss_base: String,
+    /// ECDH 远端公钥替换（仅测试；`None` = 115 固定公钥，生产路径不变）。
+    ecdh_remote_pub: Option<[u8; 56]>,
     /// fid → pickcode 缓存（list 时填充；open_range 下载凭证的来源——
     /// get_info 端点实测返回 990002 参数错误，不可依赖）。
     picks: std::sync::Mutex<HashMap<String, String>>,
@@ -212,6 +229,9 @@ impl Cookie115Provider {
             auth,
             webapi_base: WEBAPI_BASE.into(),
             proapi_base: PROAPI_BASE.into(),
+            upload_base: UPLOAD_BASE_DEFAULT.into(),
+            oss_base: OSS_BASE_TEMPLATE_DEFAULT.into(),
+            ecdh_remote_pub: None,
             picks: std::sync::Mutex::new(HashMap::new()),
         })
     }
@@ -220,6 +240,37 @@ impl Cookie115Provider {
     pub fn with_base_urls(mut self, webapi: impl Into<String>, proapi: impl Into<String>) -> Self {
         self.webapi_base = webapi.into().trim_end_matches('/').to_string();
         self.proapi_base = proapi.into().trim_end_matches('/').to_string();
+        self
+    }
+
+    /// 注入上传基址（**完整基址含 scheme**；集成测试本地 mock 服务端）。
+    ///
+    /// initupload/gettoken 渲染为 `{base}{INITUPLOAD_PATH}`、`{base}{GETTOKEN_PATH}`；
+    /// 默认值与生产常量逐字节等价。
+    pub fn with_upload_base(mut self, base: impl Into<String>) -> Self {
+        self.upload_base = base.into().trim_end_matches('/').to_string();
+        self
+    }
+
+    /// 注入 OSS 直传 URL 模板（须含 scheme 与 `{bucket}`/`{object}` 占位）。
+    ///
+    /// 本地明文 mock 无 DNS 子域能力，用路径段承载 bucket
+    /// （如 `http://127.0.0.1:{port}/{bucket}/{object}`）。
+    pub fn with_oss_base(mut self, template: impl Into<String>) -> Self {
+        self.oss_base = template.into();
+        self
+    }
+
+    /// 注入限速参数（测试提速；镜像 `ApiClient::with_rate_limit` 既有先例）。
+    pub fn with_rate_limit(mut self, rate_per_sec: f64, capacity: f64) -> Self {
+        self.limiter = RateLimiter::new(rate_per_sec, capacity);
+        self
+    }
+
+    /// 替换 ECDH 远端公钥（仅测试；与 [`crate::ec115::test_peer`] 测试对端配对）。
+    #[doc(hidden)]
+    pub fn with_ecdh_remote_pub(mut self, remote: [u8; 56]) -> Self {
+        self.ecdh_remote_pub = Some(remote);
         self
     }
 
@@ -428,6 +479,15 @@ impl Cookie115Provider {
         Ok(UploadCtx { user_id, userkey })
     }
 
+    /// 构造 ECDH 会话（生产 = 115 固定公钥；注入替换公钥时用测试对端配对构造）。
+    fn ecdh_cipher(&self) -> Result<EcdhCipher> {
+        match self.ecdh_remote_pub {
+            // U1-GREEN：远端公钥替换构造（与 ec115::test_peer 配对）——红阶段骨架
+            Some(_) => todo!("U1-GREEN: 用替换的远端公钥构造 EcdhCipher（与 ec115::test_peer 配对）"),
+            None => EcdhCipher::new(),
+        }
+    }
+
     /// ECDH 加密的 initupload 请求（含 sign_check 区间的自动计算）。
     #[allow(clippy::too_many_arguments)]
     fn init_upload(
@@ -440,7 +500,7 @@ impl Cookie115Provider {
         sign: &Option<(String, String)>,
         source: &cloudmount_core::provider::UploadSource<'_>,
     ) -> Result<InitUploadResp> {
-        let cipher = EcdhCipher::new()?;
+        let cipher = self.ecdh_cipher()?;
         let target = format!("U_1_{dir_id}");
         let app_ver = self.current_app_version();
         // **秒级时间戳**（fake115uploader 同款；毫秒会 token invalid）
@@ -501,7 +561,7 @@ impl Cookie115Provider {
 
         let cookie = self.auth.cookie_header()?;
         self.pace()?;
-        let url = format!("{UPLOAD_INIT_URL}?k_ec={k_ec}");
+        let url = format!("{}{INITUPLOAD_PATH}?k_ec={k_ec}", self.upload_base);
         // initupload UA：三客户端家族合一（p115client 现行）
         let disk_ua_agent: ureq::Agent = ureq::Agent::config_builder()
             .user_agent(format!(
@@ -547,9 +607,10 @@ impl Cookie115Provider {
         // STS token
         let cookie = self.auth.cookie_header()?;
         self.pace()?;
+        let token_url = format!("{}{GETTOKEN_PATH}", self.upload_base);
         let resp = self
             .agent
-            .get(UPLOAD_TOKEN_URL)
+            .get(&token_url)
             .header("Cookie", &cookie)
             .call()
             .map_err(|e| Error::Transport(format!("gettoken 失败: {e}")))?;
@@ -602,7 +663,7 @@ impl Cookie115Provider {
             base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes())
         };
 
-        let url = format!("https://{bucket}.{OSS_ENDPOINT}/{object}");
+        let url = render_oss_url(&self.oss_base, bucket, object);
         self.pace()?;
         let req = self
             .agent
@@ -699,6 +760,25 @@ struct OssStsToken {
 fn parse_range(spec: &str) -> Option<(u64, u64)> {
     let (s, e) = spec.split_once('-')?;
     Some((s.parse().ok()?, e.parse().ok()?))
+}
+
+/// OSS 直传 URL 渲染：对模板占位 `{bucket}`/`{object}` 一次性分段替换。
+///
+/// 值原样替换（与原 `format!` 语义一致，不做百分号编码）；
+/// 默认模板渲染与拆分前 `format!("https://{bucket}.{OSS_ENDPOINT}/{object}")`
+/// 逐字节一致（等价回归单测锁定）。
+fn render_oss_url(template: &str, bucket: &str, object: &str) -> String {
+    let mut out = String::with_capacity(template.len() + bucket.len() + object.len());
+    let mut rest = template;
+    for (placeholder, value) in [("{bucket}", bucket), ("{object}", object)] {
+        if let Some((head, tail)) = rest.split_once(placeholder) {
+            out.push_str(head);
+            out.push_str(value);
+            rest = tail;
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// RFC 1123 GMT 时间（OSS 签名用）。
@@ -1023,6 +1103,51 @@ impl Provider for Cookie115Provider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cloudmount_auth::cookie::CookieJar;
+    use cloudmount_auth::store::{MemoryStore, SecretKind, SecretStore};
+
+    #[test]
+    fn default_upload_rendering_is_byte_equivalent() {
+        // F-14 等价回归锚：默认渲染与拆分前常量（:40/:42）及 :605 format! 逐字节一致
+        assert_eq!(
+            format!("{UPLOAD_BASE_DEFAULT}{INITUPLOAD_PATH}"),
+            "https://uplb.115.com/4.0/initupload.php"
+        );
+        assert_eq!(
+            format!("{UPLOAD_BASE_DEFAULT}{GETTOKEN_PATH}"),
+            "https://uplb.115.com/3.0/gettoken.php"
+        );
+        assert_eq!(
+            render_oss_url(OSS_BASE_TEMPLATE_DEFAULT, "bkt", "obj/path"),
+            "https://bkt.cn-shenzhen.oss.aliyuncs.com/obj/path"
+        );
+    }
+
+    #[test]
+    fn provider_defaults_use_production_injection_values() {
+        let store = std::sync::Arc::new(MemoryStore::default());
+        let jar = CookieJar {
+            uid: "u".into(),
+            cid: "c".into(),
+            seid: "s".into(),
+            kid: None,
+        };
+        store
+            .put(SecretKind::CookieJar, &serde_json::to_vec(&jar).unwrap())
+            .expect("预置 CookieJar");
+        let policy = CookiePolicy {
+            enabled: true,
+            consent_acknowledged: true,
+        };
+        let p = Cookie115Provider::try_new(policy, CookieAuth::new(policy, store))
+            .expect("构造");
+        assert_eq!(p.upload_base, "https://uplb.115.com");
+        assert_eq!(
+            p.oss_base,
+            "https://{bucket}.cn-shenzhen.oss.aliyuncs.com/{object}"
+        );
+        assert_eq!(p.ecdh_remote_pub, None, "默认必须用 115 固定公钥");
+    }
 
     #[test]
     fn web_mtime_parses_shanghai_time() {
