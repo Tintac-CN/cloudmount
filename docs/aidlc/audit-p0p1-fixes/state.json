@@ -25,7 +25,7 @@
     "U11": "done",
     "U12": "done"
   },
-  "updatedAt": "2026-10-15T07:08:24+08:00",
+  "updatedAt": "2026-10-15T07:20:00+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -140,6 +140,12 @@
       "from": "gate2",
       "to": "construction",
       "why": "Gate#2 人类审批打回（decisions.md 2026-10-15 GATE-REJECTED gate2）：B1 补 U6 + M1 fmt + M2 定位 flaky + M3 流程留痕 + MINOR 同步；三项偏差备案全部追认；F-04 计数更正为七处；U6 unitStatus 更正为 pending"
+    },
+    {
+      "at": "2026-10-15T07:20:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "修复轮：U6 红阶段补做提交（3红51绿，严格红提交纪律）；router.rs 内联测试锁例外留痕（同 U9 前例）；MINOR 1/2/6 文档同步进行"
     }
   ]
 }

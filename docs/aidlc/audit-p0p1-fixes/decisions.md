@@ -214,3 +214,10 @@ GATE-APPROVED gate1 2026-10-14
   4. MINOR 处置：m1(T-15 单元腿)与 m2(T-27 措辞/T-28/T-30 降级)以 test-strategy 缺口节同步落痕（qa 工件由编排者按终审授权微调）；m5(cookie.rs:584 initupload 解密明文日志收口为 status/pickcode)与 m7/m8(内存尾债/冗余条件)记入 P2 backlog；m9(cookie_mock 与 mock_api 平行实现)留痕备案；m10(F-10"恰1次"措辞)随本条留痕对齐，architecture 文本修订归 retro。
 
 GATE-REJECTED gate2 2026-10-15
+
+---
+
+2026-10-15 Gate#2 修复轮记录（编排者）：
+- U6 红阶段补做（@ 本次提交）：Stub 扩 ProbeBehavior 四态 + 共享计数 + change_probe 覆写；T-03 转发格/T-04/T-26 三红（T-03 None 透传格现状绿作护栏）；51 既有测试零回退。**严格红提交纪律（M3 修正的执行样例）。**
+- 锁例外留痕：router.rs 测试为内联 #[cfg(test)] 模块（同 U9 cfapi.rs 前例），路径锁会阻断绿阶段实现——不列入 tddLockPaths；以"绿阶段 diff 仅 impl 增一行转发 + 测试断言零修改"由 gate2 复审核验。
+- 其余修复项推进：prd AC2 映射更正（U2→U6）、test-strategy T-15/T-27 措辞与缺口节同步（MINOR 1/2/6）由编排者按打回裁决执行；M1 fmt 于 U6 绿后统一执行；M2 flaky 定位循环进行中。
