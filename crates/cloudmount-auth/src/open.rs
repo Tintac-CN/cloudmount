@@ -187,24 +187,14 @@ impl OpenApiAuth {
                 return Err(Error::Auth("未登录：请先执行 `cloudmount login`".into()));
             }
         }
-        // 需要刷新（持锁执行，天然单飞）
+        // 慢路径：持锁刷新（single-flight）——双检命中即共享他人已完成的刷新结果
+        self.refresh_locked(|ts| !ts.needs_refresh(Self::now()))?;
+        // 重读 token：覆盖"本线程完成刷新"与"双检命中共享他人结果"两种情形
         let guard = self.tokens.lock().expect("lock");
-        // 双检：可能已被其它线程刷新
-        if let Some(ts) = guard.as_ref() {
-            if !ts.needs_refresh(Self::now()) {
-                return Ok(ts.access_token.clone());
-            }
-        }
-        let refresh_token = guard
+        guard
             .as_ref()
-            .map(|t| t.refresh_token.clone())
-            .ok_or_else(|| Error::Auth("未登录".into()))?;
-        drop(guard);
-
-        let ts = self.do_refresh(&refresh_token)?;
-        let token = ts.access_token.clone();
-        self.persist(ts)?;
-        Ok(token)
+            .map(|ts| ts.access_token.clone())
+            .ok_or_else(|| Error::Auth("未登录".into()))
     }
 
     /// 实际执行刷新请求。
@@ -226,26 +216,39 @@ impl OpenApiAuth {
     /// 持锁刷新助手——single-flight 的唯一实现（`access_token` 与 `refresh`/`refresh_stale`
     /// 双入口共用；见 architecture.md F-10 / 关键决策 #7）。
     ///
-    /// `skip_if`：持锁后的双检谓词（true = 无需刷新，直接共享他人结果）。
-    ///
-    /// TODO(U4-实现阶段)：持锁双检 → `do_refresh` 持锁跨网络 → 经守卫写回（**绝不调
-    /// `persist()`**，防重入死锁）→ `drop(guard)` → 锁外 `store.put` 持久化。
-    /// TDD 红阶段仅落签名；双入口当前仍走旧逻辑（丢锁 → 网络 → persist），
-    /// T-17 以 mock 刷新计数 >1 呈现合法红。
-    // TODO(U4-实现阶段)：接入双入口后移除本 allow。
-    #[allow(dead_code)]
-    fn refresh_locked(&self, _skip_if: impl FnOnce(&TokenSet) -> bool) -> Result<()> {
-        todo!("U4 实现阶段：单飞刷新助手")
+    /// 调用约定：`tokens` 锁的持有贯穿整个刷新过程。`skip_if` 为持锁后的双检谓词
+    /// （true = 无需刷新，直接共享他人结果）；刷新网络往返在锁内完成，等待者阻塞至
+    /// 刷新完成或失败——失败经 `?` 提前释放锁，等待者依次串行重试（合法形态，40140117
+    /// 仅由并发成功刷新触发）。写回必须经守卫（**不可调 `persist()`**——它会重入拿
+    /// 同一把锁自锁死）；`SecretStore` 持久化移到锁外。
+    fn refresh_locked(&self, skip_if: impl FnOnce(&TokenSet) -> bool) -> Result<()> {
+        let mut guard = self.tokens.lock().expect("lock");
+        let current = guard
+            .as_ref()
+            .ok_or_else(|| Error::Auth("未登录：请先执行 `cloudmount login`".into()))?;
+        // 双检：他人已完成刷新 → 直接共享结果
+        if skip_if(current) {
+            return Ok(());
+        }
+        let refresh_token = current.refresh_token.clone();
+        // 持锁跨网络——single-flight 核心
+        let ts = self.do_refresh(&refresh_token)?;
+        let blob = serde_json::to_vec(&ts)?;
+        // 经守卫写回（绝不调 persist()——重入自锁）
+        *guard = Some(ts);
+        drop(guard);
+        // 持久化移到锁外
+        self.store.put(SecretKind::OpenApiToken, &blob)?;
+        Ok(())
     }
 
-    /// 以“显式失效 token”为双检谓词的强刷入口（token 失效自动重试路径用）。
+    /// 以“显式失效 token”为身份双检谓词的强刷入口（token 失效自动重试路径用）。
     ///
-    /// TODO(U4-实现阶段)：改为 `self.refresh_locked(|ts| ts.access_token != stale)`——
-    /// 显式 stale 锚点使并发重试者在他人已换新后命中双检而跳过（关闭“背靠背多余刷新”
-    /// 窗口，即 40140117 的触发形态）。红阶段暂走旧的无条件刷新逻辑，
-    /// 并发下会重复刷新——T-17 的合法红由此呈现。
-    pub fn refresh_stale(&self, _stale: &str) -> Result<()> {
-        Authenticator::refresh(self)
+    /// 锚点由调用方显式传入（本次请求实际使用、被服务端判定失效的 access_token），
+    /// 而非入口内部自行观察：并发重试者在他人已换新后双检命中（当前 != stale）而跳过，
+    /// 关闭“背靠背多余刷新”窗口——即 40140117 的触发形态（architecture.md 决策 #7）。
+    pub fn refresh_stale(&self, stale: &str) -> Result<()> {
+        self.refresh_locked(|ts| ts.access_token != stale)
     }
 
     /// 是否已登录（不校验有效性）。
@@ -404,13 +407,14 @@ impl Authenticator for OpenApiAuth {
     }
 
     fn refresh(&self) -> Result<()> {
-        let rt = {
+        // 以"观察到的当前 token"为身份双检锚点，经同一持锁助手单飞刷新：
+        // 锁保证每时刻至多一个在途刷新请求；双检命中者（他人已换新）共享结果。
+        let observed = {
             let guard = self.tokens.lock().expect("lock");
-            guard.as_ref().map(|t| t.refresh_token.clone())
+            guard.as_ref().map(|t| t.access_token.clone())
         };
-        let rt = rt.ok_or_else(|| Error::Auth("未登录".into()))?;
-        let ts = self.do_refresh(&rt)?;
-        self.persist(ts)
+        let old = observed.ok_or_else(|| Error::Auth("未登录".into()))?;
+        self.refresh_locked(|ts| ts.access_token != old)
     }
 
     fn session(&self) -> Option<Session> {

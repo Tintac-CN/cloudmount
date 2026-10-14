@@ -9,7 +9,6 @@
 
 use crate::ratelimit::RateLimiter;
 use cloudmount_auth::open::{OpenApiAuth, PROAPI_BASE};
-use cloudmount_auth::Authenticator as _;
 use cloudmount_core::{Envelope, Error, RangeSpec, Result};
 use std::io::Read;
 use std::sync::Arc;
@@ -241,7 +240,8 @@ impl ApiClient {
             return Ok(text);
         }
         tracing::debug!("access_token 被服务端判定失效，强制刷新后重试一次");
-        self.auth.refresh()?;
+        // 显式传本次失效的 token：并发重试路径经身份双检合并为至多一次刷新（40140117 防护）
+        self.auth.refresh_stale(&token)?;
         let token = self.auth.access_token()?;
         attempt(&token)
     }
