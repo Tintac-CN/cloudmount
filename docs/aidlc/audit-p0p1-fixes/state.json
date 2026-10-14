@@ -1,19 +1,25 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "inception",
+  "phase": "gate1",
   "gates": { "gate1": "pending", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-14T10:36:14+08:00",
+  "updatedAt": "2026-10-14T10:58:22+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
       "from": null,
       "to": "inception",
       "why": "intent created via /aidlc:inception 「请按照审计报告开始修复」；范围默认 P0+P1，P2 延后（Gate#1 可调整）"
+    },
+    {
+      "at": "2026-10-14T10:58:22+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "inception 三工件齐（prd/architecture/test-strategy @ 2d6c29b..7635b2d）且对齐拍完成（AC14 引用回填），进入设计门"
     }
   ]
 }
