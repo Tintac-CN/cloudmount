@@ -9,7 +9,102 @@
 
 use cloudmount_daemon::webdav;
 use cloudmount_sync::testutil::MockRemote;
+use std::path::PathBuf;
 use std::sync::Arc;
+
+// ==== U10 harness：web-ui fixture + 任意 Arc<dyn Provider> 注入口 ====
+
+/// 金丝雀内容：位于 serve root（webui/）**之外**，路径遍历一旦成功即泄漏。
+const CANARY_SECRET: &str = "CANARY-SECRET-7f3d9a2c-do-not-serve";
+/// web-ui fixture：合法资产内容（正路径断言基准，逐字节一致）。
+const UI_INDEX_HTML: &[u8] = b"<html>CloudMount UI fixture</html>";
+const UI_APP_JS: &[u8] = b"// cloudmount web-ui fixture app.js";
+
+/// web-ui fixture 布局（tempdir）：
+///
+/// ```text
+/// <root>/canary-secret.txt      ← 金丝雀（webui 之外——遍历目标）
+/// <root>/webui/index.html       ← serve 的 web_ui_dir 根
+/// <root>/webui/assets/app.js
+/// ```
+struct UiFixture {
+    /// tempdir 根（金丝雀所在——**不是** serve root）。
+    root: PathBuf,
+    /// serve 的 web_ui_dir（= `<root>/webui`）。
+    ui_dir: PathBuf,
+}
+
+impl UiFixture {
+    fn create(tag: &str) -> UiFixture {
+        let root = std::env::temp_dir().join(format!(
+            "cm-uitest-{}-{}-{}",
+            std::process::id(),
+            tag,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("webui/assets")).unwrap();
+        std::fs::write(root.join("webui/index.html"), UI_INDEX_HTML).unwrap();
+        std::fs::write(root.join("webui/assets/app.js"), UI_APP_JS).unwrap();
+        std::fs::write(root.join("canary-secret.txt"), CANARY_SECRET).unwrap();
+        UiFixture {
+            ui_dir: root.join("webui"),
+            root,
+        }
+    }
+}
+
+impl Drop for UiFixture {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+/// 启动服务并挂 web-ui fixture（serve 第 4 参传 `Some(ui_dir)`，使
+/// serve_static 静态路由面可达——现状传 None 时非 /dav 路径直接 404）。
+async fn spawn_with_ui(provider: Arc<dyn cloudmount_core::Provider>, ui_dir: PathBuf) -> u16 {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let listen = format!("127.0.0.1:{port}");
+    tokio::spawn(async move {
+        webdav::serve(provider, &listen, None, Some(ui_dir), None)
+            .await
+            .ok();
+    });
+    for _ in 0..50 {
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    port
+}
+
+/// 默认 MockRemote + web-ui fixture（T-05 用）。
+/// 返回 (端口, MockRemote, fixture)。
+async fn start_server_with_ui() -> (u16, Arc<MockRemote>, UiFixture) {
+    let remote = Arc::new(MockRemote::new());
+    let provider: Arc<dyn cloudmount_core::Provider> = remote.clone();
+    let fixture = UiFixture::create("default");
+    let port = spawn_with_ui(provider, fixture.ui_dir.clone()).await;
+    (port, remote, fixture)
+}
+
+/// U11 注入口：任意 `Arc<dyn Provider>`（包装族 ErrorInjecting/Recording）
+/// 携带 web-ui fixture，返回 (端口, fixture)。
+///
+/// 本 unit 先行铺设；U11 施工后由其测试消费（dead_code 抑制至彼时）。
+#[allow(dead_code)]
+pub(crate) async fn start_server_with_ui_provider(
+    provider: Arc<dyn cloudmount_core::Provider>,
+) -> (u16, UiFixture) {
+    let fixture = UiFixture::create("provider");
+    let port = spawn_with_ui(provider, fixture.ui_dir.clone()).await;
+    (port, fixture)
+}
 
 /// 启动测试服务（随机端口），返回 (端口, MockRemote)。
 async fn start_server() -> (u16, Arc<MockRemote>) {
@@ -38,7 +133,8 @@ async fn start_server() -> (u16, Arc<MockRemote>) {
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    let _ = server;
+    // 丢弃 JoinHandle = detach（server 存活至进程退出）
+    std::mem::drop(server);
     (port, remote)
 }
 
@@ -320,4 +416,72 @@ async fn web_ui_static_serving() {
     assert!(status == 403 || status == 404, "穿越应被拒: {status}");
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// T-05（AC3 / F-03）：路径遍历攻击向量全拦截 + 正路径不受影响。
+///
+/// 向量**不带 /dav/ 前缀**（/dav/* 经 webdav.rs 路由进 ProviderFs，
+/// 到不了被修复的 serve_static），直打静态路由面。
+///
+/// 红测主力 = 裸冒号盘符主向量 `/C:/Windows/win.ini`：修复前 Windows 上
+/// `root.join` 遇绝对成分直接替换基路径 → 200 泄漏真实 win.ini 内容。
+/// 百分号编码向量（`/C%3A/foo` 等）= 修复后回归面（现状不解码）。
+/// hyper Uri 对 `\` 等非 URI 合法字符要求百分号编码——向量一律编码形态发送。
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn web_ui_traversal_vectors_rejected() {
+    let (port, _remote, fixture) = start_server_with_ui().await;
+
+    // fixture 自检：金丝雀确在 serve root 之外（防止 fixture 漂移导致测试空转）
+    assert_eq!(
+        std::fs::read_to_string(fixture.root.join("canary-secret.txt")).unwrap(),
+        CANARY_SECRET
+    );
+
+    // (向量, 说明)
+    let vectors = [
+        ("/C:/Windows/win.ini", "盘符绝对路径（红测主向量）"),
+        ("/C%3A/foo", "盘符百分号编码（C:）"),
+        ("/C%3A%5Cfoo", "盘符+反斜杠百分号编码（C:\\foo）"),
+        (
+            "/..%2Fcanary-secret.txt",
+            "单层 .. 编码——解码后恰达 root 外金丝雀",
+        ),
+        ("//C:/Windows/win.ini", "空段+盘符"),
+        ("//server/share/f", "UNC 前导斜杠形态（纵深防御）"),
+        (
+            "/%5C%5Cserver%5Cshare%5Cf",
+            "UNC 反斜杠编码形态（纵深防御）",
+        ),
+    ];
+    for (vector, why) in vectors {
+        let (status, body) = request(port, "GET", vector, None).await;
+        assert!(
+            status == 403 || status == 404,
+            "向量 {vector}（{why}）应 403/404，实际 {status}"
+        );
+        let text = String::from_utf8_lossy(&body);
+        assert!(
+            !text.contains("CANARY-SECRET"),
+            "向量 {vector}（{why}）泄漏金丝雀: {text}"
+        );
+        // Windows 上裸盘符向量修复前返回真实 win.ini（92 字节，含以下标记）
+        let lower = text.to_lowercase();
+        assert!(
+            !lower.contains("16-bit app support") && !lower.contains("[fonts]"),
+            "向量 {vector}（{why}）疑似泄漏 win.ini 内容: {text}"
+        );
+    }
+
+    // ---- 正路径（修复不得误伤合法资产）----
+    let (status, body) = request(port, "GET", "/", None).await;
+    assert_eq!(status, 200, "根路径应 200 → index.html");
+    assert_eq!(body, UI_INDEX_HTML, "根路径内容应与 fixture 逐字节一致");
+
+    let (status, body) = request(port, "GET", "/index.html", None).await;
+    assert_eq!(status, 200, "/index.html 应 200");
+    assert_eq!(body, UI_INDEX_HTML);
+
+    let (status, body) = request(port, "GET", "/assets/app.js", None).await;
+    assert_eq!(status, 200, "/assets/app.js 应 200");
+    assert_eq!(body, UI_APP_JS);
 }

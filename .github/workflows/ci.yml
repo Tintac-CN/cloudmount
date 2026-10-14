@@ -33,6 +33,29 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+  # T-25 / 决策 #16：主腿 `cargo test --workspace` 不带 features，而
+  # webdav_serve.rs 整文件 `#![cfg(feature = "mock")]` 门控——F-03/F-08/F-09
+  # 安全集成测试在主腿从不执行（安全项空绿）。本并列 job 使该套件进入门控。
+  rust-mock-features:
+    name: Rust（mock feature 集成腿：webdav_serve）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test (mock feature)
+        run: cargo test --workspace --features cloudmount-daemon/mock
+      # windows-only 清单（Linux/macOS 跳过——"三平台绿"非全量覆盖）：
+      # - T-09 全腿：cloudmount-sync `pub mod rdc` 整体 #[cfg(windows)]
+      #   （cloudmount-sync/src/lib.rs:43-44），Linux 主腿不可编译，非仅句柄子腿；
+      # - T-14 flush 共享冲突注入（#[cfg(windows)]）；
+      # - cfapi 集成腿（T-01/T-02）在 GH windows runner 因 SyncRoot 注册
+      #   失败（0x80070490）自动跳过——该面实际守护只剩单元腿。
+
   web-ui:
     name: Web UI（typecheck + build）
     runs-on: ubuntu-latest

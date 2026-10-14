@@ -39,8 +39,8 @@ use futures_util::future::FutureExt;
 use futures_util::stream::StreamExt;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime};
 
 /// 路径缓存条目。
@@ -918,18 +918,128 @@ async fn handle_api(
     }
 }
 
+/// Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）。
+///
+/// 按扩展名前的 stem 判定（`CON.txt` 同样命中——Windows 会把这类名字
+/// 解析到设备）；大小写不敏感；防"打开设备挂起"。
+fn is_reserved_device_name(comp: &str) -> bool {
+    let stem = comp.split('.').next().unwrap_or("");
+    matches!(
+        stem.to_ascii_uppercase().as_str(),
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    )
+}
+
+/// 单个路径成分校验（零 IO）。
+///
+/// 拒绝：空段、`..`/`.`（穿越）、含 `:`（盘符 `C:` + NTFS 备用数据流
+/// `file:stream`——盘符段经 `Path::join` 会整体替换基路径）、含 `\`
+/// （维持 `/` 单分隔符不变量）、Windows 保留设备名。
+fn is_safe_component(comp: &str) -> bool {
+    if comp.is_empty() || comp == "." || comp == ".." {
+        return false;
+    }
+    if comp.contains(':') || comp.contains('\\') {
+        return false;
+    }
+    !is_reserved_device_name(comp)
+}
+
+/// 请求路径 → 合法相对段序列（`None` = 含非法成分，调用方 403）。
+///
+/// 百分号解码 → 按 `/` 切分 → 跳过空段（`//` 与尾斜杠）→ 逐段校验；
+/// 空序列（根路径）→ `index.html`。
+fn safe_components(path: &str) -> Option<Vec<String>> {
+    let decoded = percent_decode(path);
+    let mut comps: Vec<String> = Vec::new();
+    for seg in decoded.split('/') {
+        if seg.is_empty() {
+            continue;
+        }
+        if !is_safe_component(seg) {
+            return None;
+        }
+        comps.push(seg.to_string());
+    }
+    if comps.is_empty() {
+        comps.push("index.html".to_string());
+    }
+    Some(comps)
+}
+
+/// root + 已校验的合法段 → 文件系统路径（段均为相对成分，join 不越界）。
+fn join_components(root: &Path, comps: &[String]) -> PathBuf {
+    let mut full = root.to_path_buf();
+    for c in comps {
+        full.push(c);
+    }
+    full
+}
+
+/// 根目录 canonical 形式缓存：key = root 原始路径，value = canonicalize 结果。
+/// 每个 root 只 canonicalize 一次（`OnceLock` 承载全局表；多 server/测试
+/// 各自的 root 互不污染）。
+static ROOT_CANON_CACHE: OnceLock<RwLock<HashMap<PathBuf, PathBuf>>> = OnceLock::new();
+
+/// 根目录 canonical 形式（缓存未命中时做一次 IO；`None` = root 不可解析）。
+async fn root_canonical(root: &Path) -> Option<PathBuf> {
+    let cache = ROOT_CANON_CACHE.get_or_init(|| RwLock::new(HashMap::new()));
+    if let Ok(guard) = cache.read() {
+        if let Some(hit) = guard.get(root) {
+            return Some(hit.clone());
+        }
+    }
+    let canon = tokio::fs::canonicalize(root).await.ok()?;
+    if let Ok(mut guard) = cache.write() {
+        guard.insert(root.to_path_buf(), canon.clone());
+    }
+    Some(canon)
+}
+
 /// 极简静态文件服务（web-ui：index.html + assets/*）。
+///
+/// 路径边界（F-03，两层双检；**任何文件系统访问都在校验之后**）：
+/// 1. 成分级校验（零 IO，先拒）：百分号解码后按 `/` 切分，跳过空段，
+///    拒绝 `..`/`.`/含 `:`（盘符 + NTFS 备用数据流）/含 `\`/Windows
+///    保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）——封死 `/C:/foo`
+///    经 `root.join` 绝对成分替换基路径读任意盘文件的逃逸；
+/// 2. canonicalize 兜底：拼接结果解析后强制 `starts_with(root_canonical)`
+///    （`starts_with` 按 Path 组件比较，无前缀串误判；两侧都过
+///    canonicalize，`\\?\` 前缀一致）——拦下 symlink/8.3 短名等第 1 层
+///    覆盖不到的逃逸。解析失败或越界 → 403。
 async fn serve_static(root: Arc<PathBuf>, path: &str) -> hyper::Response<hyper::Body> {
-    let rel = path.trim_start_matches('/');
-    let rel = if rel.is_empty() { "index.html" } else { rel };
-    // 防目录穿越
-    if rel.contains("..") {
-        return hyper::Response::builder()
+    let forbidden = || {
+        hyper::Response::builder()
             .status(403)
             .body(hyper::Body::from("Forbidden"))
-            .unwrap();
-    }
-    let full = root.join(rel);
+            .unwrap()
+    };
+    // 第 1 层：成分级校验（零 IO，先拒）
+    let Some(comps) = safe_components(path) else {
+        return forbidden();
+    };
+    let full = join_components(&root, &comps);
     let mime = match full.extension().and_then(|e| e.to_str()) {
         Some("html") => "text/html; charset=utf-8",
         Some("js") => "application/javascript",
@@ -940,7 +1050,17 @@ async fn serve_static(root: Arc<PathBuf>, path: &str) -> hyper::Response<hyper::
         Some("ico") => "image/x-icon",
         _ => "application/octet-stream",
     };
-    match tokio::fs::read(&full).await {
+    // 第 2 层：canonicalize 双检
+    let Some(root_canon) = root_canonical(&root).await else {
+        return forbidden();
+    };
+    let Ok(resolved) = tokio::fs::canonicalize(&full).await else {
+        return forbidden();
+    };
+    if !resolved.starts_with(&root_canon) {
+        return forbidden();
+    }
+    match tokio::fs::read(&resolved).await {
         Ok(data) => hyper::Response::builder()
             .status(200)
             .header("Content-Type", mime)
@@ -950,5 +1070,112 @@ async fn serve_static(root: Arc<PathBuf>, path: &str) -> hyper::Response<hyper::
             .status(404)
             .body(hyper::Body::from("Not Found"))
             .unwrap(),
+    }
+}
+
+/// T-06（AC3 / F-03）：成分级校验函数表驱动单元测。
+///
+/// 拒绝面：`..`/`.`/盘符段（`C:`）/含 `:`（NTFS 备用数据流）/反斜杠/
+/// Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）。
+/// 放行面（防修复过宽误伤）：中文/空格/`a.b`/`...file`/前缀近似名。
+/// 锚：放行路径解析结果 canonicalize 后 `starts_with(root_canonical)`。
+#[cfg(test)]
+mod static_path_validation_tests {
+    use super::{is_safe_component, join_components, safe_components};
+
+    /// 拒绝面表驱动。
+    #[test]
+    fn rejects_traversal_windows_special_components() {
+        let rejected = [
+            "..",   // 父目录穿越
+            ".",    // 当前目录
+            "C:",   // 盘符段（join 绝对成分替换基路径的元凶）
+            "c:",   // 盘符段小写
+            "a:b",  // NTFS 备用数据流（file:stream）
+            "a\\b", // 反斜杠（维持单分隔符不变量）
+            "\\",   // 裸反斜杠
+            "CON", "con", "Con", // 保留设备名（大小写变体）
+            "PRN", "prn", "AUX", "aux", "NUL", "nul", "COM1", "com9", "LPT1", "lpt4",
+        ];
+        for comp in rejected {
+            assert!(!is_safe_component(comp), "成分 {comp:?} 应被拒绝");
+        }
+    }
+
+    /// 放行面表驱动（防修复过宽破坏正常文件名）。
+    #[test]
+    fn allows_normal_file_names() {
+        let allowed = [
+            "中文.txt",  // 非 ASCII
+            "my file",   // 空格
+            "a.b",       // 常规扩展名
+            "...file",   // 前导点串（非 `..` 整段）
+            "content",   // con* 前缀近似名——不得误伤
+            "auxiliary", // aux* 前缀近似名
+            "assets",    // 合法目录段
+            "app.js",    // 静态资产
+            "index.html",
+        ];
+        for comp in allowed {
+            assert!(is_safe_component(comp), "成分 {comp:?} 应放行");
+        }
+    }
+
+    /// 请求级切分：空段跳过、根路径 → index.html、解码后非法成分整体拒绝。
+    #[test]
+    fn request_path_split_and_reject_rules() {
+        // 根路径 → index.html
+        assert_eq!(
+            safe_components("/").as_deref(),
+            Some(["index.html".to_string()].as_slice())
+        );
+        // 空段跳过（// 与尾斜杠）
+        assert_eq!(
+            safe_components("//a//b/").as_deref(),
+            Some(["a".to_string(), "b".to_string()].as_slice())
+        );
+        // 穿越段（解码前后形态）
+        assert!(safe_components("/a/../b").is_none());
+        assert!(
+            safe_components("/a/%2E%2E/b").is_none(),
+            "百分号编码的 .. 解码后应被拒"
+        );
+        // 盘符段（裸 + 百分号编码回归面）
+        assert!(safe_components("/C:/win.ini").is_none());
+        assert!(safe_components("/C%3A/win.ini").is_none());
+        assert!(
+            safe_components("/C%3A%5Cfoo").is_none(),
+            "解码后含反斜杠应被拒"
+        );
+        // UNC 反斜杠编码形态
+        assert!(safe_components("/%5C%5Cserver%5Cshare").is_none());
+    }
+
+    /// canonicalize 锚：放行路径的解析结果严格位于 root canonical 之内。
+    #[test]
+    fn allowed_paths_resolve_within_root_anchor() {
+        let root = std::env::temp_dir().join(format!(
+            "cm-t06-anchor-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(root.join("index.html"), b"ok").unwrap();
+        std::fs::write(root.join("assets/app.js"), b"ok").unwrap();
+
+        let root_canon = root.canonicalize().unwrap();
+        for req in ["/", "/index.html", "/assets/app.js"] {
+            let comps = safe_components(req).unwrap_or_else(|| panic!("{req} 应放行"));
+            let full = join_components(&root, &comps);
+            let resolved = full.canonicalize().unwrap_or_else(|e| panic!("{req}: {e}"));
+            assert!(
+                resolved.starts_with(&root_canon),
+                "{req}: {resolved:?} 应位于 {root_canon:?} 内"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
