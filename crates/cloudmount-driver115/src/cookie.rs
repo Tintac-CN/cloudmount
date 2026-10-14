@@ -688,6 +688,23 @@ impl Cookie115Provider {
                     .map_err(|e| Error::Transport(format!("OSS 直传失败: {e}")))?
             }
         };
+        // F-11：OSS PUT 非 2xx 必须显式失败（数据丢失防护闸门）——
+        // agent 以 http_status_as_error(false) 构建，状态码只能在此显式检查；
+        // 5xx 走 is_retryable 轮内重试，4xx 快速失败。
+        let status = resp.status().as_u16();
+        if !(200..300).contains(&status) {
+            // 体为 OSS XML 错误（不含凭据）；io::Read::take 限长读前 2KB 作摘要
+            let mut raw = Vec::new();
+            let _ = resp
+                .into_body()
+                .into_reader()
+                .take(2048)
+                .read_to_end(&mut raw);
+            return Err(Error::Http {
+                status,
+                body: format!("OSS 直传失败: {status} {}", String::from_utf8_lossy(&raw)),
+            });
+        }
         let _ = resp
             .into_body()
             .read_to_string()
