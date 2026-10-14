@@ -112,3 +112,11 @@ GATE-APPROVED gate1 2026-10-14
 - 泳道/波次：①U1+U4+U9（三 crate 并行）→ ②U2+U5+U7+U10 → ③U3+U6+U8+U11 → ④U12 → ⑤全量验证（cargo test --workspace 两腿）→ gate2。同 crate 文件冲突面已串行化（U10→U11 同 webdav.rs）。
 - r3 残留 8 条 MINOR 按终审决议由编排者顺带回填（prd 3 处：AC1 末块口径/AC16 分支 3 括注更正/已裁决节溯源标注；test-strategy 5 处：头部版本标签 v3/映射口径 v3/T-05 向量几何更正/T-08 锚统一/T-11 副判据场景归属/T-30 注释断言成分）——属终审批准的"随首个提交顺带回填"授权，措辞级、零语义变更。
 - unitStatus 全部 pending；TDD 锁未置位（各 unit 失败测试提交后按序置锁，tddLockPaths 并集只增不减）。
+
+---
+
+2026-10-14 TDD 锁置位记录（编排者，Wave 1 红阶段提交后）：
+- 红测提交：U1 @ 9daacd0（cookie_channel.rs + cookie_mock/mod.rs，5红4绿护栏）、U4 @ a375829（single_flight_refresh.rs，4红4绿护栏）、U9 @ 59c3315（cfapi.rs 内联 pump_chunks_tests + cfapi_hydration.rs 集成骨架，5红）。
+- tddLock 置位：true；tddLockPaths（并集）= crates/cloudmount-driver115/tests/cookie_channel.rs、crates/cloudmount-driver115/tests/cookie_mock/mod.rs、crates/cloudmount-driver115/tests/single_flight_refresh.rs、crates/cloudmount-vfs/tests/cfapi_hydration.rs。
+- **例外留痕**：U9 的 5 个单元红测为 cfapi.rs 内联 `#[cfg(test)] mod`（Rust 同文件测试模块），路径锁会阻断同文件实现——该模块不列入锁清单，以"绿阶段测试断言零修改 + gate2 verifier 对照红测提交 diff"兜底（U4 的 open.rs 骨架同理，其测试在独立 tests/ 文件已锁定）。
+- U4 遗留口径备注（供 gate2 verifier/qa 核验，非阻塞）：trait `refresh()` 直连并发入口的断言为"无并发在途窗口（串行化）"而非"恰 1 次"——晚到观察者会触发一次串行多余刷新，"恰 1 次"契约由 `refresh_stale` 显式同锚入口与 with_token_retry 生产路径承载（架构关键决策 #7 的动机）；理由已写入测试文件头注释。
