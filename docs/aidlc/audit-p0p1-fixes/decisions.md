@@ -127,3 +127,10 @@ GATE-APPROVED gate1 2026-10-14
 - 解锁路径：crates/cloudmount-vfs/tests/cfapi_hydration.rs（自 tddLockPaths 临时移除）。
 - 理由：U9 绿阶段将把 HydrateFn 契约切换为 ChunkSink（F-01 核心修复），该文件 :190/:246 一带的既有 HydrateFn 闭包调用点必须做**机械签名适配**（断言面不变，仅闭包签名/包装方式跟随新契约）——路径锁会阻断这一合法性改动。非"契约错误"情形，系 Rust 同文件/契约切换与路径锁的结构性冲突；本文件红阶段的 2 个新集成骨架（fetch_data_multiblock/cancel）断言不得削弱。
 - 适配完成并验证绿后，该路径重新纳入 tddLockPaths（并集），本条作为 /aidlc:unlock-tests 等价留痕。
+
+---
+
+2026-10-14 Wave 1 绿阶段记录（编排者）：
+- **U9 完成**（绿）：pump_chunks 真实现 + HydrateFn → ChunkSink 契约切换 + FETCH_DATA 逐块取消检查/失败收尾 + 水合闭包单次建流；lib 8 绿（5 红全转绿）、真机集成 8 绿、crate 全量 32 绿、clippy -D warnings 零警告；cfapi_hydration.rs 4 处闭包机械适配（断言面零变化，符合临时解锁留痕条款）→ 该路径重新纳入 tddLockPaths。unitStatus U9 = done。
+- **U1/U4 绿阶段代理双双触发账户速率限制（error 1302）失败**：经工作区核查均为零实现产出（test_peer/refresh_locked 仍 todo!()），红测与骨架完好（已提交 @ 9daacd0/a375829）。按 §8 降级协议处置：先重派一次（改为**串行**派发避免并行触限：先 U1 后 U4）；再失败则编排者内联代跑并在此留痕，产出列为 Gate#2 追认项。
+- U9 完成后 cfapi_hydration.rs 重新纳入锁清单。
