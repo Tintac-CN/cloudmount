@@ -1,13 +1,13 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "inception",
-  "gates": { "gate1": "rejected", "gate2": "pending" },
+  "phase": "gate1",
+  "gates": { "gate1": "pending", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-14T20:38:43+08:00",
+  "updatedAt": "2026-10-14T21:36:33+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -26,6 +26,12 @@
       "from": "gate1",
       "to": "inception",
       "why": "Gate#1 人类审批打回（decisions.md 2026-10-14 GATE-REJECTED gate1）：互审 2 BLOCKER/11 MAJOR 集中于测试规格与验收口径，修订后再审；desktop 壳与 F-14 ECDH 回环经人类裁决纳入本 intent"
+    },
+    {
+      "at": "2026-10-14T21:36:33+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "修订轮三工件 v2 齐（prd-v2 @ b142982 / architecture-v2 @ bab7f7e / test-strategy-v2 @ 4b60534），对齐拍完成（B1/B2 消解核对通过、AC1 断言锚回填），gate1 复位 pending 待复审"
     }
   ]
 }
