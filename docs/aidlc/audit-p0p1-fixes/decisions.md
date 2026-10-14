@@ -172,3 +172,11 @@ GATE-APPROVED gate1 2026-10-14
 - **U2X 完成（绿）**：ec115.rs:112/:146 脱敏（key/iv/ct_head/plain_hex → 只记帧长度）+ cookie_logging 新增 ECDH 金丝雀用例（红→绿，判据双锚：泄漏字段标记缺席 + 32 字符互异串防 LZ4 匹配假绿，内置 lz4_flex 前置自校验）；driver115 全套 78 绿、clippy 净。F-04 施工面最终 = **八处**（cookie.rs 五处 + cli 一处 + ec115 两处）。unitStatus U2 补刀完成。
 - **U10 完成（绿）**：serve_static 双检重写（成分级零 IO 先拒 + canonicalize starts_with(root_canonical)，OnceLock 按 root 缓存）；T-05 七向量红→绿（主向量修复前 200 真实泄漏 win.ini 内容）；harness 扩 UiFixture + start_server_with_ui + U11 注入口；ci.yml 增 rust-mock-features 并列腿；**附加验证：workspace 全量 `cargo test --workspace --features cloudmount-daemon/mock` 全绿**。unitStatus U10 = done。
 - **U5 派发触发限流（1302）失败**：工作区核查零产出，按 §8 串行重派一次（单飞）；再失败则内联代跑（U5 体量大，代跑拆段：core+daemon 先行，cli+desktop 续）。
+
+---
+
+2026-10-14 U5 完成（绿）记录（编排者）：
+- core CookieChannelConfig（serde(default) 双 false）+ set_cookie_consent 纯函数；daemon :376-379/:413-416 硬编码废除 → cookie_policy_from_config(file_cfg.cookie)（--channel cookie 未双真 Err 提示 / auto 静默跳过，file_cfg 穿透全部调用点含 SCM Run）；cli persist_cookie_consent 挂登录两路径；desktop 按点击即同意口径（四条风险声明+同意勾选框初值取配置+未勾选禁用+cookie_policy_from_login_state 带"点击即同意"注释+会话级 CookieAuth+登录成功写回 load 失败 warn）。
+- T-27（core）/T-08（daemon t08_cookie_gate，MemoryStore 播种 seam 三态可判定）/T-28/T-30（desktop include_str! 自扫描，CI 不可见由人工清单⑦兜底）红→绿全落；**workspace 全量 cargo test 全绿**（driver115 78 零回退）+ 五 crate clippy -D warnings 净。
+- 范围外最小修复备案：desktop widgets.rs/theme.rs 存量 clippy 告警清理（未使用导入/Stroke 显式化/DANGER 常量 allow——属 U5 负责的 desktop 壳 clippy 门）。unitStatus U5 = done。
+- Wave 3 派发：U8（F-07 sync 锁重构）+ U11（F-08+F-09 daemon 写路径，基于 U10 harness）并行；U12 收尾。

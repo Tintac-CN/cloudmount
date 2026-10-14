@@ -16,7 +16,7 @@
     "U2": "done",
     "U3": "done",
     "U4": "done",
-    "U5": "pending",
+    "U5": "done",
     "U6": "pending",
     "U7": "done",
     "U8": "pending",
@@ -25,7 +25,7 @@
     "U11": "pending",
     "U12": "pending"
   },
-  "updatedAt": "2026-10-15T00:46:55+08:00",
+  "updatedAt": "2026-10-15T00:58:20+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -116,6 +116,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2X/U10 完成（绿，workspace mock 腿全绿）；U5 限流零产出，§8 串行重派（单飞）"
+    },
+    {
+      "at": "2026-10-15T00:58:20+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U5 完成（绿，重派成功；workspace 全量绿 + 五 crate clippy 净）；Wave 3 派发：U8+U11 并行，U12 收尾"
     }
   ]
 }
