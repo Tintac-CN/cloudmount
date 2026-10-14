@@ -6,7 +6,9 @@
 //! - **下载先写临时文件再原子改名**，并设置 mtime = 远端 mtime（避免下轮误判"本地已改"）。
 //! - **冲突"保留两者"**：本地副本改名 + 上传为新远端文件，远端原文件下载回原路径，
 //!   两条记录都入账，用户不会丢任何一版。
-//! - 目录创建走**带锁的目录 ID 缓存**，避免并发上传时重复创建远端目录。
+//! - 目录创建走**两阶段**：`dir_ids` 锁内只做查表计划，网络 IO（`list`/`create_dir`）
+//!   在锁外、per-前缀创建锁 + 双检之下执行——弱网下单个目录的往返不再阻塞全部
+//!   并发事件，同时保住"并发上传不会重复创建远端目录"的确定性。
 
 use crate::cache::BlockCache;
 use crate::reconcile::{Action, ConflictKind, ConflictPolicy, SyncPolicy};
@@ -17,7 +19,7 @@ use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// 可缓存进块缓存的单文件大小上限（超过则只下载不缓存）。
 pub const CACHEABLE_MAX_BYTES: u64 = 8 * 1024 * 1024;
@@ -44,8 +46,23 @@ pub struct Executor<'a> {
     cache: &'a BlockCache,
     /// 目录路径 → 远端 ID（初始由远端树播种）。
     dir_ids: Mutex<HashMap<String, RemoteId>>,
+    /// 正在创建中的目录前缀 → per-前缀创建锁（F-07）。
+    ///
+    /// 网络 IO 移出 `dir_ids` 锁后，"同一目录不重复建"的确定性由这把
+    /// per-前缀锁 + `dir_ids` 双检保持：只有串行化**同一前缀**的创建，
+    /// 不同前缀彼此并行。条目在对应前缀写回 `dir_ids` 后移除（防无界增长；
+    /// 等待者克隆的 `Arc` 仍有效，双检兜底，不产生正确性问题）。
+    dir_creating: Mutex<HashMap<String, Arc<Mutex<()>>>>,
     /// 累积结果。
     outcome: Mutex<ExecOutcome>,
+}
+
+/// 目录链解析计划（锁内阶段的产物，F-07）。
+struct DirPlan {
+    /// 最深已解析前缀对应的远端 ID（缺失链的起始父目录）。
+    current: RemoteId,
+    /// 缺失前缀链（父前缀在前）：`(prefix, 组件名)`。
+    missing: Vec<(String, String)>,
 }
 
 impl<'a> Executor<'a> {
@@ -63,6 +80,7 @@ impl<'a> Executor<'a> {
             policy,
             cache,
             dir_ids: Mutex::new(dir_ids),
+            dir_creating: Mutex::new(HashMap::new()),
             outcome: Mutex::new(ExecOutcome::default()),
         }
     }
@@ -451,51 +469,124 @@ impl<'a> Executor<'a> {
     // ---------- 目录与辅助 ----------
 
     /// 确保远端目录链存在，返回最末端目录的 ID。
+    ///
+    /// 两阶段（F-07）：
+    /// 1. **锁内只做计划**——拿 `dir_ids` 锁沿 `rel` 组件走 map，得出已解析 ID
+    ///    与缺失前缀链，立即放锁（见 [`Self::plan_dir_chain`]，持锁期间零网络 IO）；
+    /// 2. **锁外做网络**——对每个缺失前缀，在 per-前缀创建锁（[`Self::dir_creating`]）
+    ///    之下**双检** `dir_ids`（其它线程可能已完成），仍缺失才 `provider.list` 查重 /
+    ///    `provider.create_dir`，结果写回 `dir_ids`。
+    ///
+    /// "并发上传不会重复建目录"的确定性由 per-前缀锁 + 双检保持；锁序固定为
+    /// 父前缀先于子前缀（与遍历顺序一致，逐个获取、从不嵌套持有两把创建锁），
+    /// 无环，无死锁。
     fn ensure_remote_dir(&self, rel: &str) -> Result<RemoteId> {
-        // 整段加锁：目录创建不频繁，换取"并发上传不会重复建目录"的确定性。
-        // 注意：持锁期间**不得**再调用会加同一把锁的方法（std Mutex 不可重入）——
-        // 根 ID 直接从已持有的 map 读，而不是调 `self.root_id()`（那会自死锁）。
-        let mut map = self
+        let plan = self.plan_dir_chain(rel)?;
+        let mut current = plan.current;
+        for (prefix, comp) in plan.missing {
+            // 取 per-前缀锁：只克隆 Arc，立刻释放锁表锁（不在锁表锁下做任何等待）
+            let gate = {
+                let mut creating = self
+                    .dir_creating
+                    .lock()
+                    .map_err(|_| cloudmount_core::Error::Other("目录创建锁表中毒".into()))?;
+                creating
+                    .entry(prefix.clone())
+                    .or_insert_with(|| Arc::new(Mutex::new(())))
+                    .clone()
+            };
+            let _gate = gate
+                .lock()
+                .map_err(|_| cloudmount_core::Error::Other("目录创建锁中毒".into()))?;
+
+            // 双检：拿锁期间其它线程可能已完成同一前缀
+            let hit = {
+                self.dir_ids
+                    .lock()
+                    .map_err(|_| cloudmount_core::Error::Other("目录缓存锁中毒".into()))?
+                    .get(&prefix)
+                    .cloned()
+            };
+            if let Some(id) = hit {
+                current = id;
+            } else {
+                // 先看远端是否已存在同名目录（避免重复创建）
+                let existing = self
+                    .provider
+                    .list(&current)?
+                    .into_iter()
+                    .find(|e| e.kind == EntryKind::Directory && e.name == comp);
+                let id = match existing {
+                    Some(e) => e.id,
+                    None => {
+                        tracing::info!(dir = %prefix, "创建远端目录");
+                        self.provider.create_dir(&current, &comp)?.id
+                    }
+                };
+                // **先写回缓存，后移除创建锁条目**（顺序不可换：条目只在对应前缀
+                // 已确定进入 dir_ids 后才允许消失，否则后续线程双检不命中会重复建目录）
+                self.dir_ids
+                    .lock()
+                    .map_err(|_| cloudmount_core::Error::Other("目录缓存锁中毒".into()))?
+                    .insert(prefix.clone(), id.clone());
+                current = id;
+            }
+            drop(_gate);
+
+            // 顺手移除已完成的创建锁条目，防锁表无界增长。带 `Arc::ptr_eq` 判定：
+            // 只清理"自己这把"门锁——若条目已被移除并被更晚的规划者重建（新 Arc），
+            // 说明有新的在途创建，不得误删其门锁。
+            if let Ok(mut creating) = self.dir_creating.lock() {
+                if creating
+                    .get(&prefix)
+                    .is_some_and(|g| Arc::ptr_eq(g, &gate))
+                {
+                    creating.remove(&prefix);
+                }
+            }
+        }
+        Ok(current)
+    }
+
+    /// [`ensure_remote_dir`] 的锁内计划阶段：沿 `rel` 组件走 `dir_ids` map，
+    /// 返回最深已解析 ID 与缺失前缀链。持锁期间**只做查表**（零网络 IO）。
+    ///
+    /// 注意：持锁期间不得再调用会加同一把锁的方法（std Mutex 不可重入）——
+    /// 根 ID 直接从已持有的 map 读，而不是调会再加锁的入口。
+    fn plan_dir_chain(&self, rel: &str) -> Result<DirPlan> {
+        let map = self
             .dir_ids
             .lock()
             .map_err(|_| cloudmount_core::Error::Other("目录缓存锁中毒".into()))?;
         let root = map.get("").cloned().unwrap_or_else(|| RemoteId("0".into()));
         if rel.is_empty() {
-            return Ok(root);
+            return Ok(DirPlan {
+                current: root,
+                missing: Vec::new(),
+            });
         }
         if let Some(id) = map.get(rel) {
-            return Ok(id.clone());
+            return Ok(DirPlan {
+                current: id.clone(),
+                missing: Vec::new(),
+            });
         }
-        // 自顶向下建
+        // 自顶向下：已解析的最深前缀 + 缺失前缀链（父前缀在前）
         let mut prefix = String::new();
         let mut current = root;
+        let mut missing = Vec::new();
         for comp in rel.split('/').filter(|c| !c.is_empty()) {
             prefix = if prefix.is_empty() {
                 comp.to_string()
             } else {
                 format!("{prefix}/{comp}")
             };
-            if let Some(id) = map.get(&prefix) {
-                current = id.clone();
-                continue;
+            match map.get(&prefix) {
+                Some(id) => current = id.clone(),
+                None => missing.push((prefix.clone(), comp.to_string())),
             }
-            // 先看远端是否已存在同名目录（避免重复创建）
-            let existing = self
-                .provider
-                .list(&current)?
-                .into_iter()
-                .find(|e| e.kind == EntryKind::Directory && e.name == comp);
-            let id = match existing {
-                Some(e) => e.id,
-                None => {
-                    tracing::info!(dir = %prefix, "创建远端目录");
-                    self.provider.create_dir(&current, comp)?.id
-                }
-            };
-            map.insert(prefix.clone(), id.clone());
-            current = id;
         }
-        Ok(current)
+        Ok(DirPlan { current, missing })
     }
 
     /// 本地绝对路径。
