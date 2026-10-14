@@ -14,7 +14,7 @@
   "unitStatus": {
     "U1": "done",
     "U2": "pending",
-    "U3": "pending",
+    "U3": "done",
     "U4": "done",
     "U5": "pending",
     "U6": "pending",
@@ -25,7 +25,7 @@
     "U11": "pending",
     "U12": "pending"
   },
-  "updatedAt": "2026-10-14T23:40:09+08:00",
+  "updatedAt": "2026-10-14T23:45:00+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -98,6 +98,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U4 完成（绿，single_flight 8/8、auth 13/13、三入口单飞落地）；派发序列：U3（纯实现转绿）→ Wave 2（并发≤2）"
+    },
+    {
+      "at": "2026-10-14T23:45:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 完成（绿，cookie_channel 9/9——U1 预期红清零，driver115 全套 73 绿）；Wave 2 第一批 U2+U7 并行（限流约束并发≤2）"
     }
   ]
 }

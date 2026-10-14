@@ -149,3 +149,10 @@ GATE-APPROVED gate1 2026-10-14
 - refresh_locked 持锁双检→do_refresh 跨网络→守卫写回（未调 persist，无重入死锁）→锁外持久化；access_token/refresh()/refresh_stale 三入口并入同一助手；client.rs:244 改传显式 stale（附带清理死 import）。
 - single_flight_refresh 8/8 绿（4 红转绿：恰 1 次/无并发窗口；4 护栏保持）；auth 13/13、driver115 lib 50/50、mock_api 6/6、clippy -D warnings 零警告；锁定测试零改动。unitStatus U4 = done。
 - 派发序列：U4 后按调序插入 U3（F-11，失败测试已存在于 U1 锁定套件——纯实现转绿），随后 Wave 2（U2+U5+U7+U10，限流约束下并发 ≤2 串行推进）。
+
+---
+
+2026-10-14 U3 完成（绿）记录（编排者）：
+- oss_put 非 2xx → Err(Error::Http{status, 体前 2KB 摘要})（ureq 3.x 须先 into_reader 再 take）；Error::Http 既有 is_retryable 分类（≥500 可重试）恰好满足 5xx/4xx 分叉，error.rs 零改动；+17 行零删除。
+- cookie_channel 9/9（2 预期红转绿，U1 残留清零）+ lib 50 + single_flight 8/8 + mock_api 6/6 全绿；clippy 净。unitStatus U3 = done。**driver115 关键路径（U1→U3）全绿。**
+- Wave 2 启动（限流约束并发 ≤2，按文件冲突面配对）：第一批 U2（F-04 五处脱敏，driver115+cli）+ U7（F-06 RdcWatcher，sync）并行；第二批 U5（F-05+desktop）+ U10（F-03+CI 腿）。
