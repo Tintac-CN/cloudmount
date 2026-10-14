@@ -123,6 +123,12 @@ struct CloudMountApp {
     login_challenge: Option<cloudmount_auth::LoginChallenge>,
     /// 登录进行中。
     login_polling: bool,
+    /// 登录页同意勾选框（F-05：初值取配置 `[cookie].consent_acknowledged`——
+    /// 已同意过的用户不重复打扰；未勾选时登录按钮禁用）。
+    consent_checked: bool,
+    /// 会话级 CookieAuth（F-05：点击登录时构造一次，`update()` 轮询复用——
+    /// 消除现状每帧重建的低效）。
+    login_auth_session: Option<cloudmount_auth::cookie::CookieAuth>,
     /// 引擎线程（首帧启动）。
     engine_thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -130,23 +136,19 @@ struct CloudMountApp {
 impl CloudMountApp {
     fn new(cc: &eframe::CreationContext<'_>, state: Arc<AppState>) -> Self {
         theme::apply(&cc.egui_ctx);
+        let consent_checked = cloudmount_core::config::load()
+            .map(|c| c.cookie.consent_acknowledged)
+            .unwrap_or(false);
         Self {
             state,
             page: Page::Status,
             qr_texture: None,
             login_challenge: None,
             login_polling: false,
+            consent_checked,
+            login_auth_session: None,
             engine_thread: None,
         }
-    }
-
-    fn login_auth(&self) -> cloudmount_auth::cookie::CookieAuth {
-        let policy = cloudmount_auth::cookie::CookiePolicy {
-            enabled: true,
-            consent_acknowledged: true,
-        };
-        let store = cloudmount_auth::store::default_store().expect("凭据存储");
-        cloudmount_auth::cookie::CookieAuth::new(policy, store)
     }
 
     fn engine(&self) -> Option<Arc<Mutex<cloudmount_sync::SyncEngine>>> {
@@ -233,25 +235,33 @@ impl eframe::App for CloudMountApp {
                 }
             });
 
-        // 登录轮询（每帧检查——短轮询立即返回）
+        // 登录轮询（每帧检查——短轮询立即返回；复用会话级 auth，不再每帧重建）
         if self.login_polling {
-            if let Some(challenge) = &self.login_challenge {
-                let auth = self.login_auth();
-                match auth.poll_login(challenge) {
+            let poll = match (&self.login_challenge, self.login_auth_session.as_ref()) {
+                (Some(challenge), Some(auth)) => Some(auth.poll_login(challenge)),
+                _ => None,
+            };
+            if let Some(result) = poll {
+                match result {
                     Ok(Some(_)) => {
                         self.login_polling = false;
                         self.login_challenge = None;
                         self.qr_texture = None;
+                        self.login_auth_session = None;
                         if let Ok(mut s) = self.state.status.lock() {
                             s.logged_in = true;
                             s.last_message = "登录成功（Cookie 已入独立容器）".into();
                         }
+                        // F-05：登录成功写回 `[cookie]`（同意持久化闭环；经
+                        // core 纯函数 + 原子写。desktop 接线归人工清单⑦）
+                        persist_cookie_consent();
                     }
                     Ok(None) => {}
                     Err(e) => {
                         self.login_polling = false;
                         self.login_challenge = None;
                         self.qr_texture = None;
+                        self.login_auth_session = None;
                         if let Ok(mut s) = self.state.status.lock() {
                             s.last_message = format!("登录失败: {e}");
                         }
@@ -440,9 +450,23 @@ impl CloudMountApp {
         ui.add_space(8.0);
         ui.heading("登录");
         ui.add_space(4.0);
+        // 风险声明完整版（对齐 CLI login --with-cookie-channel 四条）
         ui.colored_label(
             MUTED,
-            "Cookie 补充通道——违反 115 服务协议（详见 README）",
+            "⚠️  Cookie 补充通道风险声明（务必阅读）：\n  \
+             1. 该方式违反《115 生活用户服务协议》相关条款\n     \
+             （非授权客户端/接口、反向工程）；\n  \
+             2. 可能导致账号冻结、限速、数据访问受限；\n  \
+             3. 扫码登录会与其它设备会话互踢；\n  \
+             4. 无稳定性承诺，115 可随时变更协议导致失效。\n\
+             官方 OpenAPI 已覆盖同步盘全部核心能力（申请入口 https://open.115.com/ ）。",
+        );
+        ui.add_space(12.0);
+        // 知情同意勾选框（CLI「输入 yes」的 GUI 等价物；初值取配置 [cookie]——
+        // 同意仅由登录交互产生并持久化，引擎/组装是消费者、不自产同意）
+        ui.checkbox(
+            &mut self.consent_checked,
+            "我已阅读并知悉上述风险，同意启用 Cookie 通道",
         );
         ui.add_space(16.0);
 
@@ -456,11 +480,19 @@ impl CloudMountApp {
                 self.login_polling = false;
                 self.login_challenge = None;
                 self.qr_texture = None;
+                self.login_auth_session = None;
             }
+        } else if !self.consent_checked {
+            // 未勾选同意：登录按钮禁用（同意是登录的前置交互）
+            ui.disable();
+            widgets::button(ui, "开始扫码登录", widgets::Kind::Secondary, 180.0, 40.0);
         } else if widgets::button(ui, "开始扫码登录", widgets::Kind::Accent, 180.0, 40.0)
             .clicked()
         {
-            let auth = self.login_auth();
+            // 会话级 CookieAuth：一次构造、轮询复用（消除每帧重建）
+            let policy = cookie_policy_from_login_state(self.consent_checked);
+            let store = cloudmount_auth::store::default_store().expect("凭据存储");
+            let auth = cloudmount_auth::cookie::CookieAuth::new(policy, store);
             match auth.begin_login() {
                 Ok(challenge) => {
                     let qr = qrcode::QrCode::new(challenge.qr_content.as_bytes())
@@ -483,6 +515,7 @@ impl CloudMountApp {
                     self.qr_texture = Some(texture);
                     self.login_challenge = Some(challenge);
                     self.login_polling = true;
+                    self.login_auth_session = Some(auth);
                 }
                 Err(e) => {
                     if let Ok(mut s) = self.state.status.lock() {
@@ -638,4 +671,107 @@ fn main() -> eframe::Result<()> {
         options,
         Box::new(move |cc| Ok(Box::new(CloudMountApp::new(cc, state)))),
     )
+}
+
+/// F-05：登录成功写回 `[cookie]`（同意持久化闭环；desktop 接线归人工清单⑦）。
+///
+/// `config::load` → core 纯函数 [`set_cookie_consent`] → `config::save`
+/// （内部走 save_to 原子写：tmp + rename）。load 失败不再静默跳过（warn：
+/// 同意记录丢失，下次启动需重新同意）。与设置页 `sync_root` 写回同构
+/// （文件内既有先例）。
+fn persist_cookie_consent() {
+    match cloudmount_core::config::load() {
+        Ok(mut cfg) => {
+            cloudmount_core::config::set_cookie_consent(&mut cfg); // core 纯函数：cookie 双字段置真
+            if let Err(e) = cloudmount_core::config::save(&cfg) {
+                tracing::warn!(error = %e, "Cookie 同意标志持久化失败（下次启动需重新同意）");
+            }
+        }
+        Err(e) => tracing::warn!(
+            error = %e,
+            "登录成功但 config::load 失败，Cookie 同意标志未写回（下次启动需重新同意）"
+        ),
+    }
+}
+
+/// T-28：登录态 → CookiePolicy（Gate#1 r2 人类裁决口径）。
+///
+/// 登录页勾选「同意启用 Cookie 通道」后点击"开始扫码登录"时构造：
+/// enabled=true 恒真（点击即显式开启）、consent_acknowledged=勾选框状态。
+/// 配置 [cookie] 不参与 policy 构造（仅驱动勾选框初值与登录成功后的写回）——
+/// 否则全新安装无 [cookie] 段时 `check_enabled` 首行即拒绝，扫码登录闭环死锁。
+// 点击即同意：登录会话构造点（T-30 豁免面标注；引擎/组装路径一律经配置）
+fn cookie_policy_from_login_state(checked: bool) -> cloudmount_auth::cookie::CookiePolicy {
+    // 点击即同意：enabled=true 恒真、consent_acknowledged=勾选状态
+    // （勾选框未勾选时按钮禁用，可点击即蕴含已勾选）。
+    cloudmount_auth::cookie::CookiePolicy {
+        enabled: true,
+        consent_acknowledged: checked,
+    }
+}
+
+/// T-28：`cookie_policy_from_login_state` 纯函数单测（本地 `cargo test -p
+/// cloudmount-desktop` 跑；desktop 被 workspace exclude，CI 不可见——
+/// 接线归人工清单⑦兜底）。
+#[cfg(test)]
+mod t28_policy_tests {
+    use super::*;
+
+    /// 勾选同意 → 双真（显式开启 + 知情同意，与 CLI/daemon 组装语义一致）。
+    #[test]
+    fn checked_is_double_true() {
+        let p = cookie_policy_from_login_state(true);
+        assert!(p.enabled, "enabled 恒真（点击即显式开启）");
+        assert!(p.consent_acknowledged, "勾选后必须为同意");
+        p.check_enabled().expect("勾选后必须通过 check_enabled");
+    }
+
+    /// 未勾选 → {true, false}——`check_enabled` 拒绝（与 CLI/daemon 一致）。
+    #[test]
+    fn unchecked_is_rejected() {
+        let p = cookie_policy_from_login_state(false);
+        assert!(p.enabled, "enabled 恒真");
+        assert!(!p.consent_acknowledged, "未勾选不得视为同意");
+        assert!(
+            p.check_enabled().is_err(),
+            "未勾选同意必须被 check_enabled 拒绝"
+        );
+    }
+}
+
+/// T-30：结构性断言（AC16；组装/引擎路径硬编码双真零命中 + 登录构造点注释）。
+#[cfg(test)]
+mod t30_structural {
+    /// 断言对象 = 本文件源码。
+    const SOURCE: &str = include_str!("main.rs");
+
+    /// 组装/引擎路径零命中：desktop 源码不允许出现「consent_acknowledged
+    /// 字段硬编码置真」的 CookiePolicy 字面量构造（登录会话构造点取勾选
+    /// 状态、非字面量）——防硬编码双真绕过"配置驱动勾选 + 点击构造 + 写回"
+    /// 回潮。needle 经 format! 动态拼接，避免本测试源码自身命中。
+    #[test]
+    fn no_hardcoded_double_true_policy_literal() {
+        let needle = format!("consent_acknowledged: {}", "true");
+        assert_eq!(
+            SOURCE.matches(&needle).count(),
+            0,
+            "发现硬编码双真 CookiePolicy 字面量（组装必须经 cookie_policy_from_login_state / 配置）"
+        );
+    }
+
+    /// 豁免处注释断言：登录会话构造点所在函数体必须含"点击即同意"注释串。
+    #[test]
+    fn login_construction_point_has_click_consent_comment() {
+        let start = SOURCE
+            .find("fn cookie_policy_from_login_state")
+            .expect("登录会话构造函数必须存在（cookie_policy_from_login_state）");
+        let body = &SOURCE[start..];
+        let end = body
+            .find("\n#[cfg(test)]")
+            .expect("tests 模块必须紧随构造函数之后");
+        assert!(
+            body[..end].contains("点击即同意"),
+            "登录会话构造点必须带「点击即同意」注释（T-30 豁免面标注）"
+        );
+    }
 }

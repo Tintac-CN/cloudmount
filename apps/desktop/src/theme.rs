@@ -64,6 +64,8 @@ pub const INVERT_FG: Color32 = hex(0x0b0b0c);
 /// 失败文本。
 pub const BAD: Color32 = hex(0xf87171);
 /// 危险填充。
+/// 调色板令牌（预留：错误/危险态；当前 UI 未使用）。
+#[allow(dead_code)]
 pub const DANGER: Color32 = hex(0xd33242);
 /// 徽章色。
 pub const BADGE_BETA: Color32 = hex(0xffc14d);
@@ -81,7 +83,7 @@ pub const LABEL_SPACING: f32 = HUD_SIZE * 0.12;
 
 /// 发丝线描边。
 pub fn hairline() -> Stroke {
-    Stroke::new(1.0, LINE)
+    Stroke::new(1.0_f32, LINE)
 }
 
 /// 颜色按比例降透明度（0–1）。
@@ -102,7 +104,7 @@ fn visuals() -> Visuals {
     v.override_text_color = Some(INK);
     v.hyperlink_color = ACCENT_INK;
     v.selection.bg_fill = ACCENT;
-    v.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+    v.selection.stroke = Stroke::new(1.0_f32, Color32::WHITE);
     v.warn_fg_color = BADGE_BETA;
     v.error_fg_color = BAD;
     v.striped = false;
@@ -115,9 +117,9 @@ fn visuals() -> Visuals {
     ] {
         w.bg_fill = fill;
         w.weak_bg_fill = fill;
-        w.bg_stroke = Stroke::new(1.0, stroke);
+        w.bg_stroke = Stroke::new(1.0_f32, stroke);
         w.corner_radius = RADIUS;
-        w.fg_stroke = Stroke::new(1.0, fg);
+        w.fg_stroke = Stroke::new(1.0_f32, fg);
         w.expansion = 0.0;
     }
     v

@@ -43,6 +43,33 @@ pub struct Config {
     pub serve: ServeConfig,
     /// 同步策略子配置。
     pub sync: SyncConfig,
+    /// Cookie 补充通道子配置（默认双 false = 通道关闭）。
+    pub cookie: CookieChannelConfig,
+}
+
+/// Cookie 补充通道子配置（F-05：**默认关闭 + 显式开启 + 知情同意**）。
+///
+/// 缺段 = 双 false = 通道关闭（serde(default)，旧配置文件完全兼容）；
+/// 仅 `enabled=true` 而未同意仍拒绝启用。同意仅由登录交互产生
+/// （CLI `login --with-cookie-channel` / desktop 登录勾选）并经
+/// [`set_cookie_consent`] 持久化于此；daemon/desktop 引擎是消费者、
+/// 永不自产同意。
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CookieChannelConfig {
+    /// 用户是否已显式开启（默认 false）。
+    pub enabled: bool,
+    /// 用户是否已确认知情同意（默认 false）。
+    pub consent_acknowledged: bool,
+}
+
+/// Cookie 同意写回纯函数（F-05）：`[cookie]` 双字段置真。
+///
+/// 写回方仅两处——CLI `cmd_login_cookie` 与 desktop 登录成功回调：
+/// `load` → 本函数 → `save`/`save_to`（原子写）。
+pub fn set_cookie_consent(cfg: &mut Config) {
+    cfg.cookie.enabled = true;
+    cfg.cookie.consent_acknowledged = true;
 }
 
 /// serve（边缘网关）子配置。
@@ -80,6 +107,7 @@ impl Default for Config {
             interval: 30,
             serve: ServeConfig::default(),
             sync: SyncConfig::default(),
+            cookie: CookieChannelConfig::default(),
         }
     }
 }
@@ -269,6 +297,72 @@ mod tests {
         let tmp = path.with_extension("toml.tmp");
         assert!(!tmp.exists(), "原子写不应留自己的临时文件");
         assert!(path.exists(), "正式文件应在");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // ---- F-05 / T-27：Cookie 通道同意写回（set_cookie_consent 纯函数）----
+
+    /// 含 [cookie] 段的配置 → 调用后双字段覆写为真、其余段不受影响。
+    #[test]
+    fn set_cookie_consent_overwrites_existing_section() {
+        let path = temp_config("f05-overwrite");
+        save_to(
+            &path,
+            &Config {
+                app_id: Some("app-keep".into()),
+                cookie: CookieChannelConfig {
+                    enabled: false,
+                    consent_acknowledged: false,
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut cfg = load_from(&path).expect("加载");
+        assert!(!cfg.cookie.enabled && !cfg.cookie.consent_acknowledged);
+        set_cookie_consent(&mut cfg);
+        assert!(cfg.cookie.enabled, "enabled 必须置真");
+        assert!(
+            cfg.cookie.consent_acknowledged,
+            "consent_acknowledged 必须置真"
+        );
+        assert_eq!(cfg.app_id.as_deref(), Some("app-keep"), "其余段不受影响");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// 缺段的旧版配置文件 → 负基线缺段双 false（通道关，serde default）；
+    /// 调用后写入 [cookie] 段双真，save → reload 往返保持、其余字段无损。
+    #[test]
+    fn set_cookie_consent_missing_section_write_and_roundtrip() {
+        let path = temp_config("f05-missing");
+        // 旧版文件形态：无 [cookie] 段（deny_unknown_fields 兼容）
+        std::fs::write(&path, "app_id = \"legacy-app\"\nchannel = \"auto\"\n").unwrap();
+        let mut cfg = load_from(&path).expect("旧版文件必须可解析");
+        assert!(
+            !cfg.cookie.enabled && !cfg.cookie.consent_acknowledged,
+            "负基线：缺段 = 双 false（通道关，serde default）"
+        );
+        set_cookie_consent(&mut cfg);
+        assert_eq!(
+            cfg.cookie,
+            CookieChannelConfig {
+                enabled: true,
+                consent_acknowledged: true,
+            },
+            "缺段写入后应双真"
+        );
+        save_to(&path, &cfg).expect("保存");
+        let reloaded = load_from(&path).expect("重载");
+        assert_eq!(
+            reloaded.cookie,
+            CookieChannelConfig {
+                enabled: true,
+                consent_acknowledged: true,
+            },
+            "reload 往返必须保持双真"
+        );
+        assert_eq!(reloaded.app_id.as_deref(), Some("legacy-app"), "往返无损");
+        assert_eq!(reloaded.channel, "auto", "往返无损");
         let _ = std::fs::remove_file(&path);
     }
 }

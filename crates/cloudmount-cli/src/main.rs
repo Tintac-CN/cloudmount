@@ -300,6 +300,26 @@ fn cmd_inject_cookie(cookie_str: &str, consent: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// F-05：Cookie 登录成功后把同意标志写回 config.toml（`[cookie]` 双真）。
+///
+/// `config::load` → core 纯函数 [`set_cookie_consent`] → `config::save`
+/// （原子写：tmp + rename）。同意仅由登录交互产生并持久化于此；
+/// load 失败不静默（warn：同意记录丢失，下次启动需重新同意）。
+fn persist_cookie_consent() {
+    match cloudmount_core::config::load() {
+        Ok(mut cfg) => {
+            cloudmount_core::config::set_cookie_consent(&mut cfg);
+            if let Err(e) = cloudmount_core::config::save(&cfg) {
+                tracing::warn!(error = %e, "Cookie 同意标志持久化失败（下次启动需重新同意）");
+            }
+        }
+        Err(e) => tracing::warn!(
+            error = %e,
+            "config::load 失败，Cookie 同意标志未写回（下次启动需重新同意）"
+        ),
+    }
+}
+
 /// Cookie 补充通道登录：知情同意 → 扫码 → 换 Cookie（独立容器存储）。
 fn cmd_login_cookie(consent: bool) -> anyhow::Result<()> {
     use cloudmount_auth::cookie::{CookieAuth, CookiePolicy};
@@ -337,6 +357,8 @@ fn cmd_login_cookie(consent: bool) -> anyhow::Result<()> {
     let auth = CookieAuth::new(policy, store);
     if auth.is_logged_in() {
         println!("Cookie 通道已登录（如需重新登录请先 `cloudmount logout`）。");
+        // 本次调用仍完成了知情同意交互，保持 [cookie] 写回闭环
+        persist_cookie_consent();
         return Ok(());
     }
 
@@ -368,6 +390,8 @@ fn cmd_login_cookie(consent: bool) -> anyhow::Result<()> {
 ✅ Cookie 登录成功，凭据已保存到独立容器。"
                 );
                 println!("提示：挂载/读取可用 Cookie 通道；上传能力将在 M3 v2 提供。");
+                // F-05：登录即同意即持久化（[cookie] 双真写回闭环）
+                persist_cookie_consent();
                 return Ok(());
             }
             None => {

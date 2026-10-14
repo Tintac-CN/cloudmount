@@ -1,7 +1,7 @@
 //! ArtCraft 风格控件：HUD 标签、侧边栏导航行、按钮、进度条。
 
 use crate::theme;
-use eframe::egui::{self as egui, Align2, Color32, FontFamily, FontId, Painter, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use eframe::egui::{self as egui, Align2, Color32, FontFamily, FontId, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
 
 /// 文本大写 + 等宽 + 宽字距（HUD 风格）。
 pub fn hud(ui: &mut Ui, text: &str, color: Color32) -> Response {
@@ -111,7 +111,7 @@ pub fn button(ui: &mut Ui, text: &str, kind: Kind, width: f32, height: f32) -> R
         Kind::Secondary if hovered => (theme::INVERT_BG, Stroke::NONE, theme::INVERT_FG),
         Kind::Secondary => (
             Color32::TRANSPARENT,
-            Stroke::new(1.0, theme::LINE_STRONG),
+            Stroke::new(1.0_f32, theme::LINE_STRONG),
             theme::INK,
         ),
     };

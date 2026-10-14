@@ -193,7 +193,7 @@ fn main() -> anyhow::Result<()> {
             ServiceCommands::Run => {
                 // SCM 入口：同步引擎循环（阻塞直到 SCM Stop）
                 let sync_root = cli.sync_root.clone().unwrap_or_else(|| ".".into());
-                let provider = build_provider(&cli)?;
+                let provider = build_provider(&cli, &file_cfg)?;
                 let mut cfg = SyncEngineConfig::new(&sync_root);
                 cfg.remote_root = RemoteId(cli.remote_root.clone());
                 // flag（本次运行显式开启）或文件持久值，任一为真即生效
@@ -319,6 +319,20 @@ fn build_provider_from_app_id(app_id: &str) -> anyhow::Result<Arc<dyn Provider>>
     Ok(Arc::new(build_open_provider(app_id)?))
 }
 
+/// 从配置 `[cookie]` 段构造 Cookie 通道策略（F-05）。
+///
+/// daemon 是消费者、永不自产同意：策略完全由配置
+/// `enabled`/`consent_acknowledged` 决定（缺段 = 双 false = 关闭）；
+/// 同意仅由登录交互（CLI / desktop）持久化进 config.toml。
+fn cookie_policy_from_config(
+    cookie: &cloudmount_core::config::CookieChannelConfig,
+) -> cloudmount_auth::cookie::CookiePolicy {
+    cloudmount_auth::cookie::CookiePolicy {
+        enabled: cookie.enabled,
+        consent_acknowledged: cookie.consent_acknowledged,
+    }
+}
+
 /// 构造官方通道 Provider（具体类型，供路由器装箱）。
 fn build_open_provider(app_id: &str) -> anyhow::Result<Open115Provider> {
     let store = cloudmount_auth::store::default_store()?;
@@ -331,7 +345,10 @@ fn build_open_provider(app_id: &str) -> anyhow::Result<Open115Provider> {
 
 /// 阻塞式构建 Provider（mock 通道或官方 OpenAPI）。
 #[cfg(windows)]
-fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
+fn build_provider(
+    cli: &Cli,
+    file_cfg: &cloudmount_core::config::Config,
+) -> anyhow::Result<Arc<dyn Provider>> {
     #[cfg(feature = "mock")]
     if cli.mock {
         tracing::warn!("使用 MockRemote 云端（演示/自检；内容为内置示例）");
@@ -345,16 +362,20 @@ fn build_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
         return Ok(Arc::new(mock));
     }
 
-    build_channel_provider(cli)
+    build_channel_provider(cli, file_cfg)
 }
 
 /// 按通道选择构建 Provider（open/cookie/auto；跨平台，同步与挂载共用）。
 ///
-/// - `cookie`：仅补充通道（显式 opt-in；知情同意已在 login 时完成）；
+/// - `cookie`：仅补充通道（显式 opt-in；须已 `cloudmount login
+///   --with-cookie-channel` 完成开启与知情同意，配置 `[cookie]` 双真）；
 /// - `auto`（默认）：官方为主，Cookie 兜底——官方**认证失效**时无感
 ///   切换（tracing::warn 可见 + `last_switch` 供 UI 常驻提示）；
 /// - `open`：仅官方。
-fn build_channel_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
+fn build_channel_provider(
+    cli: &Cli,
+    file_cfg: &cloudmount_core::config::Config,
+) -> anyhow::Result<Arc<dyn Provider>> {
     // mock 通道（自检/演示；与占位符挂载模式同一套示例数据）
     #[cfg(feature = "mock")]
     if cli.mock {
@@ -370,13 +391,17 @@ fn build_channel_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
     }
 
     if cli.channel == "cookie" {
+        // F-05：策略从配置 `[cookie]` 构造（硬编码双真已废除）——未双真
+        // 时 fail-fast 并提示登录入口，绝不静默放行。
+        let policy = cookie_policy_from_config(&file_cfg.cookie);
+        if let Err(e) = policy.check_enabled() {
+            anyhow::bail!(
+                "Cookie 通道未启用：{e}；请先执行 `cloudmount login --with-cookie-channel` 完成显式开启与知情同意"
+            );
+        }
         tracing::warn!(
             "使用 Cookie 补充通道（违反 115 服务协议）。失效探测只读不踢线，失效时请重新扫码。"
         );
-        let policy = cloudmount_auth::cookie::CookiePolicy {
-            enabled: true,
-            consent_acknowledged: true,
-        };
         let store = cloudmount_auth::store::default_store()?;
         let auth = CookieAuth::new(policy, store);
         let provider = cloudmount_driver115::Cookie115Provider::try_new(policy, auth)?;
@@ -390,7 +415,14 @@ fn build_channel_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
 
     // auto：官方为主，Cookie 兜底
     if cli.channel == "auto" {
-        if let Some(cookie) = try_cookie_provider() {
+        // F-05：配置未双真 → 静默跳过 Cookie 兜底（纯官方），info 日志可观测
+        if cookie_policy_from_config(&file_cfg.cookie)
+            .check_enabled()
+            .is_err()
+        {
+            tracing::info!("Cookie 通道未启用（配置 [cookie]），auto 模式纯官方");
+        }
+        if let Some(cookie) = try_cookie_provider(&file_cfg.cookie) {
             let open = build_open_provider(&app_id)?;
             tracing::info!("双通道路由就绪：官方为主，Cookie 兜底（认证失效时自动切换）");
             return Ok(Arc::new(cloudmount_driver115::ProviderRouter::new(
@@ -403,18 +435,27 @@ fn build_channel_provider(cli: &Cli) -> anyhow::Result<Arc<dyn Provider>> {
     build_provider_from_app_id(&app_id)
 }
 
-/// 尝试构造 Cookie 补充通道 Provider（未登录/未启用时 None）。
+/// 尝试构造 Cookie 补充通道 Provider（未启用/未登录时 None）。
 ///
-/// Cookie 未登录/未启用时返回 None（纯官方通道）。
-/// 路由器语义：官方**认证失效**自动切 Cookie（tracing::warn 可见 +
-/// `last_switch` 供 UI 常驻提示）；Cookie 失效回退官方；频控/网络错误
-/// 不切换。
-fn try_cookie_provider() -> Option<cloudmount_driver115::Cookie115Provider> {
-    let policy = cloudmount_auth::cookie::CookiePolicy {
-        enabled: true,
-        consent_acknowledged: true,
-    };
+/// 配置 `[cookie]` 未双真时静默返回 None（auto 兜底纯官方，不报错）；
+/// 已登录 Cookie 失效由路由器语义处理（官方**认证失效**自动切 Cookie，
+/// `tracing::warn` 可见 + `last_switch` 供 UI 常驻提示；Cookie 失效回退
+/// 官方；频控/网络错误不切换）。
+fn try_cookie_provider(
+    cookie_cfg: &cloudmount_core::config::CookieChannelConfig,
+) -> Option<cloudmount_driver115::Cookie115Provider> {
     let store = cloudmount_auth::store::default_store().ok()?;
+    try_cookie_provider_with(cookie_cfg, store)
+}
+
+/// [`try_cookie_provider`] 的存储注入变体（T-08 `#[cfg(test)]` 直测三态用）。
+fn try_cookie_provider_with(
+    cookie_cfg: &cloudmount_core::config::CookieChannelConfig,
+    store: std::sync::Arc<dyn cloudmount_auth::store::SecretStore>,
+) -> Option<cloudmount_driver115::Cookie115Provider> {
+    // 配置未双真 → 静默跳过（即使凭据容器已有 Cookie 也不放行）
+    let policy = cookie_policy_from_config(cookie_cfg);
+    policy.check_enabled().ok()?;
     let auth = CookieAuth::new(policy, store);
     cloudmount_driver115::Cookie115Provider::try_new(policy, auth).ok()
 }
@@ -461,7 +502,7 @@ fn run_service_engine_blocking(
 async fn async_main(cli: Cli, file_cfg: cloudmount_core::config::Config) -> anyhow::Result<()> {
     // 边缘网关模式（M4）：WebDAV 出口 + web-ui 托管（不需要本地同步根）
     if cli.serve {
-        let provider = build_channel_provider(&cli)?;
+        let provider = build_channel_provider(&cli, &file_cfg)?;
         let auth = cli.auth.as_deref().and_then(|s| {
             s.split_once(':')
                 .map(|(u, p)| (u.to_string(), p.to_string()))
@@ -490,11 +531,11 @@ async fn async_main(cli: Cli, file_cfg: cloudmount_core::config::Config) -> anyh
 
     // 占位符挂载模式
     if cli.placeholder_mount {
-        return run_placeholder_mount(&cli, &sync_root);
+        return run_placeholder_mount(&cli, &sync_root, &file_cfg);
     }
 
     // ---- 同步模式（默认）----
-    let provider = build_channel_provider(&cli)?;
+    let provider = build_channel_provider(&cli, &file_cfg)?;
 
     let mut cfg = SyncEngineConfig::new(&sync_root);
     cfg.remote_root = RemoteId(cli.remote_root.clone());
@@ -551,8 +592,12 @@ async fn async_main(cli: Cli, file_cfg: cloudmount_core::config::Config) -> anyh
 
 /// 占位符挂载模式：远端视图 → 占位符投影 → 按需水合。
 #[cfg(windows)]
-fn run_placeholder_mount(cli: &Cli, sync_root: &std::path::Path) -> anyhow::Result<()> {
-    let provider = build_provider(cli)?;
+fn run_placeholder_mount(
+    cli: &Cli,
+    sync_root: &std::path::Path,
+    file_cfg: &cloudmount_core::config::Config,
+) -> anyhow::Result<()> {
+    let provider = build_provider(cli, file_cfg)?;
 
     if !cloudmount_vfs::cfapi::platform_available() {
         anyhow::bail!("cldflt 不可用：占位符挂载需要 Windows 10 1709+ 且为本地 NTFS 卷");
@@ -682,6 +727,115 @@ fn dehydrate_via_mount(
 
 /// 非 Windows：占位符挂载不可用（cldflt 为 Windows 组件）。
 #[cfg(not(windows))]
-fn run_placeholder_mount(_cli: &Cli, _sync_root: &std::path::Path) -> anyhow::Result<()> {
+fn run_placeholder_mount(
+    _cli: &Cli,
+    _sync_root: &std::path::Path,
+    _file_cfg: &cloudmount_core::config::Config,
+) -> anyhow::Result<()> {
     anyhow::bail!("占位符挂载当前仅支持 Windows（macOS FileProvider / Linux 方案见 ROADMAP）")
+}
+
+/// F-05 / T-08：Cookie 通道组装决策三态（单元代理；MA11 auto 断言面 + 拒绝语义）。
+#[cfg(test)]
+mod t08_cookie_gate {
+    use super::*;
+    use cloudmount_auth::store::{MemoryStore, SecretKind, SecretStore};
+    use cloudmount_core::config::{Config, CookieChannelConfig};
+
+    /// 有凭据的注入存储（jar 可恢复 → `is_logged_in` = true）。
+    fn seeded_store() -> std::sync::Arc<dyn SecretStore> {
+        let store = std::sync::Arc::new(MemoryStore::default());
+        let jar = cloudmount_auth::cookie::CookieJar {
+            uid: "test-uid".into(),
+            cid: "test-cid".into(),
+            seid: "test-seid".into(),
+            kid: None,
+        };
+        store
+            .put(SecretKind::CookieJar, &serde_json::to_vec(&jar).unwrap())
+            .expect("写入测试凭据");
+        store
+    }
+
+    /// 状态一：默认关 + `--channel cookie` → 拒绝并报错（不静默放行），
+    /// 错误信息指明需先 `cloudmount login --with-cookie-channel` 开启并同意。
+    #[test]
+    fn channel_cookie_default_off_rejected_with_hint() {
+        let cli = Cli::parse_from(["cloudmountd", "--channel", "cookie"]);
+        let err = match build_channel_provider(&cli, &Config::default()) {
+            Err(e) => e,
+            Ok(_) => panic!("默认关 + --channel cookie 必须被拒绝，不得静默放行"),
+        };
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("login --with-cookie-channel"),
+            "错误应指明先执行 login --with-cookie-channel: {msg}"
+        );
+        assert!(
+            msg.contains("开启") || msg.contains("同意"),
+            "错误应指明显式开启/知情同意语义: {msg}"
+        );
+    }
+
+    /// 状态二：配置双真 → 策略放行（check_enabled Ok）且构造成功
+    /// （既有协议风险 warn 保留在通过把关之后）。
+    #[test]
+    fn double_true_constructs_provider() {
+        let cfg = CookieChannelConfig {
+            enabled: true,
+            consent_acknowledged: true,
+        };
+        cookie_policy_from_config(&cfg)
+            .check_enabled()
+            .expect("双真配置必须放行");
+        let provider = try_cookie_provider_with(&cfg, seeded_store());
+        assert!(
+            provider.is_some(),
+            "双真配置 + 已登录凭据 → Cookie Provider 构造成功"
+        );
+    }
+
+    /// 状态三：auto + 配置未双真 → 静默跳过 Cookie 兜底（纯官方）——
+    /// 即使凭据容器已有 Cookie 也不得放行（防硬编码 {true,true} 回潮）。
+    #[test]
+    fn auto_not_double_true_silently_skips() {
+        let states = [
+            CookieChannelConfig {
+                enabled: false,
+                consent_acknowledged: false,
+            },
+            CookieChannelConfig {
+                enabled: true,
+                consent_acknowledged: false,
+            },
+            CookieChannelConfig {
+                enabled: false,
+                consent_acknowledged: true,
+            },
+        ];
+        for cfg in states {
+            assert!(
+                try_cookie_provider_with(&cfg, seeded_store()).is_none(),
+                "配置未双真（{cfg:?}）必须静默跳过 Cookie 兜底"
+            );
+        }
+    }
+
+    /// check_enabled 拒绝语义：错误链指明"显式开启"与"知情同意"。
+    #[test]
+    fn check_enabled_rejection_semantics() {
+        let off = cookie_policy_from_config(&CookieChannelConfig {
+            enabled: false,
+            consent_acknowledged: false,
+        });
+        let msg = format!("{}", off.check_enabled().unwrap_err());
+        assert!(msg.contains("开启"), "未开启应指明显式开启: {msg}");
+
+        let no_consent = cookie_policy_from_config(&CookieChannelConfig {
+            enabled: true,
+            consent_acknowledged: false,
+        });
+        let msg = format!("{}", no_consent.check_enabled().unwrap_err());
+        assert!(msg.contains("同意"), "未同意应指明知情同意: {msg}");
+    }
 }
