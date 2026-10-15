@@ -47,3 +47,12 @@
   6. GATE-REJECTED 标记在后；修订轮完成后 gate1 复位 pending 复审。
 
 GATE-REJECTED gate1 2026-10-15
+
+---
+
+2026-10-15 Gate#1 修订轮记录（编排者）：
+- 修订范围（只重跑被点名角色 pm+qa；其余工件零改动；修订提交 @ 68a58d2）：
+- **prd.md**：M1（AC3 拆解改「新脚本承接既有产物名锚点——双保险」）/M3（非目标升级措辞改「不设计不保证，Release notes 提示先卸载再装」+语义对齐补版本取值 github.ref_name）/M4（AC5+语义对齐补 SOP 载体声明——operations 新 runbook 取代 macos-release 发布流程节）/M7（AC6 脚本名钉死 installers-yaml.test.sh 复数+语义对齐钉死 packaging/wix/main.wxs 与 scripts/package-pkg-macos.sh）/M8-Q2（开放问题四项转已裁决+Windows 工具链段删 cargo-wix 表述、保留 WiX 安装锁定 Construction 落）/MINOR（AC4 行数 3 行+PATH 新开终端+UAC+先卸载再装提示、AC5 rc tag 语义、AC2 pkg 无 install 脚本、AC3③ 追加口径、AC1 仅产出负断言口径）；连带一致性三处（AC1 拆解/非目标 .dmg 行/首日验证条目随 Q2 裁决同步）。
+- **test-strategy.md**：B1（T2/T6 补 upload artifact name 以 cloudmount- 开头断言——镜像上 intent 先例）/M2（T6 upload path 钉双字面精确路径+T2/T6 补前置硬校验断言）/M1（T11 改双保险口径+允许被修改面包含式护栏——消 T10/T11/T13 自相矛盾）/M3（T3 补版本取 github.ref_name 断言）/M5（T16 升 P0+SKIP=显式人工裁决留痕；随 Q2 裁决改 WiX 冒烟）/M6（T20 降级判据 xar! magic+体积带+真机补验触发入 SOP）/M7（T3/T4/T8 断言对象钉死=release.yml job 块+packaging/wix/main.wxs / scripts/package-pkg-macos.sh）/MINOR（T8 launchd 负断言、T12 行数口径+双平台签名覆盖负路径+误导措辞负断言、T21 映射补 AC4、T9 无 if:/status+continue-on-error 白名单收窄、T18 判据操作化）；头部/缺口节同步（Q1-Q4 已裁决、钉死项写死、SOP 载体）；计数 **P0=15/P1=6/P2=1**（T16 升 P0）。
+- 修订轮对齐拍：AC 引用集合 = {AC1..AC6} 无幻影；prd 锚位与映射列双向核对通过（T21 映射列补 AC4 为 qa 侧超集——集合层一致）；钉死字面（installers-yaml.test.sh、packaging/wix/main.wxs、scripts/package-pkg-macos.sh、github.ref_name）双文件在案。
+- 相位转移：修订轮两工件提交（@ 68a58d2）→ gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-15 之后须新回执），phase → gate1。复审重点核对 B1/M1/M2/M7 消解。
