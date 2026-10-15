@@ -37,7 +37,9 @@
       Manufacturer="tintac-cn"
       UpgradeCode="{352929D3-65D8-44F7-85CA-DC277E228A49}">
     <!-- UpgradeCode 固定 GUID：生成一次钉死（uuid4，2026-10-15），永不再改——改则升级识别断裂；
-         本期不设计升级/迁移语义（prd 非目标），仅靠 MajorUpgrade 阻止降级覆盖。 -->
+         本期不设计升级/迁移语义（prd 非目标）。MajorUpgrade 语义（gate2 准出回填 MINOR 3 留痕）：
+         向前升级自动卸旧装新；降级/同版本重装仍被 DowngradeErrorMessage 拦——Release notes
+         维持「先卸载再装」提示（prd AC4）。 -->
     <Package
         InstallerVersion="500"
         Compressed="yes"

@@ -87,6 +87,13 @@ if [ "$DRY_RUN" -ne 1 ] && [ -z "$VERSION" ]; then
   usage
   exit 2
 fi
+# 版本格式校验（与 MSI 侧 case 校验对称，gate2 准出回填 MINOR 2）：数值格式外一律拒绝
+case "$VERSION" in
+  '') ;;
+  *[!0-9.]*) echo "error: --version 需数值格式，收到: $VERSION（rc 形态 tag 不在发布语义内）" >&2
+    usage
+    exit 2 ;;
+esac
 
 # 前置硬校验（先于一切产出动作；缺任一立即失败，不产出任何 pkg）
 [ -d "$BIN_DIR" ] || { echo "error: 产物目录不存在: $BIN_DIR" >&2; exit 1; }

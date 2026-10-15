@@ -117,10 +117,9 @@ jobs:
         run: |
           test -f target/release/cloudmountd.exe
           test -f target/release/cloudmount.exe
-      # WiX 工具链（T16 已本地实证，decisions.md 2026-10-15）：windows runner 预装探测优先，
-      # 缺失则 choco 装 wixtoolset（= WiX v3 最终线，gate1 Q2 口径；WiX v4/v5 为独立 wix 包不采用）。
-      # 版本锁定留痕（T16 本地实测）：wixtoolset 3.14.1.20250415（candle/light 3.14.1.8722）；
-      # 如需强锁定可 choco install wixtoolset --version 3.14.1.20250415。
+      # WiX 工具链（T16 已本地实证，decisions.md 2026-10-15）：WiX v3 最终线（gate1 Q2 口径；
+      # WiX v4/v5 为独立 wix 包不采用）。gate2 准出回填 M1：废弃预装探测，强制安装+版本硬锁
+      # （T16 实测 wixtoolset 3.14.1.20250415 / candle+light 3.14.1.8722——预装 candle 版本漂移风险）。
       # 版本来源：tag 去 v 前缀注入 ProductVersion（.wxs 不写死版本；WiX 要求数值格式，
       # rc 形态 tag 不在发布语义内，prd AC5）
       - name: WiX v3 构建 MSI（candle + light）
@@ -128,9 +127,9 @@ jobs:
         env:
           MSI_VERSION_SRC: ${{ github.ref_name }}
         run: |
+          choco install wixtoolset --version 3.14.1.20250415 -y --no-progress
           export PATH="$PATH:/c/Program Files (x86)/WiX Toolset v3.14/bin"
-          command -v candle >/dev/null 2>&1 || choco install wixtoolset -y --no-progress
-          command -v candle >/dev/null 2>&1 || { echo "candle 不可用：WiX v3 工具链未就绪（首日验证点）" >&2; exit 1; }
+          command -v candle >/dev/null 2>&1 || { echo "candle 不可用：WiX v3 工具链未就绪（版本 3.14.1.20250415 硬锁）" >&2; exit 1; }
           ver="${MSI_VERSION_SRC#v}"
           case "$ver" in
             *[!0-9.]*) echo "ProductVersion 需数值格式：tag '${ver}' 含非 [0-9.] 字符（rc 不在发布语义内，AC5）" >&2; exit 1 ;;
