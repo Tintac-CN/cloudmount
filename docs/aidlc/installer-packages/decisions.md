@@ -95,3 +95,23 @@ PLAN-CONFIRMED 2026-10-15
   1. **解锁仪式**（授权依据=本条人类裁决）：`scripts/installers-yaml.test.sh` 临时自 tddLockPaths 移除，用于 T3 断言字面修订（`ProgramFilesFolder` → `ProgramFiles64Folder`——MINOR⑩ 本意即 Program Files 安装语义，64 变体为 x64 正确形式）；断言修订+实现修正在案后重新并集置锁。
   2. dev 提交 U2-wixfix：①`packaging/wix/main.wxs`（组件拆分一文件一组件+`ProgramFiles64Folder`+头注三留痕：LGHT0368/ICE80/x64 落位实测）②`.github/workflows/release.yml`（移除 `-sice:ICE80` 抑制及注释、版本锁定回写 3.14.1）③`scripts/installers-yaml.test.sh`（T3 断言字面 64Folder）——授权依据随提交信息留痕。
   3. 变体 A 的 ICE80 抑制路线废弃（实测为错误方向——抑制掩盖 x64 落位错误）。
+
+---
+
+2026-10-15 Gate#2 人类审批（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 互审输入：`reviews/gate2-ai.md` @ 8998b01（verifier 0/0/2+2INFO + architect 0/1/4 + qa 0/0/5 + dev 0/0/4 + pm 0/0/3；合并 0 BLOCKER / 1 MAJOR / 12 MINOR。verifier 七条复跑+红态独立复现（b40eaf0 全树实测 18/72+54 FAIL 与记录逐数一致）+TDD 纪律含授权锁修订合规核验+6 文件归属+testBaseline 逐字节未动——全部属实）。
+- 问：「Gate#2 互审：verifier 七条复跑+红态独立复现全部属实（脚本 9/9·23/23·13/13·72/72、cargo 277/0 零回归、TDD 纪律合格、零归属外文件）；合并 0 BLOCKER / 1 MAJOR（CI WiX 版本软锁——一行 choco --version 硬锁可修，失败模式=显式失败非静默坏包）/ 12 MINOR（记录精度/对称性/枚举级）。如何裁决？」
+  答：「通过+准出回填（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate2），phase → operations。
+  2. **准出回填授权（批准条件，编排者执行并留痕）**：
+     a. M1：release.yml WiX 安装硬锁——废弃预装探测，强制 `choco install wixtoolset --version 3.14.1.20250415`；
+     b. MINOR 1：test-strategy.md T3 规格行与 units/1.md 契约 token 同步 `ProgramFiles64Folder`（授权修订留痕）；
+     c. MINOR 2：`scripts/package-pkg-macos.sh` 补 --version 数值格式校验（与 MSI 侧 case 对称）；
+     d. MINOR 3：main.wxs MajorUpgrade 注释补留痕（向前升级自动卸旧装新，降级/同版本仍拦）；
+     e. MINOR 9：operations runbook 固化时 SOP 补「第 0 步 dispatch check」（operations 阶段执行）；
+     f. MINOR 12：docs/edge.md mac 小节补登录前置句；
+     g. MINOR 4/5 记录勘误随本条留痕（state history 时序整点回填事实；「移除 ICE80」措辞与提交史不符——ICE80 从未入提交）；MINOR 6/7/8/10/11 备案 P2。
+  3. 追认项打包核查：本 intent Construction 无配额降级代行；T16 授权锁修订为人类裁决行为已留痕——无历史追认项需呈。
+
+GATE-APPROVED gate2 2026-10-15
