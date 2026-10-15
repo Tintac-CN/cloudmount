@@ -1,0 +1,20 @@
+{
+  "slug": "macos-release",
+  "intent": "mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不",
+  "phase": "inception",
+  "route": "express",
+  "gates": { "gate1": "pending", "gate2": "pending" },
+  "tddLock": false,
+  "tddLockPaths": [],
+  "tddLockOverride": null,
+  "testBaseline": null,
+  "updatedAt": "2026-10-15T08:54:02+08:00",
+  "history": [
+    {
+      "at": "2026-10-15T08:54:02+08:00",
+      "from": null,
+      "to": "inception",
+      "why": "intent created via /aidlc 「mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不」；A1 裁决：进入生命周期 + route=express + mac 产物范围=daemon+cli 双架构（decisions.md 2026-10-15 A1 条目）；desktop .app 不在本期"
+    }
+  ]
+}
