@@ -46,3 +46,12 @@
   3. GATE-REJECTED 标记在后；复审前 gate1 复位 pending。
 
 GATE-REJECTED gate1 2026-10-15
+
+---
+
+2026-10-15 Gate#1 修订轮记录（编排者）：
+- 修订范围（只重跑被点名角色 pm+qa；其余工件零改动；修订提交 @ 1708fdb）：
+- **prd.md**：AC3 整条改写（B1 裁决：编译面预检上移 CI——workflow_dispatch mac check job 双 target，本地预检降为 dry-run 一道+预检说明入仓，bundled C 因果注明）；AC2 布局字面定稿（M1：tar 内根级 `cloudmountd`/`cloudmount`/`README.md`/`edge.md`，扁平同构 linux 腿）；Q1/Q2/Q3 转已裁决回填；AC1 锚补 T10/T17（M3）；语义对齐小节订正（`-p` 同构、rust-cache 启用表态、"无 Developer ID 签名/公证"措辞、AC5 needs 门控术语+matrix `fail-fast: false`、缺文档硬失败）；非目标补两行（tag `v*` 规范、README 安装表 mac 行不在本期）；连带同步三处（US3 字面、非目标 edge.md 旧行移除、语义对齐 tar/本地模拟行随 B1/M1）。
+- **test-strategy.md**：T6 改集成静态断言（workflow_dispatch mac check job 结构）+ T7 改线上人工 dispatch 触发 + T8 收窄 dry-run 一道+预检说明提 P1（B1）；T4 完整四项清单断言+systemd 排除（M4，SOP 同步）；T10 `if-no-files-found: error` + glob `cloudmount-darwin-*.tar.gz` 写死（M5）；T11 补 release job 无 `if:`/status 覆盖断言（M6）；T9 按 Q1 裁决语义级改写（同一 macos-15 job 双 target 产物存在）；T2 扩缺任一必含文件、T1 并入 dry-run 隔离断言、T14 补资产集合不变、T16 标真机前提、SOP `file` 子串判据+体积区间 5–50MB；计数 P0=10/P1=6/P2=1（T8 P2→P1）。
+- 修订轮对齐拍：AC↔T 双向核对通过（AC1=T9/T10/T14/T15/T17 含 T10 双锚 AC1/AC2、T17 单锚 AC1；AC2=T1-T5/T10；AC3=T6/T7/T8；AC4=T12/T16；AC5=T11/T13/T14），计数一致；上轮 B1/M1/M2/M3/M4/M5/M6 修订点全部可见于字面。
+- 相位转移：修订轮两工件提交（@ 1708fdb）→ gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-15 之后须新回执），phase → gate1。复审重点核对 B1/M1/M2 消解。
