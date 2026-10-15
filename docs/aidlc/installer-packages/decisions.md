@@ -115,3 +115,18 @@ PLAN-CONFIRMED 2026-10-15
   3. 追认项打包核查：本 intent Construction 无配额降级代行；T16 授权锁修订为人类裁决行为已留痕——无历史追认项需呈。
 
 GATE-APPROVED gate2 2026-10-15
+
+---
+
+2026-10-15 Operations 人类裁决（AskUserQuestion，逐字转写）：
+- 问：「发布执行前置（发布 SOP 固化项；「tag 即发布」直接正式已裁决）：」
+  答：「三重前置固定（推荐）」
+- 问：「监控与观察项档位（本 intent 无运行时面，监控对象=CI/发布链路+安装包面）：」
+  答：「轻量+三项观察（推荐）」
+- 问：「retro.md 裁决（route=express 分支：retro 为人类可选，gate2 批准时未一并裁决，现补）：」
+  答：「保留 retro（推荐）」
+- 裁决落点（编排者执行）：
+  1. `ops-runbook.md` 落盘（@ 99c977f，含取代声明——取代 macos-release ops-runbook 的发布流程节）：发布 = 三重前置固定（dispatch check+本地预检四脚本+CI 双腿绿）→ push `v*` tag → 直接正式 Release → T17-T21 人工核验（T18 本机静默装/卸、T20 真机或降级 `xar!` magic 判据）；监控 = 轻量零新增基建（硬门=CI 双腿绿+dispatch 绿+四脚本断言 9/23/13/72）+ 三项观察（WiX 版本硬锁 3.14.1 源公告、macos-15 runner 可用性、安装包真机核验触发）；回退 = 删资产/revert；P2 backlog 七项。
+  2. `retro.md` 落盘（@ 99c977f，express 分支人类裁决=保留）：什么有效（gate1 一轮修订全消解/T16 冒烟实抓实修锁修订闭环/verifier 红态独立复现/断言脚本先例复制/配额降级定时重派）；什么没用（AC 写死未裁决默认值/断言对象路径双工件悬空/WiX v3 EOL 晚披露/state 时序倒置与措辞失实/AskUserQuestion 停摆 2 次）；学习五条（安装器工具链先查 EOL 与模板适配面/WiX v3 x64 须 64Folder 且 ICE80 不可抑制/workflow_dispatch 落独立文件/TDD 授权锁修订闭环可复制/express+串行+三重前置组合成本收益良好）。
+  3. 回流机制：发布事件/CI 异常/新需求经 `/aidlc:inception` 写新 intent；本 intent 学习沉淀 retro.md。
+  4. 完结确认呈出（retro 已落盘，phase=done 待人类确认）。
