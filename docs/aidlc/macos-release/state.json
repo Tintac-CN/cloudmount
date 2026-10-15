@@ -4,8 +4,10 @@
   "phase": "construction",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
-  "tddLock": false,
-  "tddLockPaths": [],
+  "tddLock": true,
+  "tddLockPaths": [
+    "scripts/package-macos.test.sh"
+  ],
   "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-15T11:28:48+08:00",
@@ -49,7 +51,7 @@
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T11:28:48+08:00",
+  "updatedAt": "2026-10-15T11:54:44+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -86,6 +88,18 @@
       "from": "construction",
       "to": "construction",
       "why": "Sprint Planning 落盘（plan.md + units/1-4 @ 68766e9；4 units——U1 打包脚本 TDD/U2 release.yml mac 腿 TDD/U3 check-macos.yml 独立载体 TDD/U4 edge.md+回填收尾；影响面 low×3/med×1）+ 第 0 步基线记录（cargo test --workspace 26 目标 277 passed 0 failed exit 0）；unitStatus 初始化 pending；A3 拆分确认呈出（A1 接入 intent）"
+    },
+    {
+      "at": "2026-10-15T11:45:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-15 @ ce02c2e）：4 units 串行 TDD 开工；U3 断言落独立测试文件 scripts/check-macos-yaml.test.sh（免与 U2 锁冲突，plan.md 同步）"
+    },
+    {
+      "at": "2026-10-15T11:53:41+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 红阶段提交（@ caeb2c2：scripts/package-macos.test.sh 9 用例全红 0/9，红提交仅含测试文件；dev 以仓库外参考实现自证断言可绿非恒红）后 TDD 锁置位：tddLockPaths 并集 = scripts/package-macos.test.sh"
     }
   ]
 }
