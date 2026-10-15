@@ -1,7 +1,7 @@
 {
   "slug": "macos-release",
   "intent": "mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
@@ -51,9 +51,9 @@
     "U1": "done",
     "U2": "done",
     "U3": "done",
-    "U4": "pending"
+    "U4": "done"
   },
-  "updatedAt": "2026-10-15T12:50:00+08:00",
+  "updatedAt": "2026-10-15T13:05:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -132,6 +132,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U3 完成（绿 @ 75125c7：check-macos.yml 24 行单 job——on: 仅 workflow_dispatch/macos-15/双 target check 顺序步，13/13 断言绿 + U2 断言 22/22 零波及）；unitStatus U3 = done。派发 U4（edge.md mac 小节 + 8 MINOR 回填 + 终验）"
+    },
+    {
+      "at": "2026-10-15T13:05:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U4 完成（edge.md mac 小节 @ 00e97af + gate1 授权 8 MINOR 回填 @ d715ef0）；4/4 units done；终验组合全绿——cargo test --workspace 26 目标 277 passed 0 failed（与基线逐数一致，零回归）+ fmt --check 过 + clippy -D warnings 净 + 三脚本测试 9/9、22/22、13/13；actionlint 本机不可用（降级断言在案，test-strategy 缺口节留痕）→ phase 置 gate2，提示 /aidlc:gate"
     }
   ]
 }
