@@ -24,3 +24,26 @@
 - **对齐拍检出双向错位**：qa 映射列按 A1 拆分预览 5 项锚定（prd 实际 6 条 AC），pm 建议锚为预估编号——两角色各派回只做引用回填（测试点本体零改动）：T11→AC3/AC6、T12→AC4、T14→AC6；prd AC1..AC6 括注锚位改为实际 T 编号（AC1=T1/T2/T3/T4/T16/T17/T18/T22、AC2=T5-T8/T19/T20、AC3=T9/T10/T11/T15、AC4=T12、AC5=T13/T17/T19/T21、AC6=T11/T14）。
 - 对齐后核对：AC 引用集合 = prd 实际集合 = {AC1..AC6}，无虚构编号；全部 AC 有 T 点落点，无缺锚（T15 为整文件校验的 AC1/AC2/AC3 多锚、T17/T19 双锚——集合层一致）。
 - 相位转移：两工件提交（@ d9dbb41）→ phase 置 gate1（express 评审集合 = prd + test-strategy 两件），提示 `/aidlc:gate`。
+
+---
+
+2026-10-15 Gate#1 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate1-ai.md` @ c8fb644（reviewer-pm 0/4/5 + architect 0/4/8 + qa 1/3/8 + dev 0/3/7；合并 1 BLOCKER / 8 MAJOR / 15 MINOR）。
+- 呈批四问与用户裁决：
+  问：「Gate#1 互审：1 BLOCKER（B1 artifact 名零锚——错名将静默产出缺安装包的正式 Release）+8 MAJOR（守护口径冲突/前置硬校验无锚/升级披露不实/双 SOP/路径悬空/WiX v3 EOL 等）+15 MINOR。如何裁决？」
+  答：「打回修订（推荐）」
+  问：「开放问题 Q1-Q4（互审建议 gate1 显式拍板而非默认通过；Q2 已计入 WiX v3 EOL 权衡）：」
+  答：「pkg+直接WiX+PATH（推荐）」
+  问：「互审新钉死项（M3/M4/M7 落点，修订轮回填字面）：」
+  答：「全部采推荐（推荐）」
+  问：「T16 定级与 SKIP 判据（qa M2）：」
+  答：「升 P0+SKIP留痕（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate1 打回（gate1=rejected，phase 回 inception）：只重跑 pm+qa 修订被点名项，对齐拍后 gate1 复位 pending 复审（重点核对 B1/M1/M2/M7 消解）。
+  2. **Q1-Q4 裁决**：Q1 = mac 形态 `.pkg`；Q2 = **手写 `.wxs` + CI 直接 WiX**（计入 WiX v3 EOL 与双 bin 必手改 .wxs 的权衡——cargo-wix 不采用，仅 CI 侧装 WiX 工具链，安装方式与版本锁定 Construction 落）；Q3 = MSI 写 Machine 级 PATH；Q4 = 安装位置 `Program Files\CloudMount`（Windows）/ `/usr/local/bin`（mac）。
+  3. **钉死项裁决（M3/M4/M7 落点）**：安装器定义 = `packaging/wix/main.wxs`（仓库集中惯例）；mac 打包脚本 = `scripts/package-pkg-macos.sh`（沿 package-macos.sh 先例）；新断言脚本名统一 = `scripts/installers-yaml.test.sh`（复数）；安装器版本取值 = `github.ref_name`（不依赖 Cargo.toml bump）；SOP 载体 = operations 阶段产出本 intent runbook 显式声明取代 macos-release runbook 的发布流程节。
+  4. **T16 裁决**：升 P0；SKIP 需显式人工裁决记 decisions.md（含安装尝试与失败输出留痕）。
+  5. 修订范围点名——pm：AC3 可测性拆解改口径（新脚本承接既有产物名锚点，与锁定脚本重复无害）/非目标升级措辞改「不设计不保证，Release notes 提示先卸载再装」+版本取值 github.ref_name 入语义对齐/SOP 载体声明/AC6 脚本名统一复数/AC4 行数口径（MSI 1 行+pkg 每 arch 一行共 3 行）+PATH 刷新提示+UAC 预期+rc tag 语义+pkg 无 install 脚本声明+AC3③ 追加口径（签名段追加新行不改既有段）/开放问题 Q1-Q4 转已裁决；qa：B1（T2/T6 补 artifact name 断言）/M1（T11 措辞消歧）/M2（T6 upload path 钉双字面精确路径+前置硬校验断言）/M6（T20 降级判据 xar! magic+体积带+真机补验触发）/M7（断言对象路径钉死+脚本名统一）/T16 升 P0+SKIP 留痕/T8 补 launchd 负断言/T12 双 arch 字面+AC4 负路径/T21 映射补 AC4/T9 补无 if:/status/T10-T11 矛盾消解/T18 判据操作化（OS 新开终端+管理员 shell+command -v）/头部与缺口节同步。
+  6. GATE-REJECTED 标记在后；修订轮完成后 gate1 复位 pending 复审。
+
+GATE-REJECTED gate1 2026-10-15
