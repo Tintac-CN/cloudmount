@@ -227,9 +227,11 @@ ok=1
 grep_ok "$WXS_NORM" -qF 'cloudmount.exe' && ok=0
 report "T3 main.wxs 含 cloudmount.exe 字面（cli 入包，A1）" "$ok"
 
+# 字面修订（2026-10-15 授权锁修订：decisions.md T16 冒烟实证条目）——x64 包下 ProgramFilesFolder
+# 运行时实测解析 C:\Program Files (x86)（违背 prd Q4），钉 64 位标准目录字面 ProgramFiles64Folder
 ok=1
-grep_ok "$WXS_NORM" -qF 'ProgramFilesFolder' && ok=0
-report "T3 main.wxs 含 ProgramFilesFolder token（Q4：Program Files 安装）" "$ok"
+grep_ok "$WXS_NORM" -qF 'ProgramFiles64Folder' && ok=0
+report "T3 main.wxs 含 ProgramFiles64Folder token（Q4：x64 包 64 位 Program Files 安装）" "$ok"
 
 ok=1
 grep_ok "$WXS_NORM" -qF 'Name="CloudMount"' && ok=0

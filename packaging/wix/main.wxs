@@ -14,6 +14,16 @@
                                                        rc 形态 tag 不在发布语义内，prd AC5；校验在 CI 步）
     candle -dBinDir=<含 cloudmountd.exe/cloudmount.exe 的目录>  —— CI 传 target/release 的绝对 Windows 路径
 
+  T16 本地冒烟实证留痕（2026-10-15，wixtoolset 3.14.1.20250415 / candle-light 3.14.1.8722；
+  裁决与锁修订授权见 decisions.md 2026-10-15 T16 条目）：
+    ① LGHT0368：双 File 组件（非 KeyPath 文件带版本资源时）不可用 Guid="*" 自动 GUID
+       → 一文件一组件（WiX 最佳实践，对真实产物带/无版本资源均成立）；
+    ② ICE80 实证非误报：x64 包下 ICE 将 ProgramFilesFolder 归 32 位标准目录，运行时实测解析
+       C:\Program Files (x86)——违背 prd Q4；抑制路线（-sice:ICE80）废弃，改用
+       ProgramFiles64Folder 后 light 无需任何 ICE 抑制（全量 ICE 校验保留）；
+    ③ x64 落位实测：ProgramFiles64Folder 变体安装 → C:\Program Files\CloudMount\ 双 exe 在位、
+       机器 PATH=[INSTALLDIR]、新进程 where 可寻、卸载文件+PATH 全清（T18 判据同源）。
+
   MINOR⑫（UTF-8 中文元数据风险）：本文件存为 UTF-8 with BOM；中文仅存在于 XML 注释
   （不编入 MSI 字符串表），MSI 可见元数据一律英文，规避 WiX v3 对无 BOM 源按 ANSI
   处理导致的 ARP 描述乱码/报错。
@@ -38,8 +48,9 @@
     <MediaTemplate EmbedCab="yes" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
-        <!-- Q4：INSTALLDIR 解析为 Program Files\CloudMount（candle -arch x64 → 64 位 Program Files） -->
+      <Directory Id="ProgramFiles64Folder">
+        <!-- Q4：INSTALLDIR 解析为 C:\Program Files\CloudMount（candle -arch x64 的 64 位标准目录；
+             头注②③实证：ProgramFilesFolder 在 x64 包下落 C:\Program Files (x86)，弃用） -->
         <Directory Id="INSTALLDIR" Name="CloudMount" />
       </Directory>
     </Directory>
@@ -51,10 +62,14 @@
 
   <Fragment>
     <ComponentGroup Id="ProductComponents">
-      <!-- 双 File 组件：daemon + cli 同组件同进同出（A1 范围：daemon + cli，无其他文件） -->
-      <Component Id="CloudMountBinaries" Directory="INSTALLDIR" Guid="*">
-        <File Id="CloudMountdExe" Name="cloudmountd.exe" Source="$(var.BinDir)/cloudmountd.exe" KeyPath="yes" />
-        <File Id="CloudmountCliExe" Name="cloudmount.exe" Source="$(var.BinDir)/cloudmount.exe" />
+      <!-- 一文件一组件（WiX 最佳实践，Guid="*" 自动 GUID 前提；A1 范围：daemon + cli，无其他文件）。
+           T16 冒烟修正留痕：双 File 组件在非 KeyPath 文件带版本资源时触发 LGHT0368（自动 GUID 不适用），
+           拆分后对真实产物（带/无版本资源）均成立。 -->
+      <Component Id="CloudMountdComponent" Directory="INSTALLDIR" Guid="*">
+        <File Id="CloudMountdExeFile" Name="cloudmountd.exe" Source="$(var.BinDir)/cloudmountd.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="CloudmountCliComponent" Directory="INSTALLDIR" Guid="*">
+        <File Id="CloudmountCliExeFile" Name="cloudmount.exe" Source="$(var.BinDir)/cloudmount.exe" KeyPath="yes" />
       </Component>
       <!-- Q3：Machine 级 PATH（新进程/新开终端生效，已开终端不自动刷新——Release notes 提示）；
            System="yes" = 写 HKLM 机器环境变量；卸载随组件移除（非 Permanent）；
