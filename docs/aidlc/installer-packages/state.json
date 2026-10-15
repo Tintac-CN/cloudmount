@@ -5,7 +5,9 @@
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
-  "tddLockPaths": [],
+  "tddLockPaths": [
+    "scripts/installers-yaml.test.sh"
+  ],
   "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-15T18:46:48+08:00",
@@ -44,12 +46,12 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending",
-    "U2": "pending",
+    "U1": "done",
+    "U2": "done",
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T20:47:03+08:00",
+  "updatedAt": "2026-10-15T21:00:00+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -104,6 +106,12 @@
       "from": "construction",
       "to": "construction",
       "why": "T16 冒烟解锁仪式（授权依据：decisions.md 2026-10-15 T16 冒烟实证与锁修订授权条目——人类裁决「授权锁修订」）：scripts/installers-yaml.test.sh 临时自 tddLockPaths 移除，用于 T3 断言字面修订（ProgramFilesFolder→ProgramFiles64Folder——WiX v3 x64 包实测落位修复）；U2-wixfix 提交后重新并集置锁"
+    },
+    {
+      "at": "2026-10-15T21:00:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 完成（绿 @ f0a401f：packaging/wix/main.wxs 68 行+installer-msi-windows job 48+/1- 仅追加，MSI 侧断言 27 条全绿；T16 全项 @ 2df10af 修正确认 PASS——WiX v3.14.1 实测 x64 包 ProgramFilesFolder 落 x86 目录（ICE80 非误报），定稿 ProgramFiles64Folder 零抑制构建+msiexec 四步全 PASS（Program Files\\CloudMount 落位/机器 PATH/新进程 where/卸载全清），ICE80 抑制路线废弃留痕）；重新置锁（tddLockPaths 恢复 installers-yaml.test.sh，T3 字面修订随授权提交在案）；unitStatus U1=done（红+锁）、U2=done（绿+T16 PASS）。派发 U3（pkg 腿→断言全绿）"
     }
   ]
 }
