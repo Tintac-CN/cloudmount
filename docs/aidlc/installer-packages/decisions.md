@@ -56,3 +56,20 @@ GATE-REJECTED gate1 2026-10-15
 - **test-strategy.md**：B1（T2/T6 补 upload artifact name 以 cloudmount- 开头断言——镜像上 intent 先例）/M2（T6 upload path 钉双字面精确路径+T2/T6 补前置硬校验断言）/M1（T11 改双保险口径+允许被修改面包含式护栏——消 T10/T11/T13 自相矛盾）/M3（T3 补版本取 github.ref_name 断言）/M5（T16 升 P0+SKIP=显式人工裁决留痕；随 Q2 裁决改 WiX 冒烟）/M6（T20 降级判据 xar! magic+体积带+真机补验触发入 SOP）/M7（T3/T4/T8 断言对象钉死=release.yml job 块+packaging/wix/main.wxs / scripts/package-pkg-macos.sh）/MINOR（T8 launchd 负断言、T12 行数口径+双平台签名覆盖负路径+误导措辞负断言、T21 映射补 AC4、T9 无 if:/status+continue-on-error 白名单收窄、T18 判据操作化）；头部/缺口节同步（Q1-Q4 已裁决、钉死项写死、SOP 载体）；计数 **P0=15/P1=6/P2=1**（T16 升 P0）。
 - 修订轮对齐拍：AC 引用集合 = {AC1..AC6} 无幻影；prd 锚位与映射列双向核对通过（T21 映射列补 AC4 为 qa 侧超集——集合层一致）；钉死字面（installers-yaml.test.sh、packaging/wix/main.wxs、scripts/package-pkg-macos.sh、github.ref_name）双文件在案。
 - 相位转移：修订轮两工件提交（@ 68a58d2）→ gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-15 之后须新回执），phase → gate1。复审重点核对 B1/M1/M2/M7 消解。
+
+---
+
+2026-10-15 Gate#1 复审人类审批（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 互审输入：`reviews/gate1-ai-r2.md` @ f944ee0（reviewer-pm 0/0/5 + architect 0/0/5 + qa 0/0/5 + dev 0/1/8；合并 0 BLOCKER / 1 MAJOR / 12 MINOR；上轮 1 BLOCKER/8 MAJOR 经四方逐项实证全部消解——含先例字面验证与三锁定脚本基线实跑）。
+- 呈批一问（AskUserQuestion 呈出，用户对话一句话裁决）：
+  问：「Gate#1 复审（r2）：上轮 1 BLOCKER/8 MAJOR 全部消解实证（含先例字面与基线脚本实跑）；新检出 1 MAJOR（修订新引入的 dry-run 语义边界措辞——一句话可修，无需设计决策）+ 12 MINOR（断言枚举/措辞级）。如何裁决？」
+  答：「通过」
+- 裁决落点（编排者执行；「通过」按呈批推荐选项语义=通过+准出回填）：
+  1. gate1 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate1，2026-10-15 GATE-REJECTED gate1 的新鲜度要求由本回执满足），phase → construction。
+  2. **准出回填授权（批准条件，编排者执行并留痕）**：
+     a. R2-MAJOR-1：prd「安装（pkg）」条补 dry-run 边界声明——「dry-run 仅覆盖 staging+硬校验段，pkgbuild 调用段 mac 独占、本地不覆盖」（纯事实边界，无需设计决策）；
+     b. MINOR 1-11 授权随 Construction 首日回填：①AC4 三提示关键词入 T12 断言枚举②pkg 版本断言补 AC2 侧③T11 承接清单补收编链中段三字面（pattern/merge-multiple/files）④T9 白名单措辞消歧⑤SOP 清单②补管理员 shell 前置⑥T6 归因措辞如实化⑦T1/T5 与头部 runner pin 口径统一⑧T8 补 preinstall/postinstall 负断言⑨WiX 大版本选择入首日验证⑩T3 .wxs 断言 token 钉（ProgramFilesFolder/Environment/System="yes"）⑪T2 前置硬校验 OR 逃生口收窄为具体字面；
+     c. MINOR 12 三项遗留（元数据 owner/pkg identifier 钉死、MSI job 构建来源明示、UTF-8 中文 description 风险）随 Construction 首日验证一并落。
+  3. 后续：phase = construction，`/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认表单在派发 dev 泳道前呈出）。
+
+GATE-APPROVED gate1 2026-10-15

@@ -1,15 +1,15 @@
 {
   "slug": "installer-packages",
   "intent": "windows需要提供msi安装包，mac也需要。请继续推进自动化发布和打包工作，tag即发布",
-  "phase": "gate1",
+  "phase": "construction",
   "route": "express",
-  "gates": { "gate1": "pending", "gate2": "pending" },
+  "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-15T16:18:09+08:00",
+  "updatedAt": "2026-10-15T18:04:46+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -34,6 +34,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "Gate#1 修订轮完成（decisions.md 2026-10-15 修订轮记录 @ 68a58d2）：pm（M1/M3/M4/M7/M8-Q2+MINOR 落点）+ qa（B1/M1/M2/M3/M5/M6/M7+MINOR 落点，P0=15/P1=6/P2=1）；修订轮对齐拍 AC↔T 双向核对通过、钉死字面双文件在案；gate1 复位 pending 待复审（重点核对 B1/M1/M2/M7 消解）"
+    },
+    {
+      "at": "2026-10-15T18:04:46+08:00",
+      "from": "gate1",
+      "to": "construction",
+      "why": "Gate#1 复审人类通过（decisions.md GATE-APPROVED gate1 2026-10-15）：r2 复审确认上轮 1B/8M 全部消解实证（reviews/gate1-ai-r2.md @ f944ee0）；R2-MAJOR-1（dry-run 语义边界措辞）+MINOR 1-11 列为准出回填（随批准由编排者修正一句+Construction 首日回填），MINOR 12 三项遗留随首日验证；phase → construction"
     }
   ]
 }
