@@ -249,3 +249,17 @@ GATE-REJECTED gate2 2026-10-15
   5. 后续：phase = operations，`/aidlc:ops` 产出 ops-runbook.md；本 intent 学习全部进 retro.md（含 F-04 计数三值收敛、AC 标签口径、flaky 观察项移交 CI）。
 
 GATE-APPROVED gate2 2026-10-15
+
+---
+
+2026-10-15 Operations 人类裁决（AskUserQuestion，逐字转写）：
+- 问：「监控与 SLA 档位（cloudmount 为本地挂载工具：daemon 为 Windows SCM 服务 + WebDAV/VFS，无服务端集群）——监控体系采哪档？」
+  答：「本地轻量（推荐）」
+- 问：「告警阈值口径（本 intent 修复的可观测信号：oss_put 显式 Err、刷新单飞失败、watcher detach+warn、spool 残留 warn、配置 fail-fast、probe 切换 last_switch）——阈值怎么定？」
+  答：「硬信号即时，warn 巡检（推荐）」
+- 问：「部署窗口与发布流程（当前 CI 仅构建+测试，无发布流水线）——发布节奏怎么定？」
+  答：「手动发布+发布前全腿（推荐）」
+- 裁决落点（编排者执行）：
+  1. `ops-runbook.md` 落盘（@ ae5375e）：监控体系 = CI 三平台双腿绿为发布硬门 + Windows SCM 服务恢复自动重启 + tracing 日志 warn 人工巡检（每月或排障时），零新增基建；硬信号四条即时人工介入（CI 任一腿红 / SCM 非预期退出 / 配置 fail-fast 启动失败 / 日志出现凭据明文），warn 类不设数值阈值；发布 = 人工打 tag 触发 + 发布前清单（CI 三平台双腿绿 + 本机冒烟 daemon 挂载卸载 + desktop 点击即同意一次 + `cargo test -p cloudmount-desktop` + 产物三件 daemon/cli/desktop）+ 回退上一 tag；P2 backlog 与 flaky 观察项、hash.rs 头号嫌疑入 runbook 观察节。
+  2. `retro.md` 落盘（@ ae5375e，classic 硬性要件）：什么有效（verifier 终检两轮抓盲区 / TDD 锁断言面零修改 / 互审证据引用纪律 / 回执新鲜度机制 / 偏差备案文化）；什么没用（U6 漏派发与批量置位 / Wave 2-3 红提交纪律缺失 / fmt 缺位于验证命令 / F-04 计数三值漂移与 AC 标签编号混用 / flaky 无名可循）；学习沉淀五条（逐 unit 对照 diff 置位、验证命令四件套=两腿 test+fmt --check+clippy -D warnings、内联测试锁例外三件套、升格并入判据、可验证量词实测后写）；下个 bolt 五项（P2 backlog 优先 hash.rs per-run temp 目录与 initupload 日志收口、CI release workflow、F-04/AC 标签以记录为准不回改原始工件、新 intent 启用四件套与逐 unit 纪律）。
+  3. 回流机制：生产事件与后续学习不改本 intent 原始工件，经 `/aidlc:inception` 写新 intent；完结确认后本 intent 退出活跃位。
