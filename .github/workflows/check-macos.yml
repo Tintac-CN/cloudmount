@@ -1,0 +1,24 @@
+# AC3① 编译面预检：tag 前手动触发（仅 workflow_dispatch，零自动触发副作用，R2-MAJOR 独立载体）验证 darwin 双 target 编译面——gate1 B1 裁决落点：本地 Windows 无 darwin C 工具链（libsqlite3-sys/ring bundled C build scripts 不可行），预检上移 CI
+name: mac check（darwin 双 target 编译面预检）
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-macos:
+    name: macOS 编译面预检（aarch64 + x86_64 双 target check）
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      # gate1 Q1：pin macos-15（arm64）单 runner 双 target——顺序步双 target check（不链接），不采用 matrix
+      - name: 编译面预检（aarch64-apple-darwin 原生）
+        run: cargo check --target aarch64-apple-darwin -p cloudmount-daemon -p cloudmount-cli
+      - name: 编译面预检（x86_64-apple-darwin 交叉）
+        run: cargo check --target x86_64-apple-darwin -p cloudmount-daemon -p cloudmount-cli
