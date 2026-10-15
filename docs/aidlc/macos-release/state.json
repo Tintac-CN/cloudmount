@@ -6,7 +6,8 @@
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
   "tddLockPaths": [
-    "scripts/package-macos.test.sh"
+    "scripts/package-macos.test.sh",
+    "scripts/release-yaml.test.sh"
   ],
   "tddLockOverride": null,
   "testBaseline": {
@@ -51,7 +52,7 @@
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T12:00:00+08:00",
+  "updatedAt": "2026-10-15T12:20:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -106,6 +107,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U1 完成（绿 @ 0805095：package-macos.sh 102 行，9/9 passed exit 0；锁定测试文件零修改，绿提交仅含实现一个文件）；unitStatus U1 = done。派发 U2 红阶段（release.yml 结构断言脚本 T9-T13）"
+    },
+    {
+      "at": "2026-10-15T12:20:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 红阶段提交（@ 8c0012d：scripts/release-yaml.test.sh 22 断言 6/22——16 项 mac 断言全红+6 项护栏现状绿；actionlint 本机不可用走降级 YAML 解析已自校验注入拦截；CRLF 剥除处理后断言）后 TDD 锁并集：tddLockPaths += scripts/release-yaml.test.sh"
     }
   ]
 }
