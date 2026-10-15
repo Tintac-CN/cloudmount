@@ -73,3 +73,13 @@ GATE-REJECTED gate1 2026-10-15
   3. 后续：phase = construction，`/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认表单在派发 dev 泳道前呈出）。
 
 GATE-APPROVED gate1 2026-10-15
+
+---
+
+2026-10-15 A3 拆分确认（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 呈批对象：plan.md @ 7f6a550（4 units 串行 TDD——U1 安装包结构断言脚本红/U2 Windows MSI 腿含 T16 冒烟/U3 mac pkg 腿/U4 终验收尾；验证命令=cargo test --workspace，基线 26 目标 277 passed 0 failed（@ 03f85f1 记录）；MINOR 12 落位值钉死进 plan：owner=tintac-cn、identifier=io.github.tintac-cn.cloudmount、MSI job 构建来源=重编译+rust-cache；串行派发沿限流教训）。
+- 问：「A3 拆分确认（intent installer-packages，4 units 串行 TDD）：是否批准开始施工？」
+  答：「批准」
+- 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；开始串行派发 U1→U2→U3→U4。
+
+PLAN-CONFIRMED 2026-10-15
