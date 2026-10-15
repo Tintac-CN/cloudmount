@@ -50,10 +50,10 @@
   "unitStatus": {
     "U1": "done",
     "U2": "done",
-    "U3": "pending",
+    "U3": "done",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T12:40:00+08:00",
+  "updatedAt": "2026-10-15T12:50:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -126,6 +126,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U3 红阶段提交（@ 9da5065：scripts/check-macos-yaml.test.sh 13 断言全红 0/13——含 on: 零自动触发面白名单校验（R2-MAJOR 守护）与 targets 安装面防空真设计；沙箱自校验绿样本 13/13+两个负样本定向 FAIL）后 TDD 锁并集：tddLockPaths += scripts/check-macos-yaml.test.sh"
+    },
+    {
+      "at": "2026-10-15T12:50:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 完成（绿 @ 75125c7：check-macos.yml 24 行单 job——on: 仅 workflow_dispatch/macos-15/双 target check 顺序步，13/13 断言绿 + U2 断言 22/22 零波及）；unitStatus U3 = done。派发 U4（edge.md mac 小节 + 8 MINOR 回填 + 终验）"
     }
   ]
 }
