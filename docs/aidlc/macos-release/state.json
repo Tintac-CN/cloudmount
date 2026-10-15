@@ -46,12 +46,12 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending",
+    "U1": "done",
     "U2": "pending",
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T11:54:44+08:00",
+  "updatedAt": "2026-10-15T12:00:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -100,6 +100,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U1 红阶段提交（@ caeb2c2：scripts/package-macos.test.sh 9 用例全红 0/9，红提交仅含测试文件；dev 以仓库外参考实现自证断言可绿非恒红）后 TDD 锁置位：tddLockPaths 并集 = scripts/package-macos.test.sh"
+    },
+    {
+      "at": "2026-10-15T12:00:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 完成（绿 @ 0805095：package-macos.sh 102 行，9/9 passed exit 0；锁定测试文件零修改，绿提交仅含实现一个文件）；unitStatus U1 = done。派发 U2 红阶段（release.yml 结构断言脚本 T9-T13）"
     }
   ]
 }
