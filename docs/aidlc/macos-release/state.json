@@ -7,7 +7,8 @@
   "tddLock": true,
   "tddLockPaths": [
     "scripts/package-macos.test.sh",
-    "scripts/release-yaml.test.sh"
+    "scripts/release-yaml.test.sh",
+    "scripts/check-macos-yaml.test.sh"
   ],
   "tddLockOverride": null,
   "testBaseline": {
@@ -52,7 +53,7 @@
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T12:30:00+08:00",
+  "updatedAt": "2026-10-15T12:40:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -119,6 +120,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2 完成（绿 @ c310f77：release.yml 纯插入 mac 腿 37+/1-（1 删除=needs 行契约性追加），22/22 结构断言绿；既有 job 零删改，on: 零改动；--bin-dir 单目录问题以 per-target staging 归集落地）；unitStatus U2 = done。派发 U3 红阶段（check-macos-yaml.test.sh T6 断言）"
+    },
+    {
+      "at": "2026-10-15T12:40:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 红阶段提交（@ 9da5065：scripts/check-macos-yaml.test.sh 13 断言全红 0/13——含 on: 零自动触发面白名单校验（R2-MAJOR 守护）与 targets 安装面防空真设计；沙箱自校验绿样本 13/13+两个负样本定向 FAIL）后 TDD 锁并集：tddLockPaths += scripts/check-macos-yaml.test.sh"
     }
   ]
 }
