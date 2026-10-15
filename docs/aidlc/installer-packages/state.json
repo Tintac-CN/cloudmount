@@ -4,8 +4,10 @@
   "phase": "construction",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
-  "tddLock": false,
-  "tddLockPaths": [],
+  "tddLock": true,
+  "tddLockPaths": [
+    "scripts/installers-yaml.test.sh"
+  ],
   "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-15T18:46:48+08:00",
@@ -49,7 +51,7 @@
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T18:46:48+08:00",
+  "updatedAt": "2026-10-15T19:10:00+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -86,6 +88,18 @@
       "from": "construction",
       "to": "construction",
       "why": "Construction 首日：gate1 授权 MINOR 1-11 回填执行（@ ee3a0fc：断言枚举补全/措辞消歧/token 钉死/prd 首日验证补 WiX 版本+UTF-8）+ Sprint Planning 落盘（plan.md + units/1-4 @ 7f6a550；4 units——U1 断言脚本红/U2 MSI 腿含 T16 冒烟/U3 pkg 腿/U4 终验；MINOR 12 落位值钉死：owner=tintac-cn/identifier/重编译）+ 第 0 步基线记录（cargo test --workspace 26 目标 277 passed 0 failed exit 0）；unitStatus 初始化 pending；A3 拆分确认呈出（A1 接入 intent）——表单未获选择，待人类对话裁决"
+    },
+    {
+      "at": "2026-10-15T18:52:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-15 @ b1ae65b）：4 units 串行 TDD 开工，串行派发 U1→U2→U3→U4"
+    },
+    {
+      "at": "2026-10-15T19:10:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 红阶段提交（@ b40eaf0：scripts/installers-yaml.test.sh 566 行 72 断言——18/72 现状绿（护栏）+54 FAIL 全红（MSI/pkg 被测对象未存在，文件存在前置防空真）；红提交仅含测试文件；一处记录偏差=set -u 沿先例替代 units 行文 set -euo pipefail（防 grep -q 管道 SIGPIPE 假阴性，头注留痕））后 TDD 锁置位：tddLockPaths 并集 = scripts/installers-yaml.test.sh"
     }
   ]
 }
