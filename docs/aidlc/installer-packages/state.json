@@ -1,7 +1,7 @@
 {
   "slug": "installer-packages",
   "intent": "windows需要提供msi安装包，mac也需要。请继续推进自动化发布和打包工作，tag即发布",
-  "phase": "operations",
+  "phase": "done",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "approved" },
   "tddLock": true,
@@ -51,7 +51,7 @@
     "U3": "done",
     "U4": "done"
   },
-  "updatedAt": "2026-10-15T22:17:38+08:00",
+  "updatedAt": "2026-10-15T22:40:00+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -130,6 +130,12 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-15）：互审 0 BLOCKER/1 MAJOR/12 MINOR（reviews/gate2-ai.md @ 8998b01），verifier 七条复跑+红态独立复现全部属实、TDD 纪律含授权锁修订合规核验；M1（CI WiX 版本软锁）+MINOR 1/2/3/9/12 列为准出回填（编排者执行），MINOR 4/5 记录勘误随批准条目留痕，MINOR 6/7/8/10/11 备案 P2；Construction 无降级代行，T16 授权锁修订为人类裁决已留痕——无追认项"
+    },
+    {
+      "at": "2026-10-15T22:40:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "Intent 完结经人类确认（decisions.md INTENT-DONE installer-packages 2026-10-15）：4/4 units 交付、两门均过（gate1 一轮打回修订+复审通过；gate2 含准出回填）、ops-runbook.md 与 retro.md（express 分支人类裁决=保留）落盘 @ 99c977f、运维三裁决留痕 @ a9523fd（三重前置固定/轻量+三项观察/retro 保留）；线上人工项（T17-T21 安装包发布核验）已入发布 SOP（ops-runbook 固化，取代 macos-release 发布流程节）；intent 退出活跃位，工件链原样保留作审计"
     }
   ]
 }

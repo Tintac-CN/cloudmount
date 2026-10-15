@@ -130,3 +130,12 @@ GATE-APPROVED gate2 2026-10-15
   2. `retro.md` 落盘（@ 99c977f，express 分支人类裁决=保留）：什么有效（gate1 一轮修订全消解/T16 冒烟实抓实修锁修订闭环/verifier 红态独立复现/断言脚本先例复制/配额降级定时重派）；什么没用（AC 写死未裁决默认值/断言对象路径双工件悬空/WiX v3 EOL 晚披露/state 时序倒置与措辞失实/AskUserQuestion 停摆 2 次）；学习五条（安装器工具链先查 EOL 与模板适配面/WiX v3 x64 须 64Folder 且 ICE80 不可抑制/workflow_dispatch 落独立文件/TDD 授权锁修订闭环可复制/express+串行+三重前置组合成本收益良好）。
   3. 回流机制：发布事件/CI 异常/新需求经 `/aidlc:inception` 写新 intent；本 intent 学习沉淀 retro.md。
   4. 完结确认呈出（retro 已落盘，phase=done 待人类确认）。
+
+---
+
+2026-10-15 Intent 完结确认（AskUserQuestion，逐字转写）：
+- 问：「intent「installer-packages」（MSI/pkg 安装包 + tag 即发布自动化）完结确认：4/4 units 交付、两门均过（gate1 一轮打回修订+复审通过；gate2 含准出回填）、ops-runbook 与 retro（express 分支人类裁决=保留）已落盘、线上人工项（T17-T21 安装包发布核验）已入发布 SOP。确认 phase 置 done？」
+  答：「确认完结（推荐）」
+- 完结落点（编排者执行）：phase = done；本 intent 退出活跃位（session-context 不再注入、resume 不再选中）；工件链（intent.md / prd.md / test-strategy.md / plan.md / units/ / reviews/ / ops-runbook.md / retro.md）与 decisions.md 原样保留作审计；发布事件与后续学习经 `/aidlc:inception` 写新 intent（回流机制见 ops-runbook.md）。
+
+INTENT-DONE installer-packages 2026-10-15
