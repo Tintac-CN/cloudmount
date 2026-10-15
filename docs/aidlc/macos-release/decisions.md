@@ -55,3 +55,19 @@ GATE-REJECTED gate1 2026-10-15
 - **test-strategy.md**：T6 改集成静态断言（workflow_dispatch mac check job 结构）+ T7 改线上人工 dispatch 触发 + T8 收窄 dry-run 一道+预检说明提 P1（B1）；T4 完整四项清单断言+systemd 排除（M4，SOP 同步）；T10 `if-no-files-found: error` + glob `cloudmount-darwin-*.tar.gz` 写死（M5）；T11 补 release job 无 `if:`/status 覆盖断言（M6）；T9 按 Q1 裁决语义级改写（同一 macos-15 job 双 target 产物存在）；T2 扩缺任一必含文件、T1 并入 dry-run 隔离断言、T14 补资产集合不变、T16 标真机前提、SOP `file` 子串判据+体积区间 5–50MB；计数 P0=10/P1=6/P2=1（T8 P2→P1）。
 - 修订轮对齐拍：AC↔T 双向核对通过（AC1=T9/T10/T14/T15/T17 含 T10 双锚 AC1/AC2、T17 单锚 AC1；AC2=T1-T5/T10；AC3=T6/T7/T8；AC4=T12/T16；AC5=T11/T13/T14），计数一致；上轮 B1/M1/M2/M3/M4/M5/M6 修订点全部可见于字面。
 - 相位转移：修订轮两工件提交（@ 1708fdb）→ gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-15 之后须新回执），phase → gate1。复审重点核对 B1/M1/M2 消解。
+
+---
+
+2026-10-15 Gate#1 复审人类审批（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 互审输入：`reviews/gate1-ai-r2.md` @ 4b4d99e（reviewer-pm 0/0/3 + architect 0/1/3 + qa 0/1/2 + dev 0/1/2；合并 0 BLOCKER / 1 MAJOR / 8 MINOR；上轮 1 BLOCKER/6 MAJOR/16 MINOR 经四方字面+grounding 双验全部消解实证）。
+- 呈批两问（AskUserQuestion 呈出，用户对话一句话裁决）：
+  问：「Gate#1 复审（r2）：上轮 1 BLOCKER/6 MAJOR/16 MINOR 全部消解实证；新检出 1 MAJOR（check job 载体未钉死——release.yml 内联读法会致 GHCR :latest 覆盖/伪 Release，且与 T11 无-if: 断言互锁）+ 8 MINOR（措辞/断言收尾级）。如何裁决？」
+  问：「R2-MAJOR 裁决：mac check job 的载体（workflow 文件）钉死为？（若上一问选打回，此项作为修订轮输入同样生效）」
+  答（对两问）：「通过，独立 workflow 文件」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate1，2026-10-15 GATE-REJECTED gate1 的新鲜度要求由本回执满足），phase → construction。
+  2. **R2-MAJOR 钉死裁决**：mac check job 载体 = **独立 workflow 文件 `.github/workflows/check-macos.yml`**（仅 `workflow_dispatch` 触发 mac check job；`release.yml` 的 `on:` 保持仅 `tags: v*` 零副作用）；intent.md 改动面随批准扩入该文件；AC3/T6 落点字面随 Construction 首个 unit 顺带回填钉死。
+  3. **8 MINOR 授权随 Construction 首个 unit 顺带回填**（gate1 r3 先例）：①AC5 括注收紧为"固定单 runner 顺序步（Q1 裁决），不采用 matrix"（qa 可改为 T9 补条件断言，二选一）②T12/T16/SOP"未签名"→"无 Developer ID 签名/公证（arm64 ad-hoc）"③T4 补 tar `./` 归一化半句（剥前缀/忽略目录项）④AC5 句尾"fail-fast 语义"→"needs 门控语义"⑤SOP 补发布前置第 0 步"tag 前手动触发 dispatch check 并确认绿"⑥T15 同步四项清单⑦SOP 体积判据改"超出 5–50 MB 带即人工复核"（消 50–200MB 灰区）⑧T9 单 runner 约束断言（与①合并落点）。
+  4. 后续：phase = construction，`/aidlc:construct` 进入 Sprint Planning（express 路线：A3 拆分确认在派发 dev 泳道前呈出——本 intent 经 A1 接入，A3 表单适用）。
+
+GATE-APPROVED gate1 2026-10-15

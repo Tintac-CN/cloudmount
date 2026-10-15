@@ -10,7 +10,7 @@ mac环境在线上请使用GitHub的mac runner来实现打包与release。本地
 - **期望的结果**：打 tag `v*` 后 GitHub mac runner 自动产出 mac 双架构（aarch64 + x86_64）daemon+cli tar.gz 并附于 GitHub Release；打包逻辑脚本化（本地可 dry-run），编译面预检上移 CI（workflow_dispatch 触发的 mac runner 双 target `cargo check`——gate1 裁决：本地 check 因 bundled C build scripts 不可行）。
 
 ## 受影响系统/用户
-- 改动面：`.github/workflows/release.yml`、`scripts/`（新增打包脚本）、Release notes 产物表、`docs/edge.md`（最小 mac 部署小节，gate1 Q3 裁决扩入）
+- 改动面：`.github/workflows/release.yml`、`.github/workflows/check-macos.yml`（新增，mac check job 独立载体——gate1 复审 R2-MAJOR 裁决）、`scripts/`（新增打包脚本）、Release notes 产物表、`docs/edge.md`（最小 mac 部署小节，gate1 Q3 裁决扩入）
 - 用户：mac 用户（下载 tar.gz 使用 `cloudmountd --serve` / CLI）；维护者（本地预检、线上一次通过率）
 
 ## 约束

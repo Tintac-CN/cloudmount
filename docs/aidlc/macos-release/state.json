@@ -1,14 +1,14 @@
 {
   "slug": "macos-release",
   "intent": "mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不",
-  "phase": "gate1",
+  "phase": "construction",
   "route": "express",
-  "gates": { "gate1": "pending", "gate2": "pending" },
+  "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": null,
-  "updatedAt": "2026-10-15T09:49:48+08:00",
+  "updatedAt": "2026-10-15T11:13:31+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -33,6 +33,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "Gate#1 修订轮完成（decisions.md 2026-10-15 修订轮记录 @ 1708fdb）：pm（B1 AC3 预检上移 CI/M1 布局字面定稿/Q1-Q3 裁决回填/M3 锚位补全）+ qa（T6/T7/T8 判据改写/M4-M6 断言可判定化/T9 语义级改写/MINOR 落点，P0=10/P1=6/P2=1）；修订轮对齐拍 AC↔T 双向核对通过；gate1 复位 pending 待复审（重点核对 B1/M1/M2 消解）"
+    },
+    {
+      "at": "2026-10-15T11:13:31+08:00",
+      "from": "gate1",
+      "to": "construction",
+      "why": "Gate#1 复审人类通过（decisions.md GATE-APPROVED gate1 2026-10-15）：r2 复审确认上轮 1B/6M/16m 全部消解实证（reviews/gate1-ai-r2.md @ 4b4d99e）；R2-MAJOR 裁决钉死 check job 载体=独立 workflow 文件 .github/workflows/check-macos.yml（release.yml on: 保持仅 tags v*）；8 MINOR 授权随 Construction 首个 unit 顺带回填"
     }
   ]
 }
