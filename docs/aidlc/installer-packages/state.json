@@ -1,7 +1,7 @@
 {
   "slug": "installer-packages",
   "intent": "windows需要提供msi安装包，mac也需要。请继续推进自动化发布和打包工作，tag即发布",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
@@ -49,9 +49,9 @@
     "U1": "done",
     "U2": "done",
     "U3": "done",
-    "U4": "pending"
+    "U4": "done"
   },
-  "updatedAt": "2026-10-15T20:58:09+08:00",
+  "updatedAt": "2026-10-15T21:10:00+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -118,6 +118,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U3 完成（绿 @ 087075d：scripts/package-pkg-macos.sh 113 行（staging+前置硬校验+dry-run 段+pkgbuild 调用，identifier=io.github.tintac-cn.cloudmount）+installer-pkg-macos job 41+/1- 仅追加；installers-yaml.test.sh **72/72 全绿 exit 0**——pkg 侧 27 条全转绿+MSI 侧 45 条零波及；三锁定脚本 9/9、23/23、13/13 零回退；dry-run 冒烟+负路径冒烟过）；unitStatus U3 = done。派发 U4（终验组合+基线比对）"
+    },
+    {
+      "at": "2026-10-15T21:10:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U4 完成（终验组合全绿：cargo test --workspace 26 目标 277 passed 0 failed 与基线逐数一致零回归+fmt/clippy 净+四脚本测试 9/9、23/23、13/13、72/72；git 归属 b1ae65b..HEAD 共 6 文件全部有主；MINOR 12 三项落位核验过——owner=tintac-cn/构建来源=重编译+rust-cache/UTF-8 BOM）；4/4 units done → phase 置 gate2，提示 /aidlc:gate"
     }
   ]
 }
