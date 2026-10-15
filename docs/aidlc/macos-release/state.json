@@ -48,11 +48,11 @@
   },
   "unitStatus": {
     "U1": "done",
-    "U2": "pending",
+    "U2": "done",
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T12:20:00+08:00",
+  "updatedAt": "2026-10-15T12:30:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -113,6 +113,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2 红阶段提交（@ 8c0012d：scripts/release-yaml.test.sh 22 断言 6/22——16 项 mac 断言全红+6 项护栏现状绿；actionlint 本机不可用走降级 YAML 解析已自校验注入拦截；CRLF 剥除处理后断言）后 TDD 锁并集：tddLockPaths += scripts/release-yaml.test.sh"
+    },
+    {
+      "at": "2026-10-15T12:30:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 完成（绿 @ c310f77：release.yml 纯插入 mac 腿 37+/1-（1 删除=needs 行契约性追加），22/22 结构断言绿；既有 job 零删改，on: 零改动；--bin-dir 单目录问题以 per-target staging 归集落地）；unitStatus U2 = done。派发 U3 红阶段（check-macos-yaml.test.sh T6 断言）"
     }
   ]
 }
