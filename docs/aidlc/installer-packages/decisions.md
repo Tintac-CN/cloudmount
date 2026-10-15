@@ -83,3 +83,15 @@ GATE-APPROVED gate1 2026-10-15
 - 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；开始串行派发 U1→U2→U3→U4。
 
 PLAN-CONFIRMED 2026-10-15
+
+---
+
+2026-10-15 T16 冒烟实证与锁修订授权（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- T16 执行事实（dev 实测，编排者核收）：本机安装 WiX v3（choco wixtoolset，解析 **v3.14.1.20250415**，candle/light 3.14.1.8722）；本地构建实测两留痕——LGHT0368（双 File 组件自动 GUID 不合法→拆一文件一组件，WiX 最佳实践）、ICE80×3（`ProgramFilesFolder` 被 ICE 归 32 位标准目录与 x64 组件冲突）；MINOR⑫ 验证：UTF-8 BOM+中文注释 candle 零告警。
+- **冒烟判据冲突实证**：变体 A（按锁定 T3 字面 `ProgramFilesFolder`+`-sice:ICE80` 抑制构建）msiexec 机制 PASS（安装退出码 0/ARP 正常/机器 PATH 写入/卸载全清）但落位 **FAIL**——两 exe 落 `C:\Program Files (x86)\CloudMount`，**不满足 prd Q4/AC1/T18 判据「Program Files\CloudMount」**（WiX v3 的 x64 包下 ProgramFilesFolder 运行时仍解析 32 位 Program Files）；变体 B（`ProgramFiles64Folder`，无抑制）对照冒烟**全项 PASS**（构建零告警/`C:\Program Files\CloudMount` 双 exe 在位/机器 PATH 正确/新进程 `where cloudmount` 命中/卸载退出码 0 目录+PATH 全清）。
+- 问：「T16 冒烟暴露契约冲突：WiX v3 x64 包下 ProgramFilesFolder 实测落 C:\Program Files (x86)（不满足 prd Q4/AC1/T18），正确修复需改锁定 T3 断言字面。如何裁决？」
+  答：「授权锁修订」
+- 裁决落点（编排者执行）：
+  1. **解锁仪式**（授权依据=本条人类裁决）：`scripts/installers-yaml.test.sh` 临时自 tddLockPaths 移除，用于 T3 断言字面修订（`ProgramFilesFolder` → `ProgramFiles64Folder`——MINOR⑩ 本意即 Program Files 安装语义，64 变体为 x64 正确形式）；断言修订+实现修正在案后重新并集置锁。
+  2. dev 提交 U2-wixfix：①`packaging/wix/main.wxs`（组件拆分一文件一组件+`ProgramFiles64Folder`+头注三留痕：LGHT0368/ICE80/x64 落位实测）②`.github/workflows/release.yml`（移除 `-sice:ICE80` 抑制及注释、版本锁定回写 3.14.1）③`scripts/installers-yaml.test.sh`（T3 断言字面 64Folder）——授权依据随提交信息留痕。
+  3. 变体 A 的 ICE80 抑制路线废弃（实测为错误方向——抑制掩盖 x64 落位错误）。

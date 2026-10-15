@@ -5,9 +5,7 @@
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
-  "tddLockPaths": [
-    "scripts/installers-yaml.test.sh"
-  ],
+  "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-15T18:46:48+08:00",
@@ -51,7 +49,7 @@
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T19:10:00+08:00",
+  "updatedAt": "2026-10-15T20:47:03+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -100,6 +98,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U1 红阶段提交（@ b40eaf0：scripts/installers-yaml.test.sh 566 行 72 断言——18/72 现状绿（护栏）+54 FAIL 全红（MSI/pkg 被测对象未存在，文件存在前置防空真）；红提交仅含测试文件；一处记录偏差=set -u 沿先例替代 units 行文 set -euo pipefail（防 grep -q 管道 SIGPIPE 假阴性，头注留痕））后 TDD 锁置位：tddLockPaths 并集 = scripts/installers-yaml.test.sh"
+    },
+    {
+      "at": "2026-10-15T20:47:03+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "T16 冒烟解锁仪式（授权依据：decisions.md 2026-10-15 T16 冒烟实证与锁修订授权条目——人类裁决「授权锁修订」）：scripts/installers-yaml.test.sh 临时自 tddLockPaths 移除，用于 T3 断言字面修订（ProgramFilesFolder→ProgramFiles64Folder——WiX v3 x64 包实测落位修复）；U2-wixfix 提交后重新并集置锁"
     }
   ]
 }
