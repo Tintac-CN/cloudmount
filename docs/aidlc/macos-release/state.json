@@ -1,9 +1,9 @@
 {
   "slug": "macos-release",
   "intent": "mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不",
-  "phase": "gate2",
+  "phase": "operations",
   "route": "express",
-  "gates": { "gate1": "approved", "gate2": "pending" },
+  "gates": { "gate1": "approved", "gate2": "approved" },
   "tddLock": true,
   "tddLockPaths": [
     "scripts/package-macos.test.sh",
@@ -53,7 +53,7 @@
     "U3": "done",
     "U4": "done"
   },
-  "updatedAt": "2026-10-15T13:05:00+08:00",
+  "updatedAt": "2026-10-15T13:40:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -138,6 +138,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "U4 完成（edge.md mac 小节 @ 00e97af + gate1 授权 8 MINOR 回填 @ d715ef0）；4/4 units done；终验组合全绿——cargo test --workspace 26 目标 277 passed 0 failed（与基线逐数一致，零回归）+ fmt --check 过 + clippy -D warnings 净 + 三脚本测试 9/9、22/22、13/13；actionlint 本机不可用（降级断言在案，test-strategy 缺口节留痕）→ phase 置 gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-15T13:40:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-15）：互审 0 BLOCKER/1 MAJOR/10 MINOR（reviews/gate2-ai.md @ a694d3c），verifier 独立复跑终态全部属实；M1（--arch 断言覆盖缺口）+ 部分 MINOR 列为准出回填（解锁仪式留痕→补断言→重锁 + T3/T16/units3/头注/edge.md 措辞），其余备案 P2；Construction 无降级代行/解锁记录，无追认项"
     }
   ]
 }

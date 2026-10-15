@@ -83,3 +83,19 @@ GATE-APPROVED gate1 2026-10-15
   2. 施工细节订正（编排者，plan.md 已同步）：U3 的 T6 断言落**独立新文件** `scripts/check-macos-yaml.test.sh`（原计划"追加至 release-yaml.test.sh"会与该文件 TDD 锁冲突——锁后追加即违约；独立文件各自置锁，免解锁仪式）。零范围变化，纯测试文件落点调整。
 
 PLAN-CONFIRMED 2026-10-15
+
+---
+
+2026-10-15 Gate#2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate2-ai.md` @ a694d3c（verifier 0/0/0+3INFO + architect 0/0/2 + qa 0/0/3 + dev 0/1/5 + pm 0/0/2；合并 0 BLOCKER / 1 MAJOR / 10 MINOR。verifier 独立复跑终态全部属实：脚本 9/9·22/22·13/13、cargo test 26 目标 277 passed 0 failed 零回归、fmt/clippy 净、TDD 红绿纪律 git 史核验合格、10 文件全部归属、testBaseline 逐字节未动）。
+- 问：「Gate#2 互审：verifier 独立复跑终态全部属实（脚本 9/9·22/22·13/13、cargo 277/0 零回归、TDD 纪律合格、零归属外文件）；合并 0 BLOCKER / 1 MAJOR（--arch 零断言覆盖——CI 命名正确性依赖未断言的传参字面，实现在案且正确）/ 10 MINOR（记录级）。如何裁决？」
+  答：「通过+准出回填（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate2），phase → operations。
+  2. **准出回填授权**（批准条件，编排者执行并留痕）：
+     a. M1：解锁仪式（本条目即解锁留痕依据）——`scripts/release-yaml.test.sh` 临时自 tddLockPaths 移除 → 补 `--arch "${t%%-*}"` 结构断言（计入断言总数，CI 传参字面在位即绿）→ 复跑绿 → 重新并集置锁；
+     b. MINOR 顺带：T3 字面与实现对齐（缺参→usage；路径非法→专用报错非零）/T16 补"/公证（arm64 ad-hoc）"括注/units/3.md 订正为独立断言文件/package-macos.sh 头注补 chmod +x 步骤/edge.md mac 小节补登录前置一句；
+     c. 其余 MINOR 备案 P2：check-macos.yml permissions 显式化/断言脚本 YAML 解析精度/tar 半成品清理/行尾风格 .gitattributes。
+  3. 追认项打包核查：本 intent Construction 无配额降级代行、无解锁记录（三 unit 严格红→锁→绿；本条 a 项解锁为准出回填授权行为，非契约错误解锁）——无历史追认项需呈。
+
+GATE-APPROVED gate2 2026-10-15
