@@ -67,11 +67,43 @@ jobs:
           path: cloudmount-windows-x64.zip
           if-no-files-found: error
 
+  binaries-macos:
+    name: macOS 二进制（aarch64 + x86_64 双 target）
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      # gate1 Q1：pin macos-15（arm64）单 runner 双 target——顺序步双 target，不采用 matrix
+      - name: 编译（aarch64-apple-darwin 原生）
+        run: cargo build --release --target aarch64-apple-darwin -p cloudmount-daemon -p cloudmount-cli
+      - name: 编译（x86_64-apple-darwin 交叉）
+        run: cargo build --release --target x86_64-apple-darwin -p cloudmount-daemon -p cloudmount-cli
+      # daemon/cli 两 target 同名异目录：每 target 归集一个产物目录（含 README/edge.md）后各打一个 tar
+      # CI 与本地 dry-run 走同一脚本；文档缺失由脚本硬校验兜底（非零退出 → job 失败 → release 门控不发）
+      - name: 打包 tarball（含 README 与部署手册）
+        run: |
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            stage="packaging-staging/$t"
+            mkdir -p "$stage"
+            cp "target/$t/release/cloudmountd" "target/$t/release/cloudmount" "$stage/"
+            cp README.md docs/edge.md "$stage/"
+            bash scripts/package-macos.sh --bin-dir "$stage" --out . --arch "${t%%-*}"
+          done
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudmount-darwin-tarballs
+          path: cloudmount-darwin-*.tar.gz
+          if-no-files-found: error
+
   # ============ GitHub Release ============
 
   release:
     name: 创建 GitHub Release
-    needs: [binaries-linux, binaries-windows]
+    needs: [binaries-linux, binaries-windows, binaries-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -98,6 +130,10 @@ jobs:
             |---|---|---|
             | `cloudmount-linux-*-musl.tar.gz` | Linux x64 / arm64 | 静态二进制（daemon + CLI）+ systemd unit + 部署手册 |
             | `cloudmount-windows-x64.zip` | Windows x64 | cloudmountd.exe + cloudmount.exe |
+            | `cloudmount-darwin-aarch64.tar.gz` | macOS arm64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
+            | `cloudmount-darwin-x86_64.tar.gz` | macOS x64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
+
+            mac 产物无 Developer ID 签名/公证（arm64 产物为链接器 ad-hoc 签名，Apple Silicon 运行所需）；首启若被 Gatekeeper 拦截：`xattr -cr <解压后的二进制>` 或右键→打开。
 
             ### 快速开始
             ```bash
