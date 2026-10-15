@@ -50,3 +50,12 @@
   7. GATE-REJECTED 标记在后；修订轮完成后 gate1 复位 pending 复审。
 
 GATE-REJECTED gate1 2026-10-16
+
+---
+
+2026-10-16 Gate#1 修订轮记录（编排者）：
+- 修订范围（只重跑被点名角色 pm+qa；其余工件零改动；修订提交见 git log）：
+- **prd.md**：B2（AC5④ 口径重述——installer-msi-windows 自零触碰集合移出，守护收窄为「既有构建命令/铺放语义/upload if-no-files-found 行不删改，允许追加 desktop 构建与归集步 + needs/body 行追加」；AC3 Given 注明同 job 追加步产出三件套）/B1 同步（AC3④/AC6② 注明 T4 断言字面收窄已获授权，非目标补唯一例外句）/M5（AC5⑤ release body 4 行口径：MSI 行改三件套描述+新增 .dmg 行含 Gatekeeper 引导；AC4② 补 .app Gatekeeper 引导）/M4（AC5②+语义对齐补新 artifact 名 `cloudmount-` 前缀收编约束）/Q1/Q2 裁决回填（开放问题转已裁决：隐藏到托盘/两处快捷方式）/M8（首日验证④ 补 dev m1 实证 eframe 0.31 无 on_close_event、官方路径=input close_requested+CancelClose；降级路径=关闭即真退出+托盘两项；① 不可行=升级人类决策）/MINOR（多实例双开已知行为、托盘失败降级不 panic、mac desktop/.dmg aarch64-only 已知取舍、AC3③ 先卸载再装提示）。
+- **test-strategy.md**：M6（「风险排序门」改「进出门（TDD 红→锁→绿对齐）」——P0 全部落位且可运行（红态）方可进 Construction，全绿为准出门）/M7（TP-16 改 RT_GROUP_ICON 资源枚举/位图采样品牌色可判定式；TP-09 钉托盘 init 区段 MenuItem 计数=2+两 id MenuEvent 匹配+无其他 tray Menu 构造）/M1（TP-11 icns 项按首日验证③结论落位后断言）/MINOR（TP-05/15 负断言补、TP-04 32 位目录负断言、TP-03 快照基线+实际 job 名映射、TP-22 载体钉仓库内附录文件、TP-24 Windows SmartScreen 侧）；头部/覆盖核对/缺口节同步；计数如实不变 P0=16/P1=6/P2=2。
+- 修订轮对齐拍：映射未变无需重对齐（本轮回填仅措辞/枚举/锚注），prd 锚注与 test-strategy 映射列双向一致（AC1←TP-06/11/12/16、AC2←TP-09/20/21、AC3←TP-03/04/05/13/14/15/17/18/23、AC4←TP-07/08/19/23/24、AC5←TP-01/02/18/22、AC6←TP-10/03）。
+- 相位转移：修订轮两工件提交 → gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-16 之后须新回执），phase → gate1。复审重点核对 B1/B2/M1/M2/M7 消解。
