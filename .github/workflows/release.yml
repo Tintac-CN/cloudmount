@@ -145,11 +145,48 @@ jobs:
           path: cloudmount-windows-x64.msi
           if-no-files-found: error
 
+  # ============ macOS pkg 安装包（installer-packages；A1/Q4：纯文件铺放 /usr/local/bin） ============
+  # 无安装前/后脚本钩子、无系统服务注册（prd 非目标排除）；版本与 MSI ProductVersion 同源（M3）
+
+  installer-pkg-macos:
+    name: macOS pkg 安装包（aarch64 + x86_64 双 target）
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: 编译（aarch64-apple-darwin 原生）
+        run: cargo build --release --target aarch64-apple-darwin -p cloudmount-daemon -p cloudmount-cli
+      - name: 编译（x86_64-apple-darwin 交叉）
+        run: cargo build --release --target x86_64-apple-darwin -p cloudmount-daemon -p cloudmount-cli
+      # 每 target 各打一个 pkg（同名异目录产物，沿 binaries-macos 先例）；README/edge.md 不入 pkg
+      # ——安装面仅 /usr/local/bin 两个二进制；脚本前置硬校验缺失即失败（不产出 → 上传兜底 error）
+      - name: 打包 pkg（经 scripts/package-pkg-macos.sh，CI 与本地 dry-run 同脚本）
+        env:
+          PKG_VERSION_SRC: ${{ github.ref_name }}
+        run: |
+          ver="${PKG_VERSION_SRC#v}"
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            bash scripts/package-pkg-macos.sh --bin-dir "target/$t/release" --out . --arch "${t%%-*}" --version "$ver"
+          done
+          test -f cloudmount-darwin-aarch64.pkg
+          test -f cloudmount-darwin-x86_64.pkg
+      - name: 上传 pkg 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudmount-darwin-pkgs
+          path: |
+            cloudmount-darwin-aarch64.pkg
+            cloudmount-darwin-x86_64.pkg
+          if-no-files-found: error
+
   # ============ GitHub Release ============
 
   release:
     name: 创建 GitHub Release
-    needs: [binaries-linux, binaries-windows, binaries-macos, installer-msi-windows]
+    needs: [binaries-linux, binaries-windows, binaries-macos, installer-msi-windows, installer-pkg-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -179,9 +216,12 @@ jobs:
             | `cloudmount-darwin-aarch64.tar.gz` | macOS arm64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
             | `cloudmount-darwin-x86_64.tar.gz` | macOS x64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
             | `cloudmount-windows-x64.msi` | Windows x64 | 安装包（MSI）：daemon + CLI → `Program Files\CloudMount` + Machine PATH |
+            | `cloudmount-darwin-aarch64.pkg` | macOS arm64 | 安装包（pkg）：daemon + CLI → `/usr/local/bin` |
+            | `cloudmount-darwin-x86_64.pkg` | macOS x64 | 安装包（pkg）：daemon + CLI → `/usr/local/bin` |
 
             mac 产物无 Developer ID 签名/公证（arm64 产物为链接器 ad-hoc 签名，Apple Silicon 运行所需）；首启若被 Gatekeeper 拦截：`xattr -cr <解压后的二进制>` 或右键→打开。
             Windows MSI 无 Authenticode 签名：首启若被 SmartScreen 拦截，「更多信息→仍要运行」为预期行为；请仅从本仓库 Release 页下载。
+            mac pkg 无 Developer ID 签名/公证：首启若被 Gatekeeper 拦截，右键→打开或 `xattr -cr <pkg>` 为预期解除方式。
             安装提示：MSI 为 per-machine 安装，UAC 提权为预期；PATH 写入对**新开终端**生效（已开窗口需重开）；升级安装请**先卸载再装**（升级语义不设计不保证）。
 
             ### 快速开始
