@@ -1,14 +1,14 @@
 {
   "slug": "macos-release",
   "intent": "mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不",
-  "phase": "gate1",
+  "phase": "inception",
   "route": "express",
-  "gates": { "gate1": "pending", "gate2": "pending" },
+  "gates": { "gate1": "rejected", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": null,
-  "updatedAt": "2026-10-15T09:00:53+08:00",
+  "updatedAt": "2026-10-15T09:38:28+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -21,6 +21,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "express 两工件齐（prd 5AC+语义对齐内联 / test-strategy 17 点 @ 624e1a6）且对齐拍完成（qa 映射列与 pm 锚位引用回填后 AC1..AC5 全部有 T 点落点、无幻影编号），进入设计门（express 评审集合=prd+test-strategy 两件）"
+    },
+    {
+      "at": "2026-10-15T09:38:28+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md 2026-10-15 GATE-REJECTED gate1）：互审 1 BLOCKER（本地双 target cargo check 因 bundled C build scripts 不可行）+6 MAJOR+16 MINOR；人类裁决「打回，按全部推荐」——B1 预检上移 CI（workflow_dispatch mac check）、Q1=pin macos-15 单机双 target、Q2=cloudmount-darwin-<arch> 短命名、Q3=edge.md 补最小 mac 小节；只重跑 pm+qa 修订，对齐拍后 gate1 复位 pending 复审"
     }
   ]
 }
