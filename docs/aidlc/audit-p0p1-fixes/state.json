@@ -1,7 +1,7 @@
 {
   "slug": "audit-p0p1-fixes",
   "intent": "请按照审计报告开始修复",
-  "phase": "operations",
+  "phase": "done",
   "gates": { "gate1": "approved", "gate2": "approved" },
   "tddLock": true,
   "tddLockPaths": [
@@ -25,7 +25,7 @@
     "U11": "done",
     "U12": "done"
   },
-  "updatedAt": "2026-10-15T07:55:00+08:00",
+  "updatedAt": "2026-10-15T08:11:02+08:00",
   "history": [
     {
       "at": "2026-10-14T10:36:14+08:00",
@@ -158,6 +158,12 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 复审人类通过（decisions.md 2026-10-15 GATE-APPROVED gate2）：上轮 1B/4M 全消解实证（U6 红→绿可复核、fmt 净、两腿 277/289 全绿复跑、flaky 零复现），复审 0 BLOCKER / 1 MAJOR（备案措辞级，随批准条目订正留痕）/ 5 MINOR（P2 backlog 与 retro 归档）；两项锁例外处置全部追认（reviews/gate2-ai-r2.md @ 596377a）"
+    },
+    {
+      "at": "2026-10-15T08:11:02+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "Intent 完结经人类确认（decisions.md 2026-10-15 INTENT-DONE audit-p0p1-fixes）：14/14 修复项交付、两门均过、ops-runbook.md 与 retro.md（classic 硬性要件）落盘提交（ae5375e）、运维三裁决逐字留痕（9158d9a）；intent 退出活跃位，工件链原样保留作审计"
     }
   ]
 }
