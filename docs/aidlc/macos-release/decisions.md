@@ -71,3 +71,15 @@ GATE-REJECTED gate1 2026-10-15
   4. 后续：phase = construction，`/aidlc:construct` 进入 Sprint Planning（express 路线：A3 拆分确认在派发 dev 泳道前呈出——本 intent 经 A1 接入，A3 表单适用）。
 
 GATE-APPROVED gate1 2026-10-15
+
+---
+
+2026-10-15 A3 拆分确认（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 呈批对象：plan.md @ 68766e9（4 units 串行 TDD——U1 打包脚本/U2 release.yml mac 腿/U3 check-macos.yml 独立载体/U4 edge.md+回填收尾；验证命令=cargo test --workspace，基线 26 目标 277 passed 0 failed @ 2d1c501；串行派发沿 audit-p0p1-fixes 限流教训）。
+- 问：「A3 拆分确认（intent macos-release，4 units 串行 TDD）：是否批准开始施工？」
+  答：「批准」
+- 裁决落点（编排者执行）：
+  1. PLAN-CONFIRMED 回执在后；开始串行派发 U1→U2→U3→U4。
+  2. 施工细节订正（编排者，plan.md 已同步）：U3 的 T6 断言落**独立新文件** `scripts/check-macos-yaml.test.sh`（原计划"追加至 release-yaml.test.sh"会与该文件 TDD 锁冲突——锁后追加即违约；独立文件各自置锁，免解锁仪式）。零范围变化，纯测试文件落点调整。
+
+PLAN-CONFIRMED 2026-10-15
