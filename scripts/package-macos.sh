@@ -11,6 +11,9 @@
 #
 # 本地预检说明（AC3/T8；详见 docs/aidlc/macos-release/prd.md）：
 #   1. 本地（Windows/Git Bash）预检只做一道 dry-run——构造含四件占位产物的目录后：
+#        printf '#!/bin/sh\n' > cloudmountd && chmod +x cloudmountd   # 两个二进制占位须可执行（-x 硬校验）
+#        cp cloudmountd cloudmount
+#        touch README.md edge.md
 #        bash scripts/package-macos.sh --bin-dir <占位目录> --out <输出目录> --dry-run
 #      判据 = 退出码 0，且 <out>/dry-run/cloudmount-darwin-<arch>.tar.gz 生成、
 #      tar -tzf 清单恰为根级 cloudmountd/cloudmount/README.md/edge.md 四项

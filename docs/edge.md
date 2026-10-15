@@ -72,6 +72,7 @@ mac 侧本期定位为 WebDAV 出口/CLI（无挂载/无 systemd）。Release �
 tar xzf cloudmount-darwin-aarch64.tar.gz
 # 产物无 Developer ID 签名/公证（arm64 为链接器 ad-hoc 签名）；首启若被 Gatekeeper 拦截：
 xattr -cr ./cloudmountd ./cloudmount   # 或右键→打开一次
+# --serve 需登录态：未登录先执行 `./cloudmount login`（见上方快速开始）
 ./cloudmountd --serve --listen 0.0.0.0:8384 --auth user:pass
 # 验证出口：curl -u user:pass http://<ip>:8384/dav/ 能列出目录即通
 ```

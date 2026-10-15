@@ -7,6 +7,7 @@
   "tddLock": true,
   "tddLockPaths": [
     "scripts/package-macos.test.sh",
+    "scripts/release-yaml.test.sh",
     "scripts/check-macos-yaml.test.sh"
   ],
   "tddLockOverride": null,
@@ -52,7 +53,7 @@
     "U3": "done",
     "U4": "done"
   },
-  "updatedAt": "2026-10-15T13:45:00+08:00",
+  "updatedAt": "2026-10-15T14:00:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -149,6 +150,12 @@
       "from": "operations",
       "to": "operations",
       "why": "准出回填解锁仪式（授权依据：decisions.md GATE-APPROVED gate2 2026-10-15 裁决落点 2.a——本条即解锁留痕）：scripts/release-yaml.test.sh 临时自 tddLockPaths 移除，用于补 --arch 传参字面结构断言（gate2 M1）；断言落盘复跑绿后重新并集置锁"
+    },
+    {
+      "at": "2026-10-15T14:00:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "准出回填完成、重新置锁（tddLockPaths 并集恢复三文件）：release-yaml.test.sh 补 T9 --arch 传参字面断言（gate2 M1 消解）→ 23/23 passed exit 0；MINOR 顺带=T3 字面与实现对齐/T16 括注收全/units/3.md 订正/package-macos.sh 头注补 chmod +x 占位步骤/edge.md mac 小节补登录前置；三脚本终态 9/9、23/23、13/13 全绿"
     }
   ]
 }

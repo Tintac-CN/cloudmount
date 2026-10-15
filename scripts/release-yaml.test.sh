@@ -9,7 +9,8 @@
 #   T9  存在 binaries-macos: job 定义；runs-on 恰为 macos-15（Q1 pin，单 runner）；
 #       job 内含 --target aarch64-apple-darwin 与 --target x86_64-apple-darwin 两处 build 字面
 #       （顺序步双 target，Q1 裁决）；job 内无 strategy:/matrix:（gate1 MINOR① 收紧：不采用 matrix）；
-#       job 内调用 scripts/package-macos.sh（AC2：CI 与本地同脚本）
+#       job 内调用 scripts/package-macos.sh（AC2：CI 与本地同脚本）；
+#       调用含 --arch 传参字面（gate2 准出回填 M1：CI 双 tar 命名正确性守护）
 #   T10 mac upload 步含 if-no-files-found: error（对齐 linux/windows 腿先例，glob 落空即整体失败）；
 #       upload path 含 cloudmount-darwin-*.tar.gz glob 字面（Q2 命名，与脚本输出严格匹配）；
 #       upload artifact name 前缀 cloudmount-darwin-（release job 下载 pattern cloudmount-* 可拾取的前提）
@@ -152,6 +153,10 @@ report "T9 job 内无 strategy:/matrix:（gate1 MINOR①：不采用 matrix）" 
 ok=1
 grep_ok "$MAC_BLK" -qF 'scripts/package-macos.sh' && ok=0
 report "T9 job 调用 scripts/package-macos.sh（AC2：CI 与本地同脚本）" "$ok"
+
+ok=1
+grep_ok "$MAC_BLK" -qF -- '--arch "${t%%-*}"' && ok=0
+report "T9 mac 打包调用含 --arch 传参字面（gate2 准出回填 M1：CI 双 tar 命名守护——丢/错传将产出错名 tar）" "$ok"
 
 # ============ T10：mac upload 步（glob 落空即失败 + Q2 命名严格匹配） ============
 

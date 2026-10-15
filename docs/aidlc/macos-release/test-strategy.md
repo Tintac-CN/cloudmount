@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | T1 | AC2 | 正：Git Bash 本地执行 `scripts/package-macos.sh` dry-run（占位产物、参数化产物目录）→ 退出码 0，产出 tar.gz；隔离断言：占位产物只写 dry-run 专属目录，不进任何上传路径 | 单元 | P0 |
 | T2 | AC2 | 负：暂存目录缺任一必含文件（daemon/cli 二进制或 README.md/edge.md 文档）→ 脚本整体非零失败且不产出 tar（fail-fast，杜绝残缺 tar 进入上传步） | 单元 | P0 |
-| T3 | AC2 | 负：必填参数缺失 / 产物目录路径非法 → usage 报错、非零退出，无半成品目录或空 tar 残留 | 单元 | P1 |
+| T3 | AC2 | 负：必填参数缺失 → usage 报错、非零退出（产物目录路径非法 → 专用报错非零退出，不带 usage——与实现对齐）；无半成品目录或空 tar 残留（路径非法负用例未入自动化断言，gate2 互审 MINOR 备案） | 单元 | P1 |
 | T4 | AC2 | 正：`tar -tzf` 断言完整期望清单 = 根级 `cloudmountd`+`cloudmount`+`README.md`+`edge.md` 四项（不多不少；断言前归一化——剥 `./` 前缀、忽略目录条目，对齐 linux 腿 `tar … .` 打包法的清单形态），且不含 `packaging/systemd/*`；CI 调同一脚本 | 单元 | P0 |
 | T5 | AC2 | 负（范围排除）：dry-run 产物清单断言不含 desktop/.app 任何条目（A1：desktop 不入本期 mac 产物；A1 裁决守护） | 单元 | P1 |
 | T6 | AC3 | 正（集成静态断言）：workflow 含 workflow_dispatch 触发的 mac check job——断言 runner=`macos-15`、rustup targets 含 aarch64+x86_64-apple-darwin、`cargo check --target` 双 target 步骤存在 | 集成 | P0 |
@@ -25,7 +25,7 @@
 | T13 | AC5 | 负：`actionlint` 对 release.yml 通过（整文件合法性=零回归静态校验）；另对注入语法错误的副本文件运行 actionlint 确认能拦截（校验拦截手段本身有效）。actionlint 本地不可用时降级为 YAML 解析 + T9-T11 结构断言，并记缺口 | 集成 | P1 |
 | T14 | AC1+AC5 | 正（线上人工）：push 真 tag `v*` → workflow 全绿（含 binaries-macos），两架构 tar.gz 附于 GitHub Release；既有 linux 双架构/windows 资产仍在 Release（资产集合不变，AC5） | E2E | P0 |
 | T15 | AC1 | 正（线上人工）：下载两 tar，解包后 `file` 验证分别为 Mach-O arm64 / x86_64，文件清单齐（四项：`cloudmountd`+`cloudmount`+`README.md`+`edge.md`） | E2E | P0 |
-| T16 | AC4 | 正+负（线上人工，需真 mac 机）：Release 页 mac 行可见、两 tar 可下载；负路径 = 无 Developer ID 签名的二进制首启被 Gatekeeper 拦截为预期行为，notes 提示（`xattr -cr`/右键打开）可解除 | E2E | P1 |
+| T16 | AC4 | 正+负（线上人工，需真 mac 机）：Release 页 mac 行可见、两 tar 可下载；负路径 = 无 Developer ID 签名/公证（arm64 ad-hoc）的二进制首启被 Gatekeeper 拦截为预期行为，notes 提示（`xattr -cr`/右键打开）可解除 | E2E | P1 |
 | T17 | AC1 | （线上人工，可选）真 mac 机冒烟：`cloudmountd --serve` / CLI 基本命令可运行（x86_64 二进制在 arm 机器可经 Rosetta 验证） | E2E | P2 |
 
 负路径覆盖核对：打包主流程 T2/T3；范围排除 T5；workflow 语法/结构拦截 T13/T11（含 `if:` 覆盖防护）；upload glob 落空由 T10 `if-no-files-found: error` 拦截；Gatekeeper 权限拦截 T16。每条主流程 ≥1 负路径，满足。
