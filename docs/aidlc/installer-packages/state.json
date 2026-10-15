@@ -7,9 +7,49 @@
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
-  "testBaseline": null,
-  "unitStatus": {},
-  "updatedAt": "2026-10-15T18:04:46+08:00",
+  "testBaseline": {
+    "recordedAt": "2026-10-15T18:46:48+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending"
+  },
+  "updatedAt": "2026-10-15T18:46:48+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -40,6 +80,12 @@
       "from": "gate1",
       "to": "construction",
       "why": "Gate#1 复审人类通过（decisions.md GATE-APPROVED gate1 2026-10-15）：r2 复审确认上轮 1B/8M 全部消解实证（reviews/gate1-ai-r2.md @ f944ee0）；R2-MAJOR-1（dry-run 语义边界措辞）+MINOR 1-11 列为准出回填（随批准由编排者修正一句+Construction 首日回填），MINOR 12 三项遗留随首日验证；phase → construction"
+    },
+    {
+      "at": "2026-10-15T18:46:48+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Construction 首日：gate1 授权 MINOR 1-11 回填执行（@ ee3a0fc：断言枚举补全/措辞消歧/token 钉死/prd 首日验证补 WiX 版本+UTF-8）+ Sprint Planning 落盘（plan.md + units/1-4 @ 7f6a550；4 units——U1 断言脚本红/U2 MSI 腿含 T16 冒烟/U3 pkg 腿/U4 终验；MINOR 12 落位值钉死：owner=tintac-cn/identifier/重编译）+ 第 0 步基线记录（cargo test --workspace 26 目标 277 passed 0 failed exit 0）；unitStatus 初始化 pending；A3 拆分确认呈出（A1 接入 intent）——表单未获选择，待人类对话裁决"
     }
   ]
 }
