@@ -51,7 +51,7 @@
 ### 关键动词 → 物理语义映射
 
 - 「安装（MSI）」= 手写 WiX 定义 `packaging/wix/main.wxs`（钉死；CI 直接 WiX，cargo-wix 不采用）——组件将 cloudmountd.exe、cloudmount.exe 铺放至 `Program Files\CloudMount`；写 Machine 级 PATH（新进程生效，已开终端不自动刷新——Release notes 提示新开终端）；per-machine 安装触发 UAC 提权为预期；WiX 缺省注册 Add/Remove Programs 卸载条目。**不**执行 `cloudmountd service install`（SCM 注册用户自管）。
-- 「安装（pkg）」= `scripts/package-pkg-macos.sh`（钉死，沿 `package-macos.sh` 先例：staging 归集 + 前置硬校验 + dry-run 可本地跑）以 pkgbuild 将 cloudmountd、cloudmount 铺放至 `/usr/local/bin`（该目录在 macOS 默认 PATH 内；Apple Silicon 上缺省不存在时由包创建，属 root）；无 preinstall/postinstall 脚本（纯文件铺放）；receipt 记录 pkgutil 可查。**不**装 launchd。
+- 「安装（pkg）」= `scripts/package-pkg-macos.sh`（钉死，沿 `package-macos.sh` 先例：staging 归集 + 前置硬校验 + dry-run 可本地跑——**dry-run 仅覆盖 staging+硬校验段，pkgbuild 调用段 mac 独占、本地不覆盖**，与先例的全路径 dry-run 不对等，gate1 复审 R2-MAJOR-1 边界声明）以 pkgbuild 将 cloudmountd、cloudmount 铺放至 `/usr/local/bin`（该目录在 macOS 默认 PATH 内；Apple Silicon 上缺省不存在时由包创建，属 root）；无 preinstall/postinstall 脚本（纯文件铺放）；receipt 记录 pkgutil 可查。**不**装 launchd。
 - 「版本」= 安装器版本取值 `github.ref_name`（MSI ProductVersion 与 pkg `--version` 同源，不依赖 Cargo.toml bump；tag 的 `v` 前缀与 WiX ProductVersion 数值格式的适配为 Construction 落点）。
 - 「tag 即发布」= push `v*` tag → release.yml 触发 → 全 job（含两个新安装包 job）→ release job `needs` 门控 → softprops/action-gh-release 直接创建**正式** Release（无 prerelease、无预演 tag）。**覆盖**上 intent「首 tag prerelease 预演」运维裁决（runbook 文件不改，以 decisions.md A1/gate1 为准；SOP 载体 = operations 阶段产出本 intent runbook，固化人工核验清单并显式声明取代 macos-release ops-runbook 的发布流程节）。
 - 「附于正式 Release」= 新安装包 job 的 artifact 名以 `cloudmount-` 前缀（如 `cloudmount-windows-msi` / `cloudmount-darwin-pkgs`，具体名 Construction 定）→ 被 release job 既有 `pattern: cloudmount-*` + `merge-multiple: true` 自动收编 → `files: dist/*` 上传。release job 下载逻辑零改（兼容点）。
