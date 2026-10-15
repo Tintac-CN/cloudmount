@@ -99,3 +99,18 @@ PLAN-CONFIRMED 2026-10-15
   3. 追认项打包核查：本 intent Construction 无配额降级代行、无解锁记录（三 unit 严格红→锁→绿；本条 a 项解锁为准出回填授权行为，非契约错误解锁）——无历史追认项需呈。
 
 GATE-APPROVED gate2 2026-10-15
+
+---
+
+2026-10-15 Operations 人类裁决（AskUserQuestion，逐字转写）：
+- 问：「发布节奏与首次验证（部署窗口类；发布 SOP 第 0 步 dispatch check 前置已在案）：」
+  答：「手动 tag+首tag prerelease（推荐）」
+- 问：「监控与观察项档位（SLA 类；本 intent 无运行时面，监控对象=CI/发布链路）：」
+  答：「轻量+两项观察（推荐）」
+- 问：「retro.md 裁决（route=express 分支：retro 为人类可选，gate2 批准时未一并裁决，现补）：」
+  答：「保留 retro（推荐）」
+- 裁决落点（编排者执行）：
+  1. `ops-runbook.md` 落盘（@ 4c3f07b）：发布 = 手动 tag（无固定窗口）+ **首个含 mac 腿的 tag 用 prerelease 标记预演 T14-T16**（两 tar 可下载/四项清单/file 架构子串/notes mac 行，核验通过后转正式——消解 test-strategy 缺口节"首次即生产"开放问题）；监控 = 轻量零新增基建（硬门=CI 双腿绿+dispatch check 绿+三脚本断言 9/23/13）+ 两项观察（macos-15 runner 可用性——退役/迁移时 runs-on 字面与 T9 断言同步改、actionlint 缺口——CI 无 actionlint 步骤，语法错由 GitHub Actions 解析失败兜底不误发布）；回退 = Release 页删资产/revert 提交；P2 backlog 五项（ci.yml actionlint/permissions 显式化/断言精度/tar 半成品/.gitattributes）。
+  2. `retro.md` 落盘（@ 4c3f07b，express 分支人类裁决=保留）：什么有效（A1-A3 全流程首通/B1 设计门拦截/R2-MAJOR 钉死/三轮严格红锁绿/verifier 零失实证/准出回填解锁样例）；什么没用（AC3 初版技术硬伤靠互审救回/AskUserQuestion 三次未答停摆/基线首跑 tail 截断重跑/--arch 契约外扩展晚发现）；学习五条（bundled C 使跨 target check 不可行的前提验证/workflow_dispatch 触发全部 job 落独立文件/matrix 展开多 runner 须钉顺序步/新断言落独立文件免解锁/准出回填模式）；下个 bolt 三项（P2 backlog 优先 actionlint+行尾/首个 tag prerelease 预演/表单未答降级路径）。
+  3. 回流机制：发布事件/CI 异常/新需求经 `/aidlc:inception` 写新 intent；本 intent 学习沉淀 retro.md。
+  4. 完结确认呈出（retro 已落盘，phase=done 待人类确认）。
