@@ -7,7 +7,6 @@
   "tddLock": true,
   "tddLockPaths": [
     "scripts/package-macos.test.sh",
-    "scripts/release-yaml.test.sh",
     "scripts/check-macos-yaml.test.sh"
   ],
   "tddLockOverride": null,
@@ -53,7 +52,7 @@
     "U3": "done",
     "U4": "done"
   },
-  "updatedAt": "2026-10-15T13:40:00+08:00",
+  "updatedAt": "2026-10-15T13:45:00+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -144,6 +143,12 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-15）：互审 0 BLOCKER/1 MAJOR/10 MINOR（reviews/gate2-ai.md @ a694d3c），verifier 独立复跑终态全部属实；M1（--arch 断言覆盖缺口）+ 部分 MINOR 列为准出回填（解锁仪式留痕→补断言→重锁 + T3/T16/units3/头注/edge.md 措辞），其余备案 P2；Construction 无降级代行/解锁记录，无追认项"
+    },
+    {
+      "at": "2026-10-15T13:45:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "准出回填解锁仪式（授权依据：decisions.md GATE-APPROVED gate2 2026-10-15 裁决落点 2.a——本条即解锁留痕）：scripts/release-yaml.test.sh 临时自 tddLockPaths 移除，用于补 --arch 传参字面结构断言（gate2 M1）；断言落盘复跑绿后重新并集置锁"
     }
   ]
 }
