@@ -48,10 +48,10 @@
   "unitStatus": {
     "U1": "done",
     "U2": "done",
-    "U3": "pending",
+    "U3": "done",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-15T21:00:00+08:00",
+  "updatedAt": "2026-10-15T20:58:09+08:00",
   "history": [
     {
       "at": "2026-10-15T15:18:26+08:00",
@@ -112,6 +112,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2 完成（绿 @ f0a401f：packaging/wix/main.wxs 68 行+installer-msi-windows job 48+/1- 仅追加，MSI 侧断言 27 条全绿；T16 全项 @ 2df10af 修正确认 PASS——WiX v3.14.1 实测 x64 包 ProgramFilesFolder 落 x86 目录（ICE80 非误报），定稿 ProgramFiles64Folder 零抑制构建+msiexec 四步全 PASS（Program Files\\CloudMount 落位/机器 PATH/新进程 where/卸载全清），ICE80 抑制路线废弃留痕）；重新置锁（tddLockPaths 恢复 installers-yaml.test.sh，T3 字面修订随授权提交在案）；unitStatus U1=done（红+锁）、U2=done（绿+T16 PASS）。派发 U3（pkg 腿→断言全绿）"
+    },
+    {
+      "at": "2026-10-15T20:58:09+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 完成（绿 @ 087075d：scripts/package-pkg-macos.sh 113 行（staging+前置硬校验+dry-run 段+pkgbuild 调用，identifier=io.github.tintac-cn.cloudmount）+installer-pkg-macos job 41+/1- 仅追加；installers-yaml.test.sh **72/72 全绿 exit 0**——pkg 侧 27 条全转绿+MSI 侧 45 条零波及；三锁定脚本 9/9、23/23、13/13 零回退；dry-run 冒烟+负路径冒烟过）；unitStatus U3 = done。派发 U4（终验组合+基线比对）"
     }
   ]
 }
