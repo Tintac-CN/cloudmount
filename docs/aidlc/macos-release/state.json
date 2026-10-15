@@ -1,7 +1,7 @@
 {
   "slug": "macos-release",
   "intent": "mac环境在线上请使用GitHub的mac runner来实现打包与release。本地看看有模拟解决办法不",
-  "phase": "operations",
+  "phase": "done",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "approved" },
   "tddLock": true,
@@ -53,7 +53,7 @@
     "U3": "done",
     "U4": "done"
   },
-  "updatedAt": "2026-10-15T14:00:00+08:00",
+  "updatedAt": "2026-10-15T15:05:39+08:00",
   "history": [
     {
       "at": "2026-10-15T08:54:02+08:00",
@@ -156,6 +156,12 @@
       "from": "operations",
       "to": "operations",
       "why": "准出回填完成、重新置锁（tddLockPaths 并集恢复三文件）：release-yaml.test.sh 补 T9 --arch 传参字面断言（gate2 M1 消解）→ 23/23 passed exit 0；MINOR 顺带=T3 字面与实现对齐/T16 括注收全/units/3.md 订正/package-macos.sh 头注补 chmod +x 占位步骤/edge.md mac 小节补登录前置；三脚本终态 9/9、23/23、13/13 全绿"
+    },
+    {
+      "at": "2026-10-15T15:05:39+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "Intent 完结经人类确认（decisions.md INTENT-DONE macos-release 2026-10-15）：4/4 units 交付、两门均过（gate1 两轮/gate2 含准出回填）、ops-runbook.md 与 retro.md（express 分支人类裁决=保留）落盘 @ 4c3f07b、运维三裁决留痕 @ 72c2073（手动 tag+首 tag prerelease 预演/轻量+两项观察/retro 保留）；线上人工项（T7 dispatch check/首 tag prerelease 预演 T14-T16）入发布 SOP；intent 退出活跃位，工件链原样保留作审计"
     }
   ]
 }

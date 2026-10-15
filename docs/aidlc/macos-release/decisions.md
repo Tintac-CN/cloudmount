@@ -114,3 +114,12 @@ GATE-APPROVED gate2 2026-10-15
   2. `retro.md` 落盘（@ 4c3f07b，express 分支人类裁决=保留）：什么有效（A1-A3 全流程首通/B1 设计门拦截/R2-MAJOR 钉死/三轮严格红锁绿/verifier 零失实证/准出回填解锁样例）；什么没用（AC3 初版技术硬伤靠互审救回/AskUserQuestion 三次未答停摆/基线首跑 tail 截断重跑/--arch 契约外扩展晚发现）；学习五条（bundled C 使跨 target check 不可行的前提验证/workflow_dispatch 触发全部 job 落独立文件/matrix 展开多 runner 须钉顺序步/新断言落独立文件免解锁/准出回填模式）；下个 bolt 三项（P2 backlog 优先 actionlint+行尾/首个 tag prerelease 预演/表单未答降级路径）。
   3. 回流机制：发布事件/CI 异常/新需求经 `/aidlc:inception` 写新 intent；本 intent 学习沉淀 retro.md。
   4. 完结确认呈出（retro 已落盘，phase=done 待人类确认）。
+
+---
+
+2026-10-15 Intent 完结确认（AskUserQuestion，逐字转写）：
+- 问：「intent「macos-release」（mac runner 打包与 release + 本地预检）完结确认：4/4 units 交付、两门均过（含准出回填）、ops-runbook 与 retro 已落盘、线上人工项（T7 dispatch check/首 tag prerelease 预演）已入发布 SOP。确认 phase 置 done？」
+  答：「确认完结（推荐）」
+- 完结落点（编排者执行）：phase = done；本 intent 退出活跃位（session-context 不再注入、resume 不再选中）；工件链（intent.md / prd.md / test-strategy.md / plan.md / units/ / reviews/ / ops-runbook.md / retro.md）与 decisions.md 原样保留作审计；发布事件与后续学习经 `/aidlc:inception` 写新 intent（回流机制见 ops-runbook.md）。
+
+INTENT-DONE macos-release 2026-10-15
