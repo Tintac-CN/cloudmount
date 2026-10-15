@@ -99,11 +99,55 @@ jobs:
           path: cloudmount-darwin-*.tar.gz
           if-no-files-found: error
 
+  # ============ Windows MSI 安装包（installer-packages；gate1 Q2：手写 .wxs + CI 直接 WiX） ============
+  # 安装面（A1）：只铺 cloudmountd.exe + cloudmount.exe 与 Machine PATH（.wxs 承载），SCM 注册留用户命令自管
+
+  installer-msi-windows:
+    name: Windows MSI 安装包（x64）
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: 编译（release，daemon + cli）
+        run: cargo build --release -p cloudmount-daemon -p cloudmount-cli
+      # 前置硬校验：构建输入缺失即失败（防 WiX 产出半成品 MSI；WiX 对缺失 File/@Source 天然报错为二道注记）
+      - name: 校验构建输入（两 exe 在位）
+        shell: bash
+        run: |
+          test -f target/release/cloudmountd.exe
+          test -f target/release/cloudmount.exe
+      # WiX 工具链（Construction 首日验证点）：windows runner 预装探测优先，缺失则 choco 装
+      # wixtoolset（= WiX v3 最终线 3.14.x，gate1 Q2 口径；WiX v4/v5 为独立 wix 包不采用）；
+      # 精确版本锁定待首日验证回写注释。版本来源：tag 去 v 前缀注入 ProductVersion
+      # （.wxs 不写死版本；WiX 要求数值格式，rc 形态 tag 不在发布语义内，prd AC5）
+      - name: WiX v3 构建 MSI（candle + light）
+        shell: bash
+        env:
+          MSI_VERSION_SRC: ${{ github.ref_name }}
+        run: |
+          export PATH="$PATH:/c/Program Files (x86)/WiX Toolset v3.14/bin"
+          command -v candle >/dev/null 2>&1 || choco install wixtoolset -y --no-progress
+          command -v candle >/dev/null 2>&1 || { echo "candle 不可用：WiX v3 工具链未就绪（首日验证点）" >&2; exit 1; }
+          ver="${MSI_VERSION_SRC#v}"
+          case "$ver" in
+            *[!0-9.]*) echo "ProductVersion 需数值格式：tag '${ver}' 含非 [0-9.] 字符（rc 不在发布语义内，AC5）" >&2; exit 1 ;;
+          esac
+          mkdir -p build
+          candle -arch x64 -dProductVersion="$ver" -dBinDir="$(pwd -W)/target/release" packaging/wix/main.wxs -out build/main.wixobj
+          light build/main.wixobj -out cloudmount-windows-x64.msi
+      - name: 上传 MSI 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudmount-windows-msi
+          path: cloudmount-windows-x64.msi
+          if-no-files-found: error
+
   # ============ GitHub Release ============
 
   release:
     name: 创建 GitHub Release
-    needs: [binaries-linux, binaries-windows, binaries-macos]
+    needs: [binaries-linux, binaries-windows, binaries-macos, installer-msi-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -132,8 +176,11 @@ jobs:
             | `cloudmount-windows-x64.zip` | Windows x64 | cloudmountd.exe + cloudmount.exe |
             | `cloudmount-darwin-aarch64.tar.gz` | macOS arm64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
             | `cloudmount-darwin-x86_64.tar.gz` | macOS x64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
+            | `cloudmount-windows-x64.msi` | Windows x64 | 安装包（MSI）：daemon + CLI → `Program Files\CloudMount` + Machine PATH |
 
             mac 产物无 Developer ID 签名/公证（arm64 产物为链接器 ad-hoc 签名，Apple Silicon 运行所需）；首启若被 Gatekeeper 拦截：`xattr -cr <解压后的二进制>` 或右键→打开。
+            Windows MSI 无 Authenticode 签名：首启若被 SmartScreen 拦截，「更多信息→仍要运行」为预期行为；请仅从本仓库 Release 页下载。
+            安装提示：MSI 为 per-machine 安装，UAC 提权为预期；PATH 写入对**新开终端**生效（已开窗口需重开）；升级安装请**先卸载再装**（升级语义不设计不保证）。
 
             ### 快速开始
             ```bash
