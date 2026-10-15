@@ -73,6 +73,8 @@
 ### Construction 首日验证（技术可行性，非本 PRD 断言）
 
 - CI 侧 WiX Toolset 的安装方式与版本锁定（Construction 落点；cargo-wix 已裁决不采用——WiX v3 EOL 与双 bin 必手改权衡）。
+- **WiX 大版本选择（v3 vs v4/v5，MINOR⑨ 补）**：v3 与 v4+ 语法不兼容（.wxs 写法随之不同）；v3 可 choco 直装，v4/v5 需 dotnet SDK（本机实测仅 runtime 8.0.32 无 SDK）——首日随安装方式一并定版本并锁定，`packaging/wix/main.wxs` 语法随之。
+- **UTF-8 中文元数据风险（MINOR⑫ 补）**：daemon/cli 的 Cargo.toml description 全中文，将流入 .wxs ARP 描述——WiX v3 对无 BOM UTF-8 源按 ANSI 处理可能乱码/报错，首日验证（缓解：.wxs 存为 UTF-8 with BOM 或 ARP 描述改用英文）。
 - pkgbuild/productbuild 在 macos-15 runner 的最小可用链路（零新依赖验证）。
 
 ## 开放问题（已裁决：2026-10-15 gate1）
