@@ -62,6 +62,20 @@ sudo systemctl daemon-reload && sudo systemctl enable --now cloudmountd
 服务单元内置安全加固（ProtectSystem=strict、NoNewPrivileges 等）与
 内存上限；配置经 `/etc/default/cloudmountd` 注入。
 
+## macOS 部署（WebDAV 出口）
+
+mac 侧本期定位为 WebDAV 出口/CLI（无挂载/无 systemd）。Release 页下载对应
+架构 tar（Apple Silicon 选 `cloudmount-darwin-aarch64.tar.gz`，Intel 选
+`cloudmount-darwin-x86_64.tar.gz`）：
+
+```bash
+tar xzf cloudmount-darwin-aarch64.tar.gz
+# 产物无 Developer ID 签名/公证（arm64 为链接器 ad-hoc 签名）；首启若被 Gatekeeper 拦截：
+xattr -cr ./cloudmountd ./cloudmount   # 或右键→打开一次
+./cloudmountd --serve --listen 0.0.0.0:8384 --auth user:pass
+# 验证出口：curl -u user:pass http://<ip>:8384/dav/ 能列出目录即通
+```
+
 ## Tailscale 组网（远程安全访问）
 
 不暴露公网端口的最简方案：设备与手机/电脑都装 Tailscale（免费，
