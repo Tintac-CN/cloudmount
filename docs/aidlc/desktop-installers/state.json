@@ -1,7 +1,7 @@
 {
   "slug": "desktop-installers",
   "intent": "这个安装包不带前端界面不是搞笑吗，这是桌面端吗？无图标，无托盘，无界面，简直了",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
   "tddLock": true,
@@ -50,9 +50,9 @@
     "U2": "completed",
     "U3": "completed",
     "U4": "completed",
-    "U5": "pending"
+    "U5": "completed"
   },
-  "updatedAt": "2026-10-16T12:05:00+08:00",
+  "updatedAt": "2026-10-16T12:22:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -125,6 +125,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U4 mac .app+.dmg+release body 完成核收 → completed：提交 e7301ed（scripts/package-dmg-macos.sh 新增 149 行 + release.yml 新 job installer-dmg-macos[macos-15/aarch64 显式 target/upload cloudmount-desktop.dmg error]/needs 仅尾部追加/body 8 行[MSI 行三件套+.dmg 行 Gatekeeper 绑定+其余 6 行零删改]）。**断言全绿里程碑：desktop-installers-yaml.test.sh 111/111 exit 0**；四既有脚本零回退（9/23/13/72——编排者独立复跑一致）；dry-run 本地实测 exit 0+staging 内容级核验+三条 fail-fast 负路径。遗留观察：mac CI 首次构建（desktop 首次 mac 编译，本机交叉 check 受 ring 阻以 CI macos-15 为准）/actionlint 降级路径。unitStatus.U4=completed；下一步 U5 终验（终验组合+TP-22 发布前核验清单附录固化→phase=gate2）"
+    },
+    {
+      "at": "2026-10-16T12:22:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U5 终验收尾完成核收 → completed（5/5），Construction 收口 → gate2：提交 5c685e5（release-checklist.md——TP-22 载体固化：发布前人工核验清单五项[MSI 冒烟=已过/断言全绿含零删改护栏=已过/dmg 结构断言绿+真机待/托盘+双击 UI 待人工/产物清单 9 文件待 tag 后]，铁律「未逐项通过不打 tag」）。终验组合五项全绿（dev 执行+编排者独立复跑一致）：cargo test --workspace 277/0 逐数一致[26 目标零回退]、apps/desktop build --release 零警告 8.1MB、cargo fmt --all -- --check clean[编排者复跑]、cargo clippy --workspace --all-targets -D warnings 零告警[编排者复跑]、五脚本 9/23/13/72/111 全 exit 0[编排者复跑]。首日验证 4 项留痕核验确认在案（decisions.md U2 条目）。gate2 待验注记：mac CI 首次 desktop 构建/伪隐藏物理形态偏差[语义一致连锁锚未激活]/真机人工项由 release-checklist.md 承接/gate1 r3 授权 6 MINOR+遗留观察落字情况。提示人类运行 /aidlc:gate 进入互审（party-review 四视角+verifier 对照 plan.md 终验+人类审批）"
     }
   ]
 }

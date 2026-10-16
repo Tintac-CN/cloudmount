@@ -176,3 +176,13 @@ PLAN-CONFIRMED 2026-10-16
 - unitStatus.U4=completed；下一步 U5 终验。
 
 ---
+
+2026-10-16 U5 终验收尾完成核收；Construction 收口，phase → gate2（编排者）：
+- 提交 5c685e5（1 文件 +137：docs/aidlc/desktop-installers/release-checklist.md——TP-22 载体固化）。
+- **终验组合五项全绿**（dev 执行+编排者独立复跑关键项一致）：`cargo test --workspace` **277 passed/0 failed**（26 目标，与 testBaseline 逐数一致零回退）+ `cd apps/desktop && cargo build --release` 零警告（8.1MB exe）+ `cargo fmt --all -- --check` 零 diff（编排者复跑 clean）+ `cargo clippy --workspace --all-targets -- -D warnings` 零告警（编排者复跑 clean）+ 五脚本 **9/23/13/72/111 全 exit 0**（编排者复跑一致）。
+- **TP-22 载体固化**：release-checklist.md=发布前人工核验清单（铁律「首个含 desktop 的 tag 即正式发布（无预发）；未逐项通过不打 tag」）；必含五项各带当前证据状态+操作性核验方法/命令/通过判据——①本地 MSI 冒烟=已过（U3 全过；发布前按清单命令重跑）②断言脚本全绿含零删改护栏=已过③dmg 结构断言=绿[111/111 内]，真机/CI hdiutil 装配待 CI macos-15 首跑+TP-19 真机步骤④托盘+双击 UI 人工冒烟=待人工（Windows 关闭语义已自动实证；真实托盘点击+mac 侧待真机）⑤产物清单 9 文件与预期一致=待 tag 后核验。复选框固化时点如实未勾。
+- **首日验证 4 项留痕核验**（units/5.md 第 3 项）：decisions.md「2026-10-16 U2 应用层完成核收」条目四项结论+偏差留痕全部在案（①可行②winresource 定稿③stdlib PNG-in-ICNS 入仓定稿④CancelClose 可行未降级+伪隐藏偏差）——确认闭合，无需补记。
+- gate2 待验注记（供互审/verifier 关注）：a) mac CI 首次 desktop 构建（CI macos-15 实测为准）b) 伪隐藏物理形态偏差（语义一致，AC2④/TP-21 连锁锚未激活）c) 真机人工项（TP-19/20/21/22）固化的 release-checklist.md 承接 d) gate1 r3 授权 6 MINOR+遗留观察（winres 披露/owner/MSI job 构建来源/UTF-8）随首日/施工落字情况。
+- unitStatus.U5=completed（5/5）；**phase → gate2**（Construction 收口；提示人类运行 `/aidlc:gate` 进入互审——party-review 四视角+verifier 对照 plan.md 终验，随后人类审批）。
+
+---
