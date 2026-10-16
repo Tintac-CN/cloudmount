@@ -113,3 +113,10 @@ GATE-APPROVED gate2 2026-10-16
   4. ops-runbook.md 落盘（报告消费/台账维护/回流/观察项四节）+retro.md 落盘（classic 硬性）→ 完结确认呈出。
 
 ---
+
+2026-10-16 完结确认（对话，用户原话逐字）：「确认完结」
+- 完结判据核验（classic 全达成）：retro.md 落盘（硬性）+ ops-runbook.md 落盘 + 人类确认（本条）→ **phase=done**；audit-roadmap-next-steps 退出活跃位（resume/续跑均拒，历史只读）。
+- 附带指令（预先裁决生效）：收口后直接开 **B1 文档纠偏批** intent（裁决③「收口后直接开 B1 文档纠偏批」+backlog.md 台账 B1 行「🚀 已裁决启动」）——编排者随即以 /aidlc:inception 接入。
+
+INTENT-DONE 2026-10-16
+---
