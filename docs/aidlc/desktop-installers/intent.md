@@ -19,7 +19,7 @@
 - daemon/cli 既有产物与 job 零删改（沿 installer-packages AC3 口径）；其 pkg 不含 .app（A1 裁决：.app 走 .dmg）
 - `apps/desktop` 为独立 cargo 项目（workspace exclude）——CI 需独立构建面；构建（编译）不需 GPU，运行期才涉及渲染
 - 升级语义沿 installer-packages 非目标：不设计，MajorUpgrade 向前覆盖可用 + 提示先卸载再装
-- 上 intent 锁定脚本（installers-yaml.test.sh 等）零触碰——新断言落独立文件
+- 上 intent 锁定脚本（installers-yaml.test.sh 等）零触碰——新断言落独立文件；**唯一例外**：installers-yaml.test.sh 的 T4 两条负断言字面收窄修订已获 gate1 B1 授权（decisions.md 留痕，Construction 期解锁→修订→重锁）
 - 配额注意：串行派发；AskUserQuestion 未获选择时按对话裁决兜底（上两 intent 惯例）
 
 ## 开放问题（需人类裁决）

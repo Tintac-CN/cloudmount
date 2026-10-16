@@ -10,7 +10,7 @@
   - **AC2**（托盘接线）：恰两项菜单 + 关闭语义按裁决。
   - **AC3**（Windows MSI 扩展）：desktop 组件 + 快捷方式 + Icon + 零回归。
   - **AC4**（mac .app+.dmg）：含「pkg 不含 .app」。
-  - **AC5**（发布覆盖）：release.yml desktop job（needs 追加 + 精确路径 upload + 既有四 job 零触碰：binaries-linux/binaries-windows/binaries-macos/installer-pkg-macos；installer-msi-windows 按 B2 移出零触碰集合（仅允许追加，daemon/cli 字面不删改））。
+  - **AC5**（发布覆盖）：release.yml desktop 面（追加步+新增 job；needs 追加 + 精确路径 upload + 既有四 job 零触碰：binaries-linux/binaries-windows/binaries-macos/installer-pkg-macos；installer-msi-windows 按 B2 移出零触碰集合（仅允许追加，daemon/cli 字面不删改））。
   - **AC6**（断言独立文件守护）：四锁定脚本零触碰。
 - **Gate#1 打回裁决落点**（decisions.md 2026-10-16 GATE-REJECTED gate1）：Q1=关闭按钮隐藏到托盘（托盘「退出」真退出；eframe CancelClose 落码形态入 prd 首日验证④）；Q2=快捷方式开始菜单+桌面两处；B2=installer-msi-windows 从零触碰集合移出（允许追加 desktop 构建与归集步）；B1=installers-yaml.test.sh T4 两条负断言授权锁修订（字面收窄，Construction 期执行，decisions.md 留痕）；dmg=aarch64-only；版本显示不一致（ARP 0.2 vs exe 0.1.0）已记录知悉。
 - **Gate#1 第二次打回裁决落点**（decisions.md 2026-10-16 GATE-REJECTED gate1 第二次）：RGBA=gen_icons.py 增发 Rust RGBA 常量源文件 icons.rs（零 crate 依赖，产物面扩含 icons.rs）；body 产物表=8 行口径（7 既有行零删改+MSI 行描述更新+追加 .dmg 行）；intent 改动面补齐授权已落 intent.md（编排者执行）。
@@ -22,8 +22,8 @@
 
 | # | 映射 AC | 场景（正/负路径） | 层级 | 优先级 |
 |---|---|---|---|---|
-| TP-01 | AC5 | 正：release.yml desktop 面——Windows 侧=installer-msi-windows **追加步**（desktop 构建/归集/MSI 三件套）+mac 侧=**新增** macos-15 job（.app+.dmg），tag 触发（`on: push: tags` 匹配），上传产物含 desktop MSI 与 .dmg；body 断言锚——release body 产物表 8 行口径：既有 7 行零删改+MSI 行含三件套描述+.dmg 行存在+Gatekeeper 引导文案存在 | 单元 | P0 |
-| TP-02 | AC5 | 负：追加步（installer-msi-windows 内）无 step 级 continue-on-error+新 mac job（macos-15）无 continue-on-error、无绕过性 `if:`；needs 链完整——desktop 构建失败→打包/发布 job 不执行，**不产出不发布**（沿上 intent 无防护即不通过口径） | 单元 | P0 |
+| TP-01 | AC5 | 正：release.yml desktop 面——Windows 侧=installer-msi-windows **追加步**（desktop 构建/归集/MSI 三件套）+mac 侧=**新增** macos-15 job（.app+.dmg），tag 触发（`on: push: tags` 匹配），上传产物含 desktop MSI 与 .dmg；body 断言锚——release body 产物表 8 行口径：既有 7 行零删改+MSI 行含三件套描述+.dmg 行存在+**Gatekeeper 引导文案存在于 .dmg 行**（绑定 .dmg 行，防朴素 grep 假绿——既有 body 尾注已含 3 处 Gatekeeper 字面） | 单元 | P0 |
+| TP-02 | AC5 | 负：追加步（installer-msi-windows 内）无 step 级 continue-on-error、无 step 级绕过性 `if:`（如 `if: always()`）+新 mac job（macos-15）无 continue-on-error、无绕过性 `if:`；needs 链完整——desktop 构建失败→打包/发布 job 不执行，**不产出不发布**（沿上 intent 无防护即不通过口径） | 单元 | P0 |
 | TP-03 | AC3/AC6 | 负：既有产物与 job 零删改护栏（基线口径修订）——daemon/cli 相关字面锚定（release.yml 精确四 job 清单：binaries-linux/binaries-windows/binaries-macos/installer-pkg-macos）+改动后快照对照；installer-msi-windows job 按 B2 允许追加 desktop 构建与归集步（daemon/cli 字面不删改）；body 产物表按 AC5⑤ 为**断言对象而非护栏对象**（MSI 行描述更新为 AC5⑤ 授权项，由 TP-01 断言）；B1 注：Construction 期对 installers-yaml.test.sh T4 两条负断言执行授权锁修订（字面收窄「daemon/cli 铺放组件除外」，decisions.md 留痕），修订后纳入零删改基线 | 单元 | P0 |
 | TP-04 | AC3 | 正：main.wxs 含 desktop 组件（cloudmount-desktop.exe 铺 Program Files\CloudMount），daemon/cli 组件保持原样；负：无 32 位目录字面——「ProgramFilesFolder」为「ProgramFiles64Folder」子串，须 Id 定界符匹配或先滤除 64Folder 再断言无 32 位目录字面（T16 实证回归防护） | 单元 | P0 |
 | TP-05 | AC3 | 正：main.wxs 含开始菜单+桌面两处 Shortcut 且指向 desktop exe（Q2 已裁决两处）；负：快捷方式目标不指 daemon/cli exe（指错即缺陷） | 单元 | P0 |
