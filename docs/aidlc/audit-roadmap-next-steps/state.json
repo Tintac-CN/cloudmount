@@ -52,7 +52,7 @@
     "U3": "completed",
     "U4": "completed"
   },
-  "updatedAt": "2026-10-17T00:58:00+08:00",
+  "updatedAt": "2026-10-17T01:25:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -125,6 +125,12 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-16）：互审 0 BLOCKER/4 MAJOR/16 MINOR（reviews/gate2-ai.md @ 5fcf1e1；verifier 独立终检 0/0/0——4/4 units 兑现+零写入+验证声称全复现+AC15 独立复验全过；实质结论零翻车）；裁决=「通过+准出回填」——4 MAJOR（标注/索引级：§6 缺 6 TP 节/TP-27 痕迹链/state 勘误/§3.2 行锚）+MINOR 随准出回填闭合；route=classic 补确认（MINOR-12 闭合）；phase → operations（/aidlc:ops——route=classic retro 硬性）"
+    },
+    {
+      "at": "2026-10-17T01:25:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Gate#2 准出回填核收：dev @ 5b3ca6f（M1 §6 30/30 TP 节/M2 TP-27 痕迹三处/M4 §3.2 行锚 15 处实测订正/MINOR 10 项）；gate2 裁决条件全闭合（M3 勘误声明随 decisions.md 回填核收条目）；ops 三裁决呈出待人类回复（报告维护口径/backlog 台账落点/下一步衔接）"
     }
   ]
 }
