@@ -3,16 +3,15 @@
   "intent": "这个安装包不带前端界面不是搞笑吗，这是桌面端吗？无图标，无托盘，无界面，简直了",
   "phase": "operations",
   "route": "express",
-  "gates": { "gate1": "approved", "gate2": "approved" },
+  "gates": {
+    "gate1": "approved",
+    "gate2": "approved"
+  },
   "tddLock": true,
   "tddLockPaths": [
     "scripts/desktop-installers-yaml.test.sh"
   ],
-  "tddLockOverride": {
-    "by": "human",
-    "at": "2026-10-16",
-    "reason": "gate2 准出回填 M2：icon.icns 存在性断言补落（第 2 问逐字『补断言+解锁授权（推荐）』）"
-  },
+  "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-16T09:29:20+08:00",
     "command": "cargo test --workspace",
@@ -56,7 +55,7 @@
     "U4": "completed",
     "U5": "completed"
   },
-  "updatedAt": "2026-10-16T12:58:00+08:00",
+  "updatedAt": "2026-10-16T15:12:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -141,6 +140,12 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-16）：互审 0 BLOCKER/3 MAJOR/26 MINOR（reviews/gate2-ai.md @ f5459c1；verifier 判定 5/5 units 兑现+验证声称全复现+无计划外文件+四方对账无差异）；三裁决逐字——①「通过+准出回填（推荐）」②M2 icns=「补断言+解锁授权（推荐）」③M3 fmt=「全量 fmt apps/desktop」；准出回填清单=M1 main.rs 已隐藏守卫+M2 icns 断言补落[UNLOCK-TESTS 窗口已开，override 置位]+M3 desktop 全量 fmt[含既有 109 行债，纯格式]+词级 MINOR（checklist 指针笔误/release.yml job 头注失实同步）；追认项打包（.gitignore //build//Cargo.lock/raw-window-handle/伪隐藏偏差/校验步三 exe/plist 版本注入）；备案项转 backlog（wxs Description/HKCU 孤儿/dmg 架构校验/TP-23 承接等 11 项）；phase → operations（待 /aidlc:ops；retro 保留或省略裁决随 ops 呈出）"
+    },
+    {
+      "at": "2026-10-16T15:12:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "准出回填闭环（内联代跑 [SKILL §8 降级记录]——dev 代理 5 小时限额 14:40 触发/18:07 重置，回填四项均 gate2 人类裁决逐字授权零裁量）：M1 已隐藏守卫@2a02050（restore_pos 毒化消除，冒烟(78,78)→(-32000)进程存活单关路径过）+M2 icns 断言@3bc308c（UNLOCK 窗口内新增 1 断言，112/112 全绿+注入即 FAIL 非恒真；豁免注记同步三处）+M3 desktop 全量 fmt@2a02050（394 行纯格式含既有债）+词级@218de5e（checklist 指针+release.yml 头注同步）。核收复跑：五脚本 112/72/23/13/9 全 exit 0、workspace 277/0 零回退、desktop build/clippy/fmt clean。重锁：override 清除置 null，tddLockPaths 不变。gate2 准出条件全部闭合；phase=operations，待 /aidlc:ops"
     }
   ]
 }

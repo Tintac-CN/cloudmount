@@ -216,3 +216,15 @@ GATE-APPROVED gate2 2026-10-16
 - 机制注记：本 intent state.json `tddLockOverride={by:"human", at:"2026-10-16", reason:"gate2 准出回填 M2：icon.icns 存在性断言补落（第 2 问逐字『补断言+解锁授权（推荐）』）"}`；流程纪律遵循同前（授权→窗口→修订→重锁）。
 
 ---
+
+2026-10-16 准出回填核收（含降级代跑记录，SKILL §8）——回填闭环，UNLOCK 窗口关闭重锁（编排者）：
+- **降级代跑记录（§8）**：dev 代理派发失败于 5 小时额度上限（2026-10-16 14:40:02 触发，18:07:47 重置；即时重派将同样失败）→ 编排者内联代跑全部回填项。授权链完整：回填四项均为 gate2 人类裁决逐字授权（①「通过+准出回填（推荐）」②「补断言+解锁授权（推荐）」③「全量 fmt apps/desktop」+词级清单），零自由裁量。诚实声明：本条目产出为「内联代行，缺独立复核」——§8 第 4 条恢复后补强：额度恢复后的独立复核并入 ops 收尾（届时或派 verifier 抽检回填 diff，或由人类在 ops 确认时知悉）。
+- **M1 已隐藏守卫**（2a02050）：main.rs hide 分支 `restore_pos.is_none()` 守卫——隐藏态再收 WM_CLOSE 仅重复拦截+CancelClose，不覆写 restore_pos（毒化路径消除）。证据：build --release 过/clippy -D warnings 零告警/desktop fmt clean；冒烟=启动(78,78)→WM_CLOSE→(-32000,-32000)+进程存活（单关路径回归过；双关毒化为外部不可区分状态——由守卫代码路径消除，完整体验待人工冒烟[T20/21 清单面]）。
+- **M2 icns 断言补落**（3bc308c，UNLOCK 窗口内）：新增 1 断言「TP-11 icon.icns 存在且有效（magic 69636e73+长度非零+ic07/ic08/ic11 载荷≥2 匹配）」；实文件 3 匹配 PASS、注入假文件即 FAIL（非恒真验证）；既有 111 断言零触碰；豁免注记同步三处（头注/TP-11 段标题/icons.rs 标签——豁免条款按其自带「定稿后补启用」承诺兑现）。**新口径计数：112/112**（actionlint 不可用分支；可用时 113——环境相关口径注记沿 qa MINOR-4）。
+- **M3 全量 fmt**（2a02050）：`cd apps/desktop && cargo fmt`——394 行纯格式（main.rs 守卫+格式/theme.rs/widgets.rs 既有 ≈109 行债清）；desktop fmt --check clean。
+- **词级 MINOR**（218de5e）：release-checklist.md L21 指针笔误改「U3 Windows MSI 扩展完成核收」；release.yml installer-msi-windows job 头注失实同步（三件套+两处快捷方式+图标叙述）。
+- **核收证据（编排者全量复跑）**：五脚本 **112/72/23/13/9 全 exit 0**；`cargo test --workspace` **277 passed/0 failed**（零回退）；desktop build/clippy/fmt 全 clean。
+- **重锁（LOCK-TESTS）**：state.json tddLockOverride 清除（置 null）；tddLock 保持 true（tddLockPaths=[scripts/desktop-installers-yaml.test.sh] 不变）——本文件重归零删改基线；后续改动须新授权。
+- 回填闭环：gate2 裁决的全部准出条件已闭合；phase=operations；下一步 /aidlc:ops（retro 保留或省略裁决随 ops 呈出）。
+
+---
