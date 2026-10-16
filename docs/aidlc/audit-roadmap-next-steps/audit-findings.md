@@ -13,7 +13,7 @@
 
 ## §0 摘要与计数矩阵（待 U4 补齐）
 
-（占位：U4 汇总三态×严重度计数矩阵与头号方向建议一句话；最终矩阵以全量 43 条 `[x]` + 长期段声明收口，并与 §1–§5 明细行数机械一致〔AC15⑤〕。当前进度：**U1 已核 23 条**（M0×7/M1×9/M1.5×7，已证实 23）+ **U2 已核 21 条**（M2 段×12/M3×3/M4×2/M5×3/长期声明，已证实 19／漂移 2／不可证 0）＝43 条全量已核；漂移 2 条=ROADMAP「Tauri 壳」两处（L111/L124，P1，§1.4）；独立小发现累计 5 条 P2（§1 各表「小发现」行）；真机子声称「声称·未独立复现」标注见各表。最终矩阵待 U3/U4 产出后由 U4 填写。）
+（占位：U4 汇总三态×严重度计数矩阵与头号方向建议一句话；最终矩阵以全量 43 条 `[x]` + 长期段声明收口，并与 §1–§5 明细行数机械一致〔AC15⑤〕。当前进度：**U1 已核 23 条**（已证实 23）+ **U2 已核 21 条**（已证实 19／漂移 2）＝43 条全量已核；**U3 偏离扫描+体检已完成**（§2/§4）：四苗头对账（为真 2/为假半边 1/非偏离 1）+扩展扫描新增偏离 5 条（NEW-1..5：README 四处 stale Tauri 含 `cargo tauri dev` 死命令=P1、webdav.rs TLS 注释过时/ROADMAP L164 未收敛/edge-packaging 分叉/D5 owner 元数据=P2）+TP-17 自检 3/3 可复现；TP-13/14 全绿（五脚本 112/72/23/13/9+fmt/clippy 双面 clean）。最终矩阵待 U4 填写。）
 
 ---
 
@@ -167,9 +167,34 @@
 
 ---
 
-## §2 计划-实现偏离（待 U3）
+## §2 计划-实现偏离（TP-15..20+TP-24，U3）
 
-（占位：U3 按 TP-15..20+24 落「文档/路线图字面｜实际实现｜证据｜建议回写位置」四栏记录表与偏离清单；基线=architecture.md D1–D6 偏离表+苗头对账注记。）
+> 格式=四栏记录：**文档/路线图字面｜实际实现｜证据｜建议回写位置**。偏离基线=architecture.md D1–D6+苗头对账注记（r1）；本节为「复核+收口+扩展扫描」，不重复 §1 已展开的判定细节。
+
+### §2.1 四苗头分项对账（AC8，TP-15/18/19/20）
+
+| # | 苗头 | 结论 | 文档/路线图字面 | 实际实现 | 证据 | 建议回写位置 |
+|---|---|---|---|---|---|---|
+| ① | 「Tauri 壳」vs egui | **为真（漂移，P1）** | ROADMAP L111/L124「Tauri 壳」两 `[x]` 条目+L176「Tauri 壳 8 命令」；ARCHITECTURE.md:22/:48/:86-87；web-ui/README.md:3,7,18,23；web-ui/src/api.ts:2-4 头注；**根 README.md:89,96,133,151（扩展扫描新增，见 §2.2 NEW-1）**；根 Cargo.toml:12 注释 | `apps/desktop`=egui/eframe 0.31+wgpu+rfd+tray-icon 纯 Rust 壳，无 tauri 依赖无 WebView（Cargo.toml:13-27）；`apps/desktop/src-tauri/` 不存在 | `grep -rn -i tauri apps/desktop/Cargo.toml apps/desktop/src`→零命中；§1.4 AC4 漂移结论专节（三态判定已落字） | ROADMAP 三处+ARCHITECTURE.md 三处+web-ui/README.md+api.ts 头注+根 README 四处+根 Cargo.toml:12 注释——统一改称「桌面壳（egui/eframe）」；或人类裁决代码回归 Tauri（architecture.md 开放问题） |
+| ② | `apps/shell-macos` 占位 | **非偏离（一致，TP-19）** | ROADMAP L181 `[ ]` macOS File Provider 未勾 | `apps/shell-macos/` 仅 README.md（无代码）；README.md:3「状态：**占位**。计划于 Windows 版（M2）稳定后启动」+「目录（待建）」节 | `ls apps/shell-macos`→仅 README.md；README.md:3,:25 | 无需纠偏（README 与路线图未勾吻合=D3）；启动 M5 时按 README 方案（staticlib+Swift 薄桥）建目录 |
+| ③ | `.gitignore`/`gen_icons.py` src-tauri 残留 | **半真半假（分项判定）** | 苗头声称两处残留 | `.gitignore:13-14` 残留**为真**（`apps/desktop/src-tauri/gen/`、`apps/desktop/src-tauri/target/` 两行）；`scripts/gen_icons.py` 残留**为假**（`grep -i tauri scripts/gen_icons.py` 零命中——desktop-installers intent 已清除） | `.gitignore:13-14`；gen_icons 零命中；守护断言在位 @ `scripts/desktop-installers-yaml.test.sh:697-698`（TP-11 负断言「gen_icons.py 无 src-tauri 字面」） | `.gitignore:13-14` 两行删除（待后续 intent，审核期不动）——归 U4 §3 backlog 归集 |
+| ④ | web-ui 角色变迁未回写 | **为真（漂移，P1）** | ROADMAP L114「与 web-ui api.ts 契约对齐」/L159-162 web-ui 托管/L174 web-ui 完整化——以「双宿主」语境叙述；ARCHITECTURE.md §前端复用「一套 SPA 两种宿主」 | `platform.ts` 已单宿主化（:2-5 头注「桌面端已切换为纯 Rust（egui + wgpu + rfd，apps/desktop），不再使用本 web-ui。本模块保留 fetch 单路径」，hostKind 恒 "web"）；唯一宿主=`cloudmountd --serve`（webdav.rs:7-14） | `web-ui/src/platform.ts:2-5`；api.ts 契约仍为两宿主措辞（:2-4「桌面 Tauri 壳与边缘 cloudmountd 都要实现」） | web-ui/README.md+api.ts 头注改「边缘单宿主」；ROADMAP L114 的「契约对齐」改指 daemon `/api/*`（webdav.rs:925-963）；ARCHITECTURE §前端复用重写（=苗头①同批回写） |
+
+### §2.2 扩展扫描新增偏离（AC9，TP-24；D1–D6 之外）
+
+| # | 结论 | 文档字面 | 实际 | 证据 | 建议回写位置 |
+|---|---|---|---|---|---|
+| NEW-1 | **根 README.md 四处 stale Tauri（P1，D 表锚面之外的新增）** | README.md:89「桌面壳（Tauri 2）」、:96 架构图「Tauri 桌面壳」、:133「apps/desktop Tauri 2 桌面壳」、**:151 `cd apps/desktop && cargo tauri dev`（不可执行死命令——apps/desktop 无 tauri 依赖与 tauri.conf.json，`apps/desktop/src-tauri/` 不存在）** | egui 壳（同苗头①） | `grep -rn -i tauri README.md`→:89,:96,:133,:151；`ls apps/desktop`→无 src-tauri/tauri.conf.json | README.md 四处改 egui 表述、:151 命令改 `cargo run`；**首屏文档漂移，建议随苗头①同批回写并优先** |
+| NEW-2 | **webdav.rs 模块注释「TLS 见 M4 后续」已过时（P2）** | webdav.rs:29「HTTP（无 TLS）——LAN 场景；TLS（rustls + 证书管理）见 M4 后续」 | M4 已落地 rustls TLS（`--tls-cert/--tls-key` @ daemon main.rs:122-128,611——serve 层包装） | 两处对照 | webdav.rs:29 注释更新为「TLS 可选（--tls-cert/--tls-key，见 main.rs serve 装配）」 |
+| NEW-3 | **ROADMAP L164「v1 为 HTTP（TLS 见后续）」与 L167 同里程碑内「rustls TLS 已落地」表述未收敛（P2）** | 同一 M4 段相邻两条目先称「TLS 见后续」再称「rustls TLS（--tls-cert/--tls-key，自签证书 curl 实测 HTTPS）」 | TLS 可选非默认已实现 | ROADMAP.md:164 vs :167 | 收敛口径见 §4/AC13⑦（一句话版本）；ROADMAP L164 括号改「（TLS 可选，见下条）」 |
+| NEW-4 | **edge/ 与 packaging/ 部署面已实际分叉（P2，登记 architecture 分叉实证+本次复证）** | edge/Dockerfile:5 宣称 `linux/amd64,linux/arm64,linux/arm/v7` 三平台、edge/systemd 内联 `serve --listen 127.0.0.1:8384` 无 EnvironmentFile、MemoryMax=256M | packaging/Dockerfile:4 仅 `linux/amd64,linux/arm64`；packaging/systemd 走 `EnvironmentFile=-/etc/default/cloudmountd`+`$LM_ARGS`、MemoryMax=64M；release.yml docker matrix 实际仅 `linux/amd64`/`linux/arm64`（:295-297）且引用 packaging/ 侧 | 两 systemd 逐行对照（edge:14,19 vs packaging:20,22,27）；两 Dockerfile 头注；release.yml:293-297 | 收敛主从需人类裁决（architecture.md 开放问题）；短期先在 edge/Dockerfile 头注声明「CI 发布面以 packaging/ 为准，armv7 未提供」 |
+| NEW-5 | **owner 元数据不一致（P2，=D5 复核+错侧判定）** | 根 Cargo.toml:20 `repository=zhonghaoxi/cloudmount` | `apps/desktop/Cargo.toml:7`=`Tintac-CN/cloudmount`；git remote=`git@github.com:Tintac-CN/cloudmount.git`；release.yml 镜像 `ghcr.io/${GITHUB_REPOSITORY_OWNER}/...`（:307，实际=Tintac-CN）——**根 Cargo.toml 为错侧** | 三方对照 | 根 Cargo.toml:20 改 `Tintac-CN/cloudmount`（installer-packages backlog 已备案，随下个 intent 落） |
+
+### §2.3 记录性口径（非偏离，TP-24/TP-13 附注）
+
+- **断言脚本计数环境相关**：`desktop-installers-yaml.test.sh` 本机复跑 **112/112**（actionlint 可用环境为 113——缺 actionlint 时 yaml.safe_load 降级路径少 1 断言；历史亦见 111）；其余四脚本 72/23/13/9 与环境无关。TP-13 判据取「与环境一致的末行计数+exit 0」，满足。
+- **workspace crate 清单一致性**：根 Cargo.toml:3-11 members 七 crate 与实际 `crates/` 目录一致、`exclude=["apps/desktop"]` @ :13——无漂移。
+- **除上表外，本档扩展扫描未发现其它新增偏离**（AC9 显式声明）：ROADMAP↔drivers/win 设计文档字面（TP-12 已逐项对应）、根 Cargo.toml workspace 结构、五脚本计数口径均已核对一致。
 
 ---
 
@@ -179,9 +204,60 @@
 
 ---
 
-## §4 质量与交付面盘点（待 U3）
+## §4 质量与交付面盘点（TP-13/14/16+AC12/AC13，U3）
 
-（占位：U3 按 TP-13/14/16/27 落 AC12（测试/CI 现状+缺口清单）与 AC13（已知边界七项逐项三栏结论）。）
+### §4.1 测试与 CI 现状（AC12）
+
+**基线复跑（TP-14，2026-10-16 本机）**：
+
+| 项 | 命令 | 结果 | 对照 |
+|---|---|---|---|
+| workspace 测试 | `cargo test --workspace`（U1 共享复跑） | **277 passed / 0 failed**（26 目标） | desktop runbook「277/0」逐数一致；≠M1 历史口径 114（§1.2 TP-03 双口径注记） |
+| workspace fmt | `cargo fmt --all -- --check` | **exit 0（clean）** | runbook 口径一致 |
+| desktop fmt | `cd apps/desktop && cargo fmt --all -- --check` | **exit 0（clean）** | desktop-installers r1 全量 fmt 回填后无债（2a02050），历史「desktop fmt 债」已清 |
+| workspace clippy | `cargo clippy --workspace --all-targets -- -D warnings` | **exit 0** | 一致 |
+| desktop clippy | `cd apps/desktop && cargo clippy --all-targets -- -D warnings` | **exit 0** | 一致（根级命令不触 exclude 成员——retro 教训，双面分开跑为必要口径） |
+| 五断言脚本（TP-13） | `bash scripts/{desktop-installers-yaml,installers-yaml,release-yaml,check-macos-yaml,package-macos}.test.sh` | **112/112、72/72、23/23、13/13、9/9 全 exit 0** | desktop runbook 硬门「五脚本全绿 112/72/23/13/9」逐数一致（计数环境相关注记见 §2.3） |
+
+**三 CI 工作流结构（TP-16，声称↔实锚逐项命中）**：
+
+| 工作流 | 声称 job | 实锚行 | 触发 |
+|---|---|---|---|
+| ci.yml | `rust`/`rust-mock-features`/`web-ui`/`arm-cross` 四 job | :14/:39/:59/:75 | `push: branches [main]`+`pull_request`（:4-6） |
+| check-macos.yml | `check-macos` 单 job | :11 | **仅 `workflow_dispatch`**（:5，无 push 触发） |
+| release.yml | 九 job（binaries-linux/windows/macos、installer-msi-windows、installer-pkg-macos、installer-dmg-macos、release、docker、**merge**） | :13/:46/:70/:106/:164/:203/:229/:285/:355 | **仅 `push: tags ["v*"]`**（:4-5） |
+
+**CI 覆盖缺口清单（AC12 要求，逐条带证据）**：
+
+1. **根级 fmt/clippy/test 对 `apps/desktop` 零效力**：workspace `exclude=["apps/desktop"]`（根 Cargo.toml:13）——desktop 必须单独跑（本审核 TP-14 即双面口径）；ci.yml 四 job 均不触 apps/desktop。
+2. **desktop 4 测试 CI 不可见**：`grep -rc '#\[test\]\|#\[tokio::test\]' apps/desktop/src/` = 4；无任何 workflow job 覆盖 desktop（仅 release.yml 打包构建非测试）——desktop 回归靠本机手跑。
+3. **三工作流均无 actionlint 步骤**：`grep -rn actionlint .github/workflows/` 零命中——workflow YAML 语法回归无门禁（五断言脚本中的 yaml 断言为静态替代面；actionlint 可用环境 113 差额即源于此）。
+4. （非缺口佐证）webdav mock 集成腿 CI 有覆盖：ci.yml `rust-mock-features` job（:39）三 OS `--features cloudmount-daemon/mock`——U2 补跑的 12 项 webdav 测试在 CI linux/win/mac 腿执行。
+5. （非缺口佐证）check-macos 仅手动触发=刻意低频（check 腿与 ci.yml arm-cross/release mac 腿互补，非缺覆盖）。
+
+### §4.2 已知边界七项盘点（AC13，逐项三栏）
+
+| # | 边界 | 当前状态 | 残留风险 | 是否被后续里程碑消解 |
+|---|---|---|---|---|
+| 1 | M1「同秒内等大小修改漏检」 | **已关闭**（M1.5 内容校验通道默认开启：`verify_every_cycles=5`+每轮 32 文件轮转 @ engine.rs:65-70,87-90；盲区回归+关闭行为双测试在位 @ engine_e2e.rs:631,675——§1.3 L49-51 主证） | 用户显式关闭校验时盲区回归——**文档化行为**（e2e `content_verification_can_be_disabled` 固定该语义 @ :675,:698） | **已被 M1.5 消解**（默认路径不再漏检） |
+| 2 | mac 产物无 Developer ID 签名/公证（arm64 链接器 ad-hoc）；Windows MSI 无 Authenticode | **属实**：release body 三行明示（mac dmg 行 @ release.yml:263「未签名」、:265「mac 产物无 Developer ID 签名/公证（arm64…ad-hoc）」、:266「Windows MSI 无 Authenticode」、:267「mac pkg 无…」）——流水线无任何签名步（grep codesign/sign 仅有 ad-hoc 说明） | 首启 Gatekeeper/SmartScreen 拦截（body 附解除指引：右键→打开/`xattr -cr`/更多信息→仍要运行）；企业分发不可用 | **未消解**（无后续里程碑声称签名；需付费 Apple Developer 账号+EV 证书——外部依赖，macos-release/installer runbook backlog 域） |
+| 3 | dmg aarch64-only | **属实**：`installer-dmg-macos` 仅 `--target aarch64-apple-darwin`（release.yml:210-211「aarch64 原生」）+「aarch64-only…Intel mac 无 desktop 交付为已知取舍」注释 @ :200 + body「aarch64-only」@ :263 | Intel mac 无 desktop 渠道（可用 `cloudmount-darwin-aarch64` CLI tar.gz 非桌面壳） | **未消解**（显式取舍，未列入任何开放项——如需 x86_64 dmg 应归集为新 backlog 项） |
+| 4 | WiX 硬锁 3.14.1.20250415 | **属实**：`choco install wixtoolset --version 3.14.1.20250415` 硬锁+candle 缺失即 `exit 1`（release.yml:145-147「版本 3.14.1.20250415 硬锁」） | WiX v3 处于维护模式；锁死版本免疫上游破坏但累积升级债（v3→v4 迁移为大改） | **未消解**（installer-packages backlog 域；属刻意锁定非疏漏） |
+| 5 | `macos-15` runner 依赖 | **属实**：check-macos.yml:13+release.yml:72,166 三处 `runs-on: macos-15`（「pin macos-15（arm64）单 runner 双 target」裁决注释 @ :79,check-macos.yml:20） | GitHub 淘汰旧 runner 镜像时 CI 突然失败；arm64-only runner 决定 mac 产物架构面（与边界 3 联动） | **未消解**（gate1 Q1 刻意 pin；升级 runner=有意识变更） |
+| 6 | Cookie 通道条款风险 | **属实且已有防护**：协议条款引用 @ cloudmount-auth/src/lib.rs:5-9（3.2.3(4)/4.2(11)/5.4+挤掉其它设备会话）；CLI 知情同意**四条风险逐项**+默认关闭+`yes` 显式确认 @ cli main.rs:328-352；独立容器物理隔离（store.rs:14-28）；切换常驻提示（router.rs:120-131「补充通道有协议风险，UI 应常驻提示」） | 账号冻结/限速/协议随时变更失效（风险②④）；无官方追索 | **未消解**（设计上以「官方通道优先+Cookie 兜底+显式知情同意」控制；该通道本身即 M3 交付物，风险为其已知属性——归集 §3 的 L154 未勾项延续） |
+| 7 | WebDAV TLS 口径收敛（AC13「无内置 TLS/无速率限制配置」vs M4「rustls 可选」） | **收敛为一句**：WebDAV v1 **默认 HTTP（LAN 场景），TLS 为可选非默认**——`--tls-cert/--tls-key` 成对传入即 rustls HTTPS（main.rs:122-128,611；「自签证书 curl 实测」为手测声称·未独立复现）；速率限制**无用户配置面**（API 1 r/s+CDN 8 r/s 内置拆分 @ client.rs:20-22,55-56，CLI/daemon 无限速参数）。AC13 原表述「无内置 TLS」按此句理解；「TLS 见后续」类过时叙述=§2.2 NEW-2/NEW-3 | 缺省 HTTP 明文+Basic 认证缺省关闭（main.rs:114「缺省无认证，仅建议内网」）——公网直暴露风险由部署文档对冲（docs/edge.md 安全节+Tailscale 建议） | **已被 M4 消解**（TLS 可选能力落地；「默认关」为设计取向非缺口） |
+
+### §4.3 审核自身可信度自检（TP-17）
+
+> 方法：从 §1 已写发现中抽 3 条，独立重跑其 §6 命令，比对输出与报告引用（含退出码/行号/行文本）。
+
+| 自检项 | 报告引用（§6 锚） | 独立重跑输出 | 比对 |
+|---|---|---|---|
+| U1 §1.1 L9（Commands::Login 注册行号） | `main.rs:47,114` | `grep -n 'Login' crates/cloudmount-cli/src/main.rs` → `47: Login {`、`114: Commands::Login {` | **一致**（行号零漂移） |
+| U2 §1.4 L95-97（ALWAYS_FULL(3) 症状叙述行号） | `cfapi.rs:319-323` | `grep -n 'ALWAYS_FULL(3)\|提供程序未运行' …/cfapi.rs` → `319:`、`321:` | **一致**（行文本逐字命中） |
+| U1 §1.3 L43-45（RDC 5/5 本机复跑） | `5 passed; 0 failed` | `cargo test -p cloudmount-sync --lib rdc` → `running 5 tests`+`test result: ok. 5 passed; 0 failed`（0.46s） | **一致**（可原样重跑） |
+
+**结论：抽样 3/3 可复现，报告证据链可信（TP-17 通过；非抽样发现的其余条目均由同口径命令支撑，重跑路径已在 §6 逐条给出）。**
 
 ---
 
@@ -299,6 +375,49 @@
 
 - `ls drivers/win/RUST-MINIFILTER-DESIGN.md` → 存在（46,345 字节）；结构逐项 grep → cdylib/.sys ×8 命中（KM-0 行 @ :453）、薄 C 壳回退 @ :95、14 项 @ :284（表 :289-:301）、S1–S6 @ :31-38、KM-0…KM-7 @ :21,453、18–30 人月 @ :21、两条红线 @ :19,66、HLK/WHCP @ :20,402、「不阻塞任何产品里程碑」@ :462。
 
+### TP-13（假完成探测器·五断言脚本计数复跑）
+
+- 命令：`bash scripts/{desktop-installers-yaml,installers-yaml,release-yaml,check-macos-yaml,package-macos}.test.sh`（末行+退出码逐一采集）。
+- 输出摘要：`112/112 passed`、`72/72 passed`、`23/23 passed`、`13/13 passed`、`9/9 passed`，**五脚本全 exit 0**——与 desktop runbook 硬门「112/72/23/13/9」逐数一致；环境相关口径（actionlint 可用 113）见 §2.3。证伪判据（任一 N<声称或退出非零）未触发。
+
+### TP-14（假完成探测器·基线测试与 lint 现值）
+
+- `cargo test --workspace` → 277/0（U1 共享复跑，同机同日）；`cargo fmt --all -- --check` → exit 0；`cd apps/desktop && cargo fmt --all -- --check` → exit 0；`cargo clippy --workspace --all-targets -- -D warnings` → exit 0；`cd apps/desktop && cargo clippy --all-targets -- -D warnings` → exit 0。证伪判据（desktop 侧未覆盖却被叙述为全绿）未触发——本报告以双面分开跑为口径。
+
+### TP-15（假完成探测器·路径引用死链，负路径分项对账）
+
+- ① `.gitignore` L13-14 `apps/desktop/src-tauri/{gen,target}/` 残留 → `grep -rn 'src-tauri' .gitignore scripts/` → `.gitignore:13,14` 两行命中（**发现候选=D2 属实**）；scripts/ 面仅断言脚本守护行命中（desktop-installers-yaml.test.sh:697-698）。
+- ② `scripts/gen_icons.py` src-tauri 引用 → `grep -i tauri scripts/gen_icons.py` **零命中**（苗头半边前提已失效=「为假」，desktop-installers 已修复）。
+- ③ ROADMAP 声称路径全量 `test -e`（29 条路径清单含 drivers/win/RUST-MINIFILTER-DESIGN.md、web-ui/src/api.ts、docs/edge.md、packaging/{systemd,docker}、edge/*、crates 六模块文件等）→ **零 MISS**。
+
+### TP-16（假完成探测器·CI job 名与触发条件存在性）
+
+- `grep -nE '^\s{2}[a-z-]+:' .github/workflows/ci.yml` → `rust`(:14)/`rust-mock-features`(:39)/`web-ui`(:59)/`arm-cross`(:75)；触发 → `push: branches [main]`+`pull_request`（:4-6）。
+- check-macos.yml → `check-macos`(:11)+`on: workflow_dispatch`(:5，无 push)；release.yml → 九 job（U2 已核 :13…:355，含 `merge`）+`on: push: tags ["v*"]`（:4-5）。证伪判据（job 名不存在或触发不符）未触发。
+
+### TP-17（审核自身可信度·抽样独立重跑）
+
+- 抽样 3 条（§1.1 L9 行号锚/§1.4 L95-97 行文本锚/§1.3 L43-45 命令锚）独立重跑 → 三者输出与报告引用逐字一致（行号零漂移、命令可原样重跑）——明细见 §4.3 表。证伪判据（一次性交互操作/重跑不符/行号漂移）未触发。
+
+### TP-18（偏离扫描·Tauri↔egui 字面漂移，2/12 分区标注）
+
+- 字面全量面 → `grep -rn -i tauri docs/ROADMAP.md docs/ARCHITECTURE.md Cargo.toml apps/desktop/Cargo.toml README.md` → ROADMAP:111,124,176（2/12 条目=L111/L124，判定在 §1.4；L176 为 M5 条目内子声称）+ARCHITECTURE:22,48,86-87+根 Cargo.toml:12+**README:89,96,133,151（扩展扫描新增=NEW-1）**；实现面 → `grep -rn -i tauri apps/desktop/Cargo.toml apps/desktop/src` 零命中+`ls apps/desktop`（无 src-tauri/tauri.conf.json）。收口见 §2.1①+§1.4 AC4 结论（不重复展开）。
+
+### TP-19（偏离扫描·shell-macos 占位）
+
+- `ls apps/shell-macos` → 仅 `README.md`；README.md:3「状态：**占位**。计划于 Windows 版（M2）稳定后启动」+:25「目录（待建）」→ 与 ROADMAP L181 未勾**一致，非偏离**（§2.1②）。证伪判据（报告称已实现或忽略占位态）未触发。
+
+### TP-20（偏离扫描·web-ui 角色变迁回写）
+
+- `platform.ts:2-5` 头注（单宿主化自证「桌面端已切换为纯 Rust…不再使用本 web-ui」）vs `api.ts:2-4` 头注（仍双宿主措辞「桌面 Tauri 壳与边缘 cloudmountd 都要实现」）+web-ui/README.md:3,7,18,23 → **角色变迁未回写=真**（§2.1④）；ROADMAP 对 web-ui 的「M4 边缘专属」定位未反映 daemon `/api/*` 双宿主现状（webdav.rs:925-963 实锚）。
+
+### TP-24（文档互相一致性/偏离扩展扫描）
+
+- D5 owner 元数据 → 根 Cargo.toml:20 `zhonghaoxi/cloudmount` vs apps/desktop/Cargo.toml:7 `Tintac-CN/cloudmount` vs `git remote -v`=`Tintac-CN/cloudmount.git` vs release.yml:307 `${GITHUB_REPOSITORY_OWNER}`（实际 Tintac-CN）→ **根为错侧**（NEW-5）。
+- edge/packaging 分叉复证 → edge/systemd:14,19（内联 listen+256M）vs packaging/systemd:20,22,27（EnvironmentFile+$LM_ARGS+64M）；edge/Dockerfile:5 三平台宣称 vs packaging/Dockerfile:4 双平台+release.yml:293-297 matrix `linux/amd64`/`linux/arm64`（NEW-4）。
+- workspace 结构 → 根 Cargo.toml:3-13 members 七 crate+exclude 一致；crate 清单 vs `crates/` 目录一致。
+- stale Tauri 全量面三锚+README 四处 → 见 TP-18；新发现 NEW-1..5 全录 §2.2；除 NEW-1..5 外未发现其它新增偏离（§2.3 显式声明）。
+
 ---
 
-*（U2 收尾：43/43 条判定齐——U1 23 条+U2 21 条（去重后对应 ROADMAP 全部 `[x]`）；累计漂移 2 条（L111/L124 Tauri 壳，P1）+独立小发现 5 条（P2）；真机子声称逐处标注。U3 写 §2/§4，U4 收口 §0/§3/§5。）*
+*（U3 收尾：TP-13..20+24 全执行——§2 偏离清单（四苗头四栏+扩展扫描 NEW-1..5+「无其它新增偏离」显式声明）与 §4 体检（AC12 现状+缺口清单、AC13 七项三栏+TLS 收敛句、TP-17 自检 3/3）就位。U4 收口 §0/§3/§5。）*
