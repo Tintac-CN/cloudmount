@@ -22,6 +22,9 @@ cloudmount-driver115 = { path = "../../crates/cloudmount-driver115" }
 cloudmount-sync = { path = "../../crates/cloudmount-sync" }
 # 系统托盘
 tray-icon = "0.21"
+# 平台窗口句柄（RawWindowHandle——Windows 伪隐藏切换 WS_EX_TOOLWINDOW 取 HWND，
+# 见 src/main.rs「系统托盘」段：真隐藏的 WM_PAINT 帧饥饿/事件循环自旋实测约束）
+raw-window-handle = "0.6"
 # 日志
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

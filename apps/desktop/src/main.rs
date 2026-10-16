@@ -6,11 +6,18 @@
 //!
 //! 布局：左侧导航栏（chrome 底色）+ 右侧内容面板（BG 底色）。
 //!
+//! 系统托盘：tray-icon 0.21，菜单恰两项「显示主窗口/退出」，关闭按钮=隐藏到托盘
+//! （Q1 裁决）——集成形态与实测约束（含「伪隐藏」架构成因）见下方「系统托盘」段注释。
+//!
 //! 引擎线程与 daemon 同构：`Arc<Mutex<SyncEngine>>` 句柄槽 +
 //! `AtomicBool` 暂停 + 日志环形缓冲。
 
 mod theme;
 mod widgets;
+
+// gen_icons.py 生成的品牌 RGBA 常量（32×32；tray-icon `Icon::from_rgba` /
+// egui `IconData` 消费——零 crate 依赖解码链，gate1 r2 裁决）。
+include!("../icons/icons.rs");
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -18,6 +25,8 @@ use std::time::Duration;
 
 use cloudmount_auth::Authenticator as _;
 use eframe::egui;
+#[cfg(windows)]
+use raw_window_handle::HasWindowHandle;
 use theme::*;
 
 /// 引擎线程与 UI 共享的状态快照。
@@ -131,6 +140,14 @@ struct CloudMountApp {
     login_auth_session: Option<cloudmount_auth::cookie::CookieAuth>,
     /// 引擎线程（首帧启动）。
     engine_thread: Option<std::thread::JoinHandle<()>>,
+    /// 托盘句柄（None = 未初始化或初始化失败降级；保活即托盘常驻——drop 即消失）。
+    tray: Option<tray_icon::TrayIcon>,
+    /// 托盘是否已尝试初始化（首帧一次；失败降级不重试）。
+    tray_init_done: bool,
+    /// 托盘「退出」已请求：关闭流程不再取消（真退出）。
+    quit_requested: bool,
+    /// 伪隐藏前的窗口位置（Some = 当前处于托盘隐藏态；「显示主窗口」据此复位）。
+    restore_pos: Option<egui::Pos2>,
 }
 
 impl CloudMountApp {
@@ -148,6 +165,10 @@ impl CloudMountApp {
             consent_checked,
             login_auth_session: None,
             engine_thread: None,
+            tray: None,
+            tray_init_done: false,
+            quit_requested: false,
+            restore_pos: None,
         }
     }
 
@@ -157,7 +178,7 @@ impl CloudMountApp {
 }
 
 impl eframe::App for CloudMountApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // 引擎线程首帧启动（egui 主线程不能阻塞）
         if self.engine_thread.is_none() {
             let state = self.state.clone();
@@ -167,6 +188,58 @@ impl eframe::App for CloudMountApp {
                     .spawn(move || engine_loop(state))
                     .expect("引擎线程启动"),
             );
+        }
+
+        // ---- 系统托盘（AC2；首帧惰性初始化——主线程 + 事件循环已运行，macOS 约束满足） ----
+        if !self.tray_init_done {
+            self.tray_init_done = true;
+            self.tray = init_tray();
+        }
+
+        // 托盘菜单事件轮询（全局 receiver；恰两项）。帧节奏驱动——伪隐藏下帧流不断
+        // （见「系统托盘」段实测注释），故与既有 1s request_repaint_after 兼容。
+        while let Ok(event) = tray_icon::menu::MenuEvent::receiver().try_recv() {
+            match event.id.as_ref() {
+                "show" => {
+                    if let Some(pos) = self.restore_pos.take() {
+                        platform_set_tool_window(frame, false);
+                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+                        tracing::info!("托盘「显示主窗口」：窗口复位");
+                    }
+                    // 可见态亦聚焦唤前（AC2②「显示主窗口」=唤起/聚焦）
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                }
+                "quit" => {
+                    self.quit_requested = true;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    tracing::info!("托盘「退出」：请求终止进程");
+                }
+                _ => {}
+            }
+        }
+
+        // 关闭语义（Q1 裁决）：默认拦截 + 隐藏到托盘（伪隐藏——见段注释）；托盘「退出」
+        // 已请求 → 放行（真退出）；托盘不可用（初始化失败降级）→ 放行（无托盘可恢复）。
+        if ctx.input(|i| i.viewport().close_requested()) {
+            if self.quit_requested || self.tray.is_none() {
+                tracing::info!(
+                    quit = self.quit_requested,
+                    tray = self.tray.is_some(),
+                    "关闭请求：放行（真退出）"
+                );
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                let pos = ctx
+                    .input(|i| i.viewport().outer_rect)
+                    .map(|r| r.min)
+                    .unwrap_or(egui::pos2(120.0, 120.0));
+                self.restore_pos = Some(pos);
+                platform_set_tool_window(frame, true);
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
+                    HIDE_POS, HIDE_POS,
+                )));
+                tracing::info!("关闭请求：已拦截——隐藏到托盘（托盘「显示主窗口」复位/「退出」真退）");
+            }
         }
 
         // ---- 左侧导航栏（chrome 底色，同 artcraft） ----
@@ -539,6 +612,133 @@ impl CloudMountApp {
     }
 }
 
+// ============ 系统托盘（AC2：tray-icon 0.21 + Q1 关闭=隐藏到托盘） ============
+//
+// 集成形态（首日验证① 定稿；配套探针实证见 U2 提交信息）：
+//   - 初始化落点 = 首次 update()：主线程且事件循环已运行——满足 tray-icon 对 macOS
+//     「主线程 + 事件循环运行中」的硬约束（Windows 亦要求与事件循环同线程）。
+//   - 菜单事件轮询 = update() 内全局 receiver 轮询（`MenuEvent::receiver()` + `try_recv`），
+//     与既有 1s request_repaint_after 帧节奏兼容。
+//   - 关闭按钮 = 拦截 +「伪隐藏」（Q1 语义：窗口隐藏、托盘常驻）：
+//     `ViewportCommand::CancelClose`（首日验证④：eframe 0.31 API 实证可行）+ 窗口移出
+//     屏幕（`OuterPosition`）+ `WS_EX_TOOLWINDOW`（Windows：去任务栏/Alt-Tab；macOS 无
+//     此步——Dock 图标留存为已知差异，记入 U2 回报）。
+//   - 为何不用 `ViewportCommand::Visible(false)`（实测缺陷所迫，两项独立探针）：
+//     ① 真隐藏后窗口不再收到 WM_PAINT（winit 源码注释佐证：WM_PAINT 投递要求窗口可见，
+//        隐藏窗口帧饥饿）→ eframe 停发 RedrawRequested → update() 停帧——菜单轮询与
+//        恢复命令全部失联；
+//     ② 即使改以专用线程轮询菜单（绕开①），最后一个重绘到期后 eframe 事件循环进入
+//        `ControlFlow::Poll`，且 egui 重绘请求在无帧期被抑制（delay 不递减不回调）——
+//        实测隐藏态 CPU 100% 单核自旋，防自旋补请求无效。
+//     「伪隐藏」保持 WS_VISIBLE（帧流不断、无自旋），用户不可见由离屏 + TOOLWINDOW 达成；
+//     恢复 = 位置复位 + 去 TOOLWINDOW + Focus。语义与 AC2④ 一致（窗口隐藏、托盘常驻、
+//     托盘「退出」真退出/关闭按钮隐藏），仅隐藏物理形态不同（实测缺陷所迫，回报留痕）。
+//   - 托盘初始化失败 → 降级无托盘运行（关闭即退出，不 panic；prd AC2 边界）。
+
+/// 伪隐藏位置（远离任何桌面区域/多显示器布局）。
+const HIDE_POS: f32 = -32000.0;
+
+/// Windows 直连 FFI（user32——伪隐藏去任务栏所需最小面，零新 crate 依赖）。
+#[cfg(windows)]
+mod win32 {
+    use std::ffi::c_void;
+    pub const GWL_EXSTYLE: i32 = -20;
+    pub const WS_EX_TOOLWINDOW: isize = 0x0000_0080;
+    pub const SWP_NOSIZE: u32 = 0x0001;
+    pub const SWP_NOMOVE: u32 = 0x0002;
+    pub const SWP_NOZORDER: u32 = 0x0004;
+    pub const SWP_NOACTIVATE: u32 = 0x0010;
+    pub const SWP_FRAMECHANGED: u32 = 0x0020;
+    #[link(name = "user32")]
+    extern "system" {
+        pub fn GetWindowLongPtrW(hwnd: *mut c_void, index: i32) -> isize;
+        pub fn SetWindowLongPtrW(hwnd: *mut c_void, index: i32, value: isize) -> isize;
+        pub fn SetWindowPos(
+            hwnd: *mut c_void,
+            insert_after: *mut c_void,
+            x: i32,
+            y: i32,
+            cx: i32,
+            cy: i32,
+            flags: u32,
+        ) -> i32;
+    }
+}
+
+/// 伪隐藏辅助：切换 WS_EX_TOOLWINDOW（离屏后去/回任务栏与 Alt-Tab）。
+/// 返回是否已执行（无句柄/非 Win32 = false——egui 离屏移动仍跨平台生效）。
+#[cfg(windows)]
+fn platform_set_tool_window(frame: &eframe::Frame, on: bool) -> bool {
+    let Ok(handle) = frame.window_handle() else {
+        return false;
+    };
+    let raw_window_handle::RawWindowHandle::Win32(w) = handle.as_raw() else {
+        return false;
+    };
+    let hwnd = w.hwnd.get() as *mut std::ffi::c_void;
+    unsafe {
+        let ex = win32::GetWindowLongPtrW(hwnd, win32::GWL_EXSTYLE);
+        let new_ex = if on {
+            ex | win32::WS_EX_TOOLWINDOW
+        } else {
+            ex & !win32::WS_EX_TOOLWINDOW
+        };
+        win32::SetWindowLongPtrW(hwnd, win32::GWL_EXSTYLE, new_ex);
+        win32::SetWindowPos(
+            hwnd,
+            std::ptr::null_mut(),
+            0,
+            0,
+            0,
+            0,
+            win32::SWP_NOMOVE
+                | win32::SWP_NOSIZE
+                | win32::SWP_NOZORDER
+                | win32::SWP_NOACTIVATE
+                | win32::SWP_FRAMECHANGED,
+        );
+    }
+    true
+}
+
+/// 非 Windows：无 TOOLWINDOW 概念（离屏移动由 egui `OuterPosition` 跨平台完成）。
+#[cfg(not(windows))]
+fn platform_set_tool_window(_frame: &eframe::Frame, _on: bool) -> bool {
+    false
+}
+
+/// 托盘初始化（失败返回 None——降级无托盘运行，不 panic；prd AC2 边界）：
+/// 菜单恰两项「显示主窗口」/「退出」（id=show/quit，不多不少）；图标 = icons.rs 同源。
+fn init_tray() -> Option<tray_icon::TrayIcon> {
+    let show = tray_icon::menu::MenuItem::with_id("show", "显示主窗口", true, None);
+    let quit = tray_icon::menu::MenuItem::with_id("quit", "退出", true, None);
+    let menu = tray_icon::menu::Menu::new();
+    if let Err(e) = menu.append(&show).and_then(|()| menu.append(&quit)) {
+        tracing::warn!(error = %e, "托盘菜单构建失败——降级无托盘运行");
+        return None;
+    }
+    let icon =
+        match tray_icon::Icon::from_rgba(ICON_32_RGBA.to_vec(), ICON_32_WIDTH, ICON_32_HEIGHT) {
+            Ok(icon) => icon,
+            Err(e) => {
+                tracing::warn!(error = %e, "托盘图标解码失败（icons.rs）——降级无托盘运行");
+                return None;
+            }
+        };
+    match tray_icon::TrayIconBuilder::new()
+        .with_tooltip("CloudMount 云挂")
+        .with_menu(Box::new(menu))
+        .with_icon(icon)
+        .build()
+    {
+        Ok(tray) => Some(tray),
+        Err(e) => {
+            tracing::warn!(error = %e, "托盘初始化失败——降级无托盘运行（应用主体可用）");
+            None
+        }
+    }
+}
+
 /// 引擎线程（与 daemon 同构：配置文件 → Provider → SyncEngine 循环）。
 fn engine_loop(state: Arc<AppState>) {
     let cfg = cloudmount_core::config::load_effective().unwrap_or_default();
@@ -661,7 +861,13 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([720.0, 560.0])
             .with_min_inner_size([560.0, 420.0])
-            .with_title("CloudMount 云挂"),
+            .with_title("CloudMount 云挂")
+            // 窗口/任务栏图标：icons.rs 同源（gen_icons 单一管线，AC1）
+            .with_icon(egui::IconData {
+                rgba: ICON_32_RGBA.to_vec(),
+                width: ICON_32_WIDTH,
+                height: ICON_32_HEIGHT,
+            }),
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };

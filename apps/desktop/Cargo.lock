@@ -829,6 +829,7 @@ dependencies = [
  "cloudmount-sync",
  "eframe",
  "qrcode",
+ "raw-window-handle",
  "rfd",
  "serde_json",
  "tracing",
