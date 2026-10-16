@@ -22,3 +22,12 @@
 - 后续：建 intent 骨架（intent.md/state.json/decisions.md）→ 按 classic 扇出 pm/architect/qa 三工件 → 对齐拍 → phase=gate1。
 
 ---
+
+2026-10-16 Inception 对齐拍记录（编排者；含 §8 降级代行）：
+- 三工件：prd @ be118d4（AC1..AC14 连续无空号）/ architecture @ 3e3feb7+align 88bf9b1 / test-strategy @ c3276a1+align（本条）。
+- **architect 回填**（88bf9b1）：语义对齐表锚 AC1..AC14+补 AC12 缺行（原无对应动词行——由 §逻辑架构 CI 段+§安全与权限已知边界节承载）+prd 落盘事实订正；表与 prd 动词双向一致核过。
+- **qa 回填（§8 内联代行）**：qa 代理停滞（对齐派发后 >20 分钟零产出，两次 600s 阻塞等待无果）→ 停单（TaskStop）→ 编排者内联代行映射回填（机械替换：26 TP 映射列+头注说明+缺口项勾销）；映射关系经 prd.md 正文逐条核对；**AC 覆盖机械自检**：26/26 行匹配，AC1..AC14 全覆盖无空锚（AC1←TP-12/17、AC2←TP-01/02、AC3←TP-03..06、AC4←TP-07/08、AC5←TP-09、AC6←TP-10、AC7←TP-11、AC8←TP-15/16/18/19/20、AC9←TP-19/20/24、AC10←TP-23、AC11←TP-21/22、AC12←TP-03/13/14/16、AC13←TP-06/24、AC14←TP-25/26）。
+- 对齐拍结论：**工件齐且对齐**（classic 三件全落盘并提交；qa 引用 AC 编号 ↔ prd 实际编号一致[14/14]；architect 语义对齐表 ↔ prd 动词一致[含 AC12 补行]）。
+- 相位转移：phase → gate1（gate1=pending），提示 `/aidlc:gate`（party-review classic 三件互审）。
+
+---
