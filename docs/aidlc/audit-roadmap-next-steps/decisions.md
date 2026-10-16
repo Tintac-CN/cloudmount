@@ -78,3 +78,17 @@ GATE-APPROVED gate1 2026-10-16
 
 PLAN-CONFIRMED 2026-10-16
 ---
+
+2026-10-16 Gate#2 人类审批（AskUserQuestion 表单未获选择；对话逐字裁决）：
+- 互审输入：reviews/gate2-ai.md @ 5fcf1e1（reviewer-pm 0/0/4 + reviewer-architect 0/0/3 + reviewer-qa 0/3/3 + reviewer-dev 0/1/6 + **verifier 0/0/0**；合并 0 BLOCKER/4 MAJOR/16 MINOR。verifier 独立终检：4/4 units 兑现、零写入约束满足、验证声称全部真实独立复现、AC15 五项机械判据独立复验全过、四方对账无差异；实质结论零翻车：arch 20+ 锚零漂移/qa 独立重跑全过/dev 8 处抽检零翻车）。
+- 问：「Gate#2 交付门互审：0 BLOCKER / 4 MAJOR / 16 MINOR（…）。4 MAJOR 全为标注/索引级：M1 §6 证据索引缺 6 TP 节/M2 TP-27 痕迹链断裂[plan 分区遗漏]/M3 state history 措辞不实/M4 §3.2 溯源行锚系统性失准[含 2 处指向不存在行]。如何裁决？（顺手项：route=classic 补确认——MINOR-12）」
+  答：「**通过+准出回填**」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate2），phase → operations。
+  2. **route=classic 补确认（MINOR-12 闭合）**：随本回执裁决确认 route=classic 维持（本 intent 经命令体 A1 式分级确认接入，classic 为协议缺省 fail-safe 路径；prd 开放问题 4 由本条闭合留痕）。
+  3. **准出回填清单**（批准条件式标注级订正，编排者核收留痕，不重走复审）：M1 audit-findings §6 补 TP-21/22/23/25/26/27 六节（引用 §3/§4.2/§5 既有证据，不重执行）；M2 TP-27 痕迹补全（plan.md U3 分区补 TP-27[Sprint Planning 遗漏订正]+报告 §4.2 标注 TP-27 执行）；M3 state history 勘误以新条目声明（history 只追加）；M4 §3.2 溯源行锚逐处订正（~13 处+2 处不存在行，按四 runbook/retro 实文件 grep 实测）；MINOR 随批：§0.2/§0.3 口径统一（P1 根因簇注记+16 处计数订正）/TP-25/26 映射列补 AC15（test-strategy，本 intent tddLock=false 无锁）/§2.1④+TP-20 行锚/§3.3 算术叙述/webdav 501 计数 2→4/macos-15 三处→四处/§7② 表格排版/小发现④ 证据描述订正。
+  4. 追认项打包：Construction 期无新 §8 事件（U1–U4 全由 dev 代理执行、编排者仅代提交）；gate1 期的 qa 对齐回填内联代行与历次编排者代提交已于 GATE-APPROVED gate1 回执追认，无重复。
+  5. 后续：phase=operations，`/aidlc:ops`（route=classic——retro 硬性要求）。
+
+GATE-APPROVED gate2 2026-10-16
+---

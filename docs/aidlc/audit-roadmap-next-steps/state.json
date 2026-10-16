@@ -1,11 +1,11 @@
 {
   "slug": "audit-roadmap-next-steps",
   "intent": "请对现在的开发计划和功能实现做一次审核，开始计划下一步的实现和推进",
-  "phase": "gate2",
+  "phase": "operations",
   "route": "classic",
   "gates": {
     "gate1": "approved",
-    "gate2": "pending"
+    "gate2": "approved"
   },
   "tddLock": false,
   "tddLockPaths": [],
@@ -52,7 +52,7 @@
     "U3": "completed",
     "U4": "completed"
   },
-  "updatedAt": "2026-10-17T00:40:00+08:00",
+  "updatedAt": "2026-10-17T00:58:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -119,6 +119,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "U4 归集+路线图+报告集成完成 → completed（4/4），Construction 收口 → gate2：audit-findings.md @ 242bbbd（报告全部七章+§7 自检节；§3 归集=开放项 12+四 intent backlog 37 条[去重 28+观察项 5 组+retro 候选 4]/§5 路线图=8 批次+长期轨道[头号建议=B1 文档纠偏与 B2 资质申请双线并行]/§0 摘要=43 条 41 证实+2 漂移[均 Tauri 命名]+P0=0/P1=3/P2=9）；AC15 五项机械自检全过（报告完成判据达成）；回归对比（F2）：cargo test --workspace 277/0+五脚本 112/72/23/13/9 与基线逐数一致=审核零影响证明；零写入约束全程保持（唯一写入物=audit-findings.md）；phase → gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-17T00:58:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-16）：互审 0 BLOCKER/4 MAJOR/16 MINOR（reviews/gate2-ai.md @ 5fcf1e1；verifier 独立终检 0/0/0——4/4 units 兑现+零写入+验证声称全复现+AC15 独立复验全过；实质结论零翻车）；裁决=「通过+准出回填」——4 MAJOR（标注/索引级：§6 缺 6 TP 节/TP-27 痕迹链/state 勘误/§3.2 行锚）+MINOR 随准出回填闭合；route=classic 补确认（MINOR-12 闭合）；phase → operations（/aidlc:ops——route=classic retro 硬性）"
     }
   ]
 }
