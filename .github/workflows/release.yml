@@ -194,11 +194,40 @@ jobs:
             cloudmount-darwin-x86_64.pkg
           if-no-files-found: error
 
+  # ============ macOS desktop .app + .dmg 安装包（desktop-installers；A1：.app 只走 .dmg） ============
+  # 区别于既有 installer-pkg-macos（daemon/cli pkg，零触碰）：本 job 仅产 desktop 的 .app/.dmg。
+  # aarch64-only（沿 macos-15 单 runner 先例，显式 aarch64 target；Intel mac 无 desktop 交付为已知取舍）；
+  # 图标走 gen_icons 预生成入仓链（首日验证③定稿：stdlib 手写 PNG-in-ICNS，无 iconutil 依赖）
+
+  installer-dmg-macos:
+    name: macOS desktop 安装包（.app + .dmg，aarch64）
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: 构建 desktop（aarch64 原生）
+        run: cargo build --release --target aarch64-apple-darwin --manifest-path apps/desktop/Cargo.toml
+      # CI 与本地 dry-run 同脚本；前置硬校验（binary/icns 缺失即失败不产出 → upload 兜底 error）
+      - name: 打包 .app 与 .dmg（经 scripts/package-dmg-macos.sh）
+        env:
+          DMG_VERSION_SRC: ${{ github.ref_name }}
+        run: |
+          ver="${DMG_VERSION_SRC#v}"
+          bash scripts/package-dmg-macos.sh \
+            --bin-dir "apps/desktop/target/aarch64-apple-darwin/release" --out . --version "$ver"
+      - name: 上传 dmg 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudmount-desktop-dmg
+          path: cloudmount-desktop.dmg
+          if-no-files-found: error
+
   # ============ GitHub Release ============
 
   release:
     name: 创建 GitHub Release
-    needs: [binaries-linux, binaries-windows, binaries-macos, installer-msi-windows, installer-pkg-macos]
+    needs: [binaries-linux, binaries-windows, binaries-macos, installer-msi-windows, installer-pkg-macos, installer-dmg-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -227,9 +256,10 @@ jobs:
             | `cloudmount-windows-x64.zip` | Windows x64 | cloudmountd.exe + cloudmount.exe |
             | `cloudmount-darwin-aarch64.tar.gz` | macOS arm64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
             | `cloudmount-darwin-x86_64.tar.gz` | macOS x64 | 静态二进制（daemon + CLI）+ README + 部署手册 |
-            | `cloudmount-windows-x64.msi` | Windows x64 | 安装包（MSI）：daemon + CLI → `Program Files\CloudMount` + Machine PATH |
+            | `cloudmount-windows-x64.msi` | Windows x64 | 安装包（MSI）：daemon + CLI + desktop（egui 界面 + 托盘）→ `Program Files\CloudMount` + Machine PATH + 开始菜单/桌面快捷方式 |
             | `cloudmount-darwin-aarch64.pkg` | macOS arm64 | 安装包（pkg）：daemon + CLI → `/usr/local/bin` |
             | `cloudmount-darwin-x86_64.pkg` | macOS x64 | 安装包（pkg）：daemon + CLI → `/usr/local/bin` |
+            | `cloudmount-desktop.dmg` | macOS arm64 | desktop 应用（CloudMount.app：egui 界面 + 托盘）拖拽安装至 `/Applications`（aarch64-only）；未签名：首启若被 Gatekeeper 拦截，右键→打开为预期解除方式 |
 
             mac 产物无 Developer ID 签名/公证（arm64 产物为链接器 ad-hoc 签名，Apple Silicon 运行所需）；首启若被 Gatekeeper 拦截：`xattr -cr <解压后的二进制>` 或右键→打开。
             Windows MSI 无 Authenticode 签名：首启若被 SmartScreen 拦截，「更多信息→仍要运行」为预期行为；请仅从本仓库 Release 页下载。
