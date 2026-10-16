@@ -31,3 +31,22 @@
 - 相位转移：phase → gate1（gate1=pending），提示 `/aidlc:gate`（party-review classic 三件互审）。
 
 ---
+
+2026-10-16 Gate#1 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate1-ai.md @ be5b021（reviewer-pm 0/4/5 + reviewer-architect 0/3/5 + reviewer-qa 0/1/7 + reviewer-dev 0/4/3；合并 0 BLOCKER/12 MAJOR/20 MINOR，去重 10 MAJOR/16 MINOR；正面确认：AC↔TP 映射 14/14 无虚构编号、TP 引用抽验大面积命中、里程碑字面与 ROADMAP 逐字一致）。
+- 呈批三问（AskUserQuestion，逐字）：
+  问：「Gate#1 互审（审核+规划类 intent，classic 三件）：0 BLOCKER / 12 MAJOR / 20 MINOR。10 主题 MAJOR：M1 TP-01 证伪判据必触（S256 命名不匹配）/M2 AC2「M0 唯一未勾项」事实错误/M3 AC10 缺 L8/M4 非目标未钉零写入/M5 审核报告载体未钉/M6 AS-IS 漏登 merge job/M7 安全节缺 CI 权限面/M8 AC13 六项无断言载体/M9 testutil 备注误导/M10 cldflt 集成测试与只读约束矛盾。如何裁决？（route=classic 已随工件锁定，无法降级 express）」
+  答：「**打回修订（推荐）**」
+  问：「待你复核的默认值①交付范围（A1 编排者默认=审核+路线图）：」
+  答：「**审核+路线图（推荐）**」（维持 A1 缺省）
+  问：「待你复核的默认值②证据标准（A1 编排者默认=抽样验证）：」
+  答：「**全量验证**」（升级，覆盖 A1 缺省）
+- 裁决落点（编排者执行）：
+  1. gate1 打回（gate1=rejected，phase 回 inception；第 1 轮/上限 3 轮）：修订点名 pm/architect/qa 三角色（dev 无 inception 工件——其发现 M4/M5/M9/M10 分别归 pm/qa 修订面）。
+  2. **证据标准升级=全量验证（人类裁决，覆盖 A1 编排者缺省）**：沿 test-strategy 缺口节预铺的方法学差异——TP 从「每里程碑 1-3 条」扩为「逐 [x] 条目一条」，每条里程碑句内子声称逐一落证据；方法与判据不变，仅覆盖密度提升；审核报告方法节声明此口径。
+  3. **交付范围确认=审核+路线图**：M4 按「零写入」钉死——审核期不回写任何仓库文件（含文档与 .gitignore），回写建议只进审核报告。
+  4. 修订点名清单——**pm**：M2（AC2 事实订正：M0 两个未勾项 L8+L16）/M3（AC10 补 L8）/M4（非目标补「零写入」条款）/M5（交付载体钉死：审核报告建议=docs/aidlc/audit-roadmap-next-steps/audit-findings.md[沿 audit-p0p1-fixes 先例]，归集表与路线图载体/章节骨架由 pm 定；AC 层补完整性判据）/证据标准措辞（AC1 抽样改全量）/MINOR m1-m5（长期段措辞/分级口径统一/M2.5 引用形态/AC11 retro 面/U4 溯源）。**architect**：M6（AS-IS 补登 merge job=9 job）/M7（安全节补 CI/发布链权限面——workflow 级 permissions 缺省/第三方 action 可变引用/tag 触发面，三元组表述）/MINOR m6-m10（gen_icons 前提失效对账进 D 表/D2 清单订正/D4 补 api.ts 第三处/entries 列补全/edge-packaging 记「已分叉」）。**qa**：M1（TP-01 证伪重标定为实际符号 code_challenge/code_challenge_method/qrcode+Commands::Login；ROADMAP「PKCE(S256)」措辞差异列独立小发现）/M8（AC13 补批量逐项 TP）/M9（testutil 备注改写：workspace 裸跑，仅 -p cloudmount-sync 单包腿需 feature）/M10（显式声明：cargo test 复跑沿用基线口径含本机 cldflt 集成腿——该机即开发机、基线录制时已含，审核不新增写入面，报告如实标注）/全量升级落实（TP 扩为逐 [x] 条目+句内子声称；执行序注记/TP-04 行号订正/TP-16 锚改 AC12 或 AC12+AC9/自检行与表格对齐/AC9 新增偏离复核锚/AC14 模板随 pm 载体）。
+  5. GATE-REJECTED 标记在后；修订完成后 gate1 复位 pending 复审（复审只核收敛点：10 MAJOR 消解+全量升级落实），须新回执。
+
+GATE-REJECTED gate1 2026-10-16
+---

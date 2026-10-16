@@ -1,10 +1,10 @@
 {
   "slug": "audit-roadmap-next-steps",
   "intent": "请对现在的开发计划和功能实现做一次审核，开始计划下一步的实现和推进",
-  "phase": "gate1",
+  "phase": "inception",
   "route": "classic",
   "gates": {
-    "gate1": "pending",
+    "gate1": "rejected",
     "gate2": "pending"
   },
   "tddLock": false,
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-16T19:05:00+08:00",
+  "updatedAt": "2026-10-16T19:40:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -25,6 +25,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "classic 三工件齐且对齐拍完成（decisions.md 对齐拍记录）：prd AC1..AC14 @ be118d4 + architecture AS-IS 快照+偏离表 D1–D6 @ 3e3feb7/88bf9b1 + test-strategy 26 TP[P0=20] @ c3276a1/align；qa 引用 AC 编号↔prd 实际编号 14/14 一致、architect 语义对齐表↔prd 动词一致（含 AC12 补行）；qa 回填为 §8 内联代行（代理停滞停单，decisions.md 留痕，gate1 人审列为追认项）；phase → gate1"
+    },
+    {
+      "at": "2026-10-16T19:40:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-16，第 1 轮/上限 3 轮）：互审 0 BLOCKER/12 MAJOR/20 MINOR（去重 10 MAJOR/16 MINOR，reviews/gate1-ai.md @ be5b021）；三裁决逐字——①「打回修订（推荐）」②交付范围确认=「审核+路线图（推荐）」（维持 A1 缺省，M4 零写入条款钉死）③证据标准升级=「全量验证」（覆盖 A1 缺省的抽样验证，沿 test-strategy 缺口节预铺方法学差异：TP 逐 [x] 条目+句内子声称）；修订点名 pm/architect/qa 三角色（10 MAJOR 分配：pm M2/M3/M4/M5+全量措辞、architect M6/M7、qa M1/M8/M9/M10+全量落实）；gate1 复位 pending 待修订后复审（只核收敛点，须新回执）"
     }
   ]
 }
