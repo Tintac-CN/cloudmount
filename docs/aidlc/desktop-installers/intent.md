@@ -10,7 +10,7 @@
 - **期望的结果**：Windows MSI 一个包装三件套（daemon+cli+desktop），有开始菜单/桌面快捷方式、exe 有图标；mac 出 `cloudmount.app` 的 `.dmg`（拖拽装 /Applications，含 icns 图标）；desktop 应用有托盘（显示主窗口/退出）；自动化发布覆盖新产物面。
 
 ## 受影响系统/用户
-- 改动面：`apps/desktop/src`（托盘接线）+ `scripts/gen_icons.py`（重写图标管线）+ `packaging/wix/main.wxs`（desktop 组件+快捷方式）+ `scripts/package-dmg-macos.sh`（新增）+ `.github/workflows/release.yml`（desktop 构建/打包 job）+ `scripts/desktop-*.test.sh`（新断言，独立文件——installers-yaml.test.sh 已锁）
+- 改动面：`apps/desktop/src`（托盘接线）+ `apps/desktop/Cargo.toml`+`build.rs`（winres 嵌 .ico，gate1 r2 裁决补齐授权）+ `apps/desktop/icons/`（图标产物：icon.ico/png 组/icons.rs RGBA 常量源——gate1 r2 裁决）+ `scripts/gen_icons.py`（重写图标管线，增发 icons.rs）+ `packaging/wix/main.wxs`（desktop 组件+快捷方式）+ `scripts/package-dmg-macos.sh`（新增）+ `.github/workflows/release.yml`（desktop 构建/打包 job）+ `scripts/desktop-*.test.sh`（新断言，独立文件）+ `scripts/installers-yaml.test.sh`（T4 断言字面收窄——gate1 B1 授权锁修订，Construction 期执行）
 - 用户：Windows/mac 桌面用户（双击图标得 egui 界面，托盘可控）；发布面新增 MSI/desktop 与 .dmg 两类产物
 
 ## 约束
