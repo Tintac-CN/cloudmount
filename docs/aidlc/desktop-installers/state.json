@@ -1,15 +1,15 @@
 {
   "slug": "desktop-installers",
   "intent": "这个安装包不带前端界面不是搞笑吗，这是桌面端吗？无图标，无托盘，无界面，简直了",
-  "phase": "inception",
+  "phase": "gate1",
   "route": "express",
-  "gates": { "gate1": "rejected", "gate2": "pending" },
+  "gates": { "gate1": "pending", "gate2": "pending" },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-16T08:44:36+08:00",
+  "updatedAt": "2026-10-16T08:50:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -40,6 +40,12 @@
       "from": "gate1",
       "to": "inception",
       "why": "Gate#1 复审人类第二次打回（decisions.md 2026-10-16 GATE-REJECTED gate1 第二次；第 2 轮/上限 3 轮）：复审 r2 确认上轮 2B/8M 大部消解实证，新检出 4 MAJOR（B2 口径扫荡残留/AC5⑤ 4 行口径不可判定/RGBA 解码链延留认领/body 编辑授权相抵）+12 MINOR——均措辞/枚举/锚注级；人类裁决打回第二轮轻量修订+三项附带裁决——RGBA=gen_icons.py 增发 Rust RGBA 常量源文件（零新增 crate 依赖）、intent 改动面补齐授权（apps/desktop/Cargo.toml+build.rs+icons/+installers-yaml.test.sh T4 修订授权）、body 产物表 8 行口径（7 既有行零删改+MSI 行描述更新+追加 .dmg 行，TP-01 补 body 锚）；只重跑 pm+qa，修订后复审 r3 只核收敛点"
+    },
+    {
+      "at": "2026-10-16T08:50:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "Gate#1 第二轮修订完成（decisions.md 2026-10-16 修订轮 r2 记录 @ d1294e3）：pm（M-R2-2 三处 8 行口径/M-R2-3 AC5③ 授权扩展/M-R2-4 RGBA icons.rs 声明+产物面扩+MINOR：AC5④ 删噪声/AC5① 新增 job/次序约束/降级连锁锚/头注注记）+ qa（M-R2-1 L13 四 job+TP-01/02 拓扑措辞+AC6 锚双向一致 TP-03→AC3/AC6/M-R2-2 TP-01 body 8 行锚/M-R2-3 TP-03 断言对象注/M-R2-4 TP-11 icons.rs 断言+MINOR：TP-04 边界化/TP-09 区段+轮询/TP-21 连锁锚/TP-03 精确清单/TP-11 豁免+尺寸口径/四脚本精确文件名）；P0=16/P1=6/P2=2；gate1 复位 pending 待复审 r3（只核收敛点：M-R2-1/2/3/4）"
     }
   ]
 }
