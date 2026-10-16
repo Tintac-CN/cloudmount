@@ -13,7 +13,7 @@
 
 ## §0 摘要与计数矩阵（待 U4 补齐）
 
-（占位：U4 汇总三态×严重度计数矩阵与头号方向建议一句话；最终矩阵以全量 43 条 `[x]` + 长期段声明收口，并与 §1–§5 明细行数机械一致〔AC15⑤〕。U1 已核 **23 条**（M0×7/M1×9/M1.5×7），当前分布：**已证实 23／漂移 0／不可证 0**，随附独立小发现 4 条（全部 P2，见 §1 各表「小发现」行）；最终矩阵待 U2/U3 产出后由 U4 填写。）
+（占位：U4 汇总三态×严重度计数矩阵与头号方向建议一句话；最终矩阵以全量 43 条 `[x]` + 长期段声明收口，并与 §1–§5 明细行数机械一致〔AC15⑤〕。当前进度：**U1 已核 23 条**（M0×7/M1×9/M1.5×7，已证实 23）+ **U2 已核 21 条**（M2 段×12/M3×3/M4×2/M5×3/长期声明，已证实 19／漂移 2／不可证 0）＝43 条全量已核；漂移 2 条=ROADMAP「Tauri 壳」两处（L111/L124，P1，§1.4）；独立小发现累计 5 条 P2（§1 各表「小发现」行）；真机子声称「声称·未独立复现」标注见各表。最终矩阵待 U3/U4 产出后由 U4 填写。）
 
 ---
 
@@ -92,13 +92,78 @@
 | L57 | 快照 schema v0.2：`content_check` 列（含旧库自动迁移） | **已证实** | — | `migrate_v02_content_check`（幂等 `ALTER TABLE ADD COLUMN`，pragma 探测）@ `crates/cloudmount-sync/src/store.rs:79-99`；字段 @ `crates/cloudmount-sync/src/state.rs:120`（与 architecture.md 数据模型锚 :66 一致） |
 | L58-59 | 测试：131 个全过（65 sync 单元 + 27 端到端 + 39 其它），含原生 watcher 与引擎协同的真实 API 测试 | **已证实**（历史口径，复跑对照见下） | — | 复跑现值：sync lib 单元 **73**（≥65，含 rdc 5）、engine_e2e **28**（≥27）、集成总计 86；零失败。协同真实 API 测试在位：`engine_works_with_native_watcher` @ engine_e2e.rs:712 + rdc.rs 5 + rdc_release 2，**本机全过**。历史 131 无法从 HEAD 逐字复现——量级一致偏上、构成增长可解释（同 TP-03 口径），声明站得住 |
 
-### §1.4 长期（待 U2）
+### §1.4 M2 · Windows 挂载（含段内 M2.5 条目，TP-07+TP-08+TP-30，12/12 条）
 
-（占位：长期段为叙述性「已定稿」声明、无 checkbox——TP-12 全量事实核验由 U2 落此处。）
+| ROADMAP 行 | 声明 | 三态 | 严重度 | 证据 |
+|---|---|---|---|---|
+| L63-73 | **CfAPI 后端基座**：SyncRoot 注册/注销幂等、占位符创建三细则、`CfConnectSyncRoot`+FETCH_DATA/CANCEL 回调（callbackcontext 上下文+FileIdentity 相对路径）、水合完成 `CF_OPERATION_TYPE_TRANSFER_DATA`（RETRIEVE_DATA 不用于完成 FETCH_DATA）、失败 `STATUS_UNSUCCESSFUL`、金标准测试 5/5（真机 cldflt，含嵌套子目录） | **已证实**（cldflt 腿本机复跑全过；历史「5/5」=当时计数，现值 8） | — | 注册幂等（先注销再注册）@ `crates/cloudmount-vfs/src/backends/cfapi.rs:284-293`；三细则（`DISABLE_ON_DEMAND_POPULATION` @ :56、`RelativeFileName` 无分隔符+父目录分组+深度升序补全中间目录 @ :397-407）；连接+回调 @ :13,:644,:734（callbackcontext/FileIdentity @ :26,:365）；**TRANSFER_DATA 选型** @ :923-934（注释明示「RETRIEVE_DATA 不用于完成 FETCH_DATA」——TP-07 证伪判据未触发）；`STATUS_UNSUCCESSFUL=0xC0000001` @ :969（失败路径 @ :846）。金标准测试 `golden_hydration_flow` @ `crates/cloudmount-vfs/tests/cfapi_hydration.rs:164`（链路=注册→占位符→连接→读触发 FETCH_DATA→水合→内容校验）+嵌套子目录 @ :227；**本机复跑**（U1 共享复跑）：cfapi_hydration 8 passed / 0 failed（11.79s 真实 cldflt 耗时）——本机=M2 开发机（plan.md 注记），真机声称升级为本机复现 |
+| L74-79 | **CfapiBackend**（MountBackend 实现）：投影（远端视图→占位符）+ 水合（回调→`Provider.open_range`，downurl+Range）+ 增量投影幂等；端到端用 MockRemote 走完整链路 | **已证实** | — | `project()` 增量投影 @ `crates/cloudmount-vfs/src/backends/cfapi_mount.rs:207`（已有路径跳过=幂等 @ :225-227）；水合 `provider.open_range` @ :137,:184；MockRemote e2e @ `crates/cloudmount-vfs/tests/cfapi_backend.rs:87,131`（`backend_mounts_and_hydrates_from_provider`/`backend_project_adds_new_remote_files`，本机全过）。L78-79 的「已知边界」已由 M2.5 `update_entry` 解决（与路线图删除线叙述一致） |
+| L80-82 | **PlaceholderSync 协调器**：远端视图变化→本地视图同步（新增投影 / 删除传播含嵌套子树 / 内容变化计数）；e2e：云端增删→apply→本地占位符同步+新文件可水合 | **已证实** | — | `apply_remote_view` @ `crates/cloudmount-vfs/src/backends/cfapi_mount.rs:471-527`（「新增投影、删除传播、内容变化计数」@ :471）；删除传播**嵌套子树**=逆序删除（深路径先删）@ :486-492；计数统计 `added/removed/content_updated` @ :436-440；e2e `placeholder_sync_applies_remote_add_and_delete` @ `cfapi_backend.rs:178`（本机过） |
+| L83-86 | **daemon 接线完成**：`--placeholder-mount`（RemoteViewTracker：probe 短路+周期全量安全网→PlaceholderSync 应用）；跨进程全链路真机验证；`--mock` 免凭据自检通道 | **已证实**（代码面+集成测试）；「跨进程真机验证」**声称·未独立复现** | — | `--placeholder-mount` @ `crates/cloudmount-daemon/src/main.rs:62,324-325`；`RemoteViewTracker`（probe 短路返回 None @ `crates/cloudmount-sync/src/remote.rs:75`、`full_scan_every_cycles` 周期全量安全网 @ :59-68）@ `main.rs:38,744,811`；应用 @ :812；`--mock`（feature 门控）@ `main.rs:39,101-104`。跨进程真机验证（cmd/Explorer 级）属手测声称 |
+| L87-94 | **M2.5 三件套**：内容变化 `CfUpdatePlaceholder`+`DEHYDRATE`（冲突保护：本地 mtime≠旧远端 mtime→跳过计冲突，绝不覆盖用户数据）；dehydrate 整文件脱水（共享冲突明确报错）；新本地目录上传 `ensure_remote_dir` 逐级创建；e2e（真机 cldflt）三场景 | **已证实**（代码面+集成测试）；真机 e2e **声称·未独立复现** | — | 冲突保护 @ `crates/cloudmount-vfs/src/backends/cfapi_mount.rs:392-424`（「本地 mtime ≠ 旧远端 mtime → 用户修改过 → 冲突，跳过」@ :408-413）；`CF_UPDATE_FLAG_DEHYDRATE`+「调用方必须先确认本地未被用户修改——DEHYDRATE 会销毁未上传的修改」@ `crates/cloudmount-vfs/src/backends/cfapi.rs:61,126-129`；共享冲突约束（独占句柄打开会失败）@ cfapi.rs:198-200；`ensure_remote_dir` 逐级 @ `cfapi_mount.rs:730-758`（视图/投影集合同步 @ :751-756）；e2e 四测试 @ `cfapi_backend.rs:239,286,554,609`+`control_dehydrate.rs:116,217,283`（本机全过）。**小发现⑤（P2）**：路线图称 API 名「`CfDehydratePlaceholder`」，实现**刻意绕开**该未文档化导出（`cfapi.rs:184-188`：实测返回成功但数据不释放、停留中间态），改用文档化两步路径（`CfSetPinState(UNPINNED)`+`CfUpdatePlaceholder`+`CF_UPDATE_FLAG_DEHYDRATE` @ :178-190）——能力语义等价，API 命名与实现不符（与 U1 小发现①③同类：协议措辞 vs 代码命名） |
+| L95-97 | 踩坑：Population 策略必须 ALWAYS_FULL(3)——FULL(2) 下目录条目需提供程序信号「填充完成」才可见（dir 看不到文件+跨进程读取报「提供程序未运行」；同进程读正常） | **已证实** | — | 症状叙述逐字在位 @ `crates/cloudmount-vfs/src/backends/cfapi.rs:319-323`（「ALWAYS_FULL(3)：目录视为始终全量填充…FULL 下目录条目需提供程序信号『填充完成』才对其它进程可见（表现为 dir 看不到文件 + 跨进程读取报『提供程序未运行』）」）+ :32（模块级注记）；`CF_POPULATION_POLICY_ALWAYS_FULL` import @ :59；Shell 侧 `StorageProviderPopulationPolicy::AlwaysFull` @ `crates/cloudmount-vfs/src/backends/shell_reg.rs:80-81` |
+| L98-105 | **双向写路径**：`LocalChangeUploader`（RDC 事件→三路判定→上传→`CfSetInSyncState` 绿勾）；判定表五行（Created+已投影跳过/Created+未投影上传/Modified+水合记录/远端 mtime 匹配跳过/Modified+不匹配上传/Removed 保守不上传）；「实测 Win11 内核态水合写入不产生 RDC 事件」（双 mtime 跨版本防御）；e2e 三场景全过；daemon 循环接入（先本地→远端再远端→视图） | **已证实**（代码面+集成测试）；「实测 Win11…」「e2e 真机」**声称·未独立复现** | — | 判定表（文档+实现一致）@ `crates/cloudmount-vfs/src/backends/cfapi_mount.rs:583-596`（表）+ `:624-679`（`poll_and_upload`/`handle_created`（is_projected 跳过 @ :655-659）/`handle_modified`（水合 mtime 匹配跳过 @ :665-671）/Removed 保守不上传 @ :633-637）；「双 mtime」物理形态=`hydration_log` 复用（水合记录+同步水位同表，@ :319-328「水合记录复用为同步水位」）+脱水安全检查双匹配（不匹配水合记录**也不匹配远端条目**即拒绝 @ :341-345）；`CfSetInSyncState` @ `cfapi.rs:93-116`（接线 @ `cfapi_mount.rs:722`）；daemon 循环顺序（「先处理本地→远端…再处理远端→视图」）@ `crates/cloudmount-daemon/src/main.rs:798-822`；e2e 三场景 @ `cfapi_backend.rs:341,392,444`（`bidirectional_hydration_does_not_upload`/`user_modification_uploads`/`new_file_uploads`，本机全过） |
+| L106-110 | 内容变化重投影（2026-10-13）：`CfUpdatePlaceholder`+`DEHYDRATE`+冲突保护+e2e | **已证实**（与 L87-94 **同一实现载体**——`update_entry` 同函数同测试，证据共享；独立判定并在此标注重复） | — | 证据同上（`cfapi_mount.rs:392-424`+`cfapi_backend.rs:239,286`）；路线图两条目语义部分重叠属实（TP-30 行预注），计数不虚增 |
+| L111-115 | **Tauri 壳**（第一处）：托盘+关窗隐藏+引擎线程+命令面（get_status/set_sync_root/toggle_pause/open_sync_folder，与 web-ui api.ts 契约对齐）+应用图标；cargo check 通过 | **漂移** | **P1** | **AC4 漂移结论**：`apps/desktop` **无 tauri 依赖**——`apps/desktop/Cargo.toml` 依赖为 `eframe 0.31 + wgpu + rfd + tray-icon + qrcode`（:13-27）+ workspace exclude（根 `Cargo.toml:12-13`，注释本身亦为漂移 D6）；`grep -rn tauri apps/desktop/Cargo.toml apps/desktop/src` 零命中。实际=egui/eframe 纯 Rust 壳（无 WebView）；托盘/关窗隐藏/引擎线程（`Arc<Mutex<SyncEngine>>`+AtomicBool）以 egui 侧等价实现在位（`apps/desktop/src/main.rs:12-14`）；「命令面 get_status/…」在桌面侧**无同名函数**（grep 零命中——egui 直连引擎非 IPC 命令层），契约对齐由 daemon `/api/*` 承载（§1.7）。与 architecture.md D1/D6 偏离基线一致；「cargo check 通过」为当时可复核声称。建议回写：改称「桌面壳（egui）」或人类裁决恢复 Tauri 路线（architecture.md 开放问题） |
+| L116-123 | **应用一致性目录防护**：`exclude.rs` 四处过滤（本地扫描/RDC/inotify/远端拉取）；`.git` 纯本地+远端已有也不拉取；测试四句覆盖；静默期门控+.git 内禁冲突副本设计存档于模块文档 | **已证实** | — | 四处过滤实锚：本地扫描 @ `crates/cloudmount-sync/src/scan.rs:88`、RDC @ `crates/cloudmount-sync/src/rdc.rs:182`、inotify @ `crates/cloudmount-sync/src/inotify_watcher.rs:106`、远端拉取 @ `crates/cloudmount-sync/src/remote.rs:142`；`.git` 纯本地论证（OneDrive 结构性翻车四机制）@ `crates/cloudmount-sync/src/exclude.rs:3-29`；测试四句：`git_dir_is_invisible_to_scan` @ `scan.rs:297`、`git_dir_is_fully_ignored_by_sync_engine`（含远端 `.git` 不拉取 @ engine_e2e.rs:802）@ `crates/cloudmount-sync/tests/engine_e2e.rs:782`、`git_dir_not_projected_and_writes_not_uploaded`（占位符不投影+写入零上传）@ `cfapi_backend.rs:495`；静默期门控+.git 内禁冲突副本 @ `exclude.rs:28-29` |
+| L124-128 | **Tauri 壳**（第二处，真机 GUI 手测通过）：托盘+web-ui 集成（内嵌 frontendDist，内存 23.8MB）；手测修复 custom-protocol feature、StatusSnapshot camelCase 两 bug | **漂移**（「Tauri 壳」「内嵌 frontendDist」措辞）；手测声称**声称·未独立复现** | **P1** | 同 L111-115 漂移结论（D1 同根因）：egui 壳**无 frontendDist**（web-ui 由 daemon `--serve` 托管，`crates/cloudmount-daemon/src/webdav.rs:7-14` 架构注释）；「内存 23.8MB」「手测两 bug」为真机手测声称（camelCase 契约修复在 daemon 侧 `StatusSnapshot` 序列化可佐证序列化面存在，本机测试通过）。AC4 要求的漂移结论同上，两条目一并落字 |
+| L129-132 | **资源管理器状态图标与右键动词**（真机验证）：导航栏'CloudMount 云挂'；状态列'在此设备上可用'/'联机时可用'；右键原生动词'释放空间'+'始终保留在此设备上'；释放空间实测脱水成功 | **已证实**（代码面：Shell 注册+pin 状态机制齐备）；真机表现与脱水实测**声称·未独立复现** | — | Shell 侧注册（WinRT `StorageProviderSyncRootManager`，导航栏/状态图标/品牌显示）@ `crates/cloudmount-vfs/src/backends/shell_reg.rs:1-60`（DisplayName/Icon 参数面 @ :35-46）；内核侧 `CfSetPinState`/`CfSetInSyncState` @ `crates/cloudmount-vfs/src/backends/cfapi.rs:93-116`（状态列语义=pin 状态）；「CloudMount 云挂」显示名字面 @ `apps/desktop/src/main.rs:769,906,918`（壳标题/托盘 tooltip；daemon 侧经 `with_shell_integration` @ `cfapi_mount.rs:69` 传入）；右键两动词=占位符文件 OS 原生动词（无需注册，与「原生动词」措辞一致）；「释放空间实测脱水成功」=真机声称（脱水代码路径 @ `cfapi_mount.rs:343-345`+`control.rs` 转发链路在位） |
 
-### §1.5 M2–M5（待 U2）
+#### AC4「Tauri 壳」漂移结论（明文落字，prd AC4 要求）
 
-（占位：M2 段×12（TP-07/08/30）、M3×3（TP-09）、M4×2（TP-10）、M5×3（TP-11）由 U2 续写。）
+> **结论：漂移（P1，两处条目 L111/L124 + L176 措辞牵连）**。`docs/ROADMAP.md` 三处「Tauri 壳」字面与实现不符：`apps/desktop` 为 **egui/eframe 0.31 + wgpu 纯 Rust 桌面壳**（无 WebView、无 tauri 依赖；Cargo.toml:13-27 + 根 Cargo.toml:12-13 exclude 注释同为漂移=D6），web-ui 已单宿主化（`platform.ts` hostKind 恒 "web"）。与 architecture.md 偏离表 **D1/D4/D6** 一致。功能面（托盘/关窗隐藏/引擎线程/状态快照/日志环形缓冲）在 egui 侧等价实现；「命令面与 api.ts 契约对齐」的承载方为 daemon `/api/*`（非桌面 IPC）。**建议回写**（U3 §2 汇总）：ROADMAP/ARCHITECTURE.md 改称「桌面壳（egui）」——或人类裁决「代码回归 Tauri」（architecture.md 开放问题，本期只审不改）。
+
+### §1.5 M3 · Cookie 补充通道（TP-09，3/3 条）
+
+| ROADMAP 行 | 声明 | 三态 | 严重度 | 证据 |
+|---|---|---|---|---|
+| L138-144 | **M3 v1**：扫码换 Cookie+只读驱动——qrcodeapi token→短轮询→passportapi 换 Cookie（真实 API 实测）；独立容器存储（物理隔离）；知情同意（`login --with-cookie-channel` 四条风险）；只读失效探测（my.115.com status 不踢线）；m115 协议加密（移植 115driver）；list/stat/open_range/quota 只读；`--channel cookie` 不等 AppID | **已证实** | — | 扫码链路 @ `crates/cloudmount-auth/src/cookie.rs:29-33`（token→qrcode→短轮询 status→login/qrcode 换 Cookie，端点 :281,:337,:362）；独立容器 `SecretKind::CookieJar`（`cloudmount/cookie-jar`）@ `crates/cloudmount-auth/src/store.rs:14-28`；知情同意**四条风险逐项** @ `crates/cloudmount-cli/src/main.rs:328-337`（①协议 3.2.3(4)/4.2(11)/5.4 ②冻结限速 ③互踢 ④无稳定性承诺；`with_cookie_channel`/`consent` @ main.rs:50-53）；只读探测 `READONLY_STATUS_PROBE="https://my.115.com/?ct=guide&ac=status"` @ `cookie.rs:47-51`（「绝不触发互踢」@ :194）；m115 移植 115driver @ `crates/cloudmount-driver115/src/m115.rs:1-3`；`--channel cookie` 路径只要求 Cookie 已启用、不要求 AppID @ `crates/cloudmount-daemon/src/main.rs:494-500`。「真实 API 实测」有历史 commit 佐证（d42456d「真实 115 端到端全链路打通」） |
+| L145-149 | **M3 v2**：ec115 ECDH（P-224+AES-CBC+LZ4，移植 115driver）；initupload 秒传/sign_check/OSS 直传（STS+V1 签名+回调头）；create_dir/rename/move/copy/delete 全套写操作；Cookie 通道双向同步完整（真实端到端待扫码验证） | **已证实**（代码面）；「真实端到端待扫码验证」=路线图自声明，**现状未变**（AC5 标注：阻塞源同 M0 外部链，需真实账号扫码） | — | ec115 @ `crates/cloudmount-driver115/src/ec115.rs:5-11,20-24`（P-224 ECDH+AES-128-CBC+LZ4+固定公钥）；initupload（ECDH 加密+sign_check 区间自动计算）@ `crates/cloudmount-driver115/src/cookie.rs:489`（端点 @ :46）；OSS 直传「STS token + V1 签名 + 回调头」@ `cookie.rs:599-640`；全套写操作 @ `cookie.rs:1009,1042,1106,1120,1131,1153`（copy=异步提交+列表回查 @ :1131-1152、delete 进回收站 @ :1153-1159）——**无桩实现**（TP-09 证伪面复核过） |
+| L150-153 | **自动回退**：ProviderRouter 只对认证类错误切换（频控与网络错误不切换）；切换 tracing::warn+last_switch 永不静默；`--channel auto`（默认）双通道路由 | **已证实** | — | `call` 仅对 `Err(Error::Auth(_))` 切换且一次不乒乓 @ `crates/cloudmount-driver115/src/router.rs:139-152`（「只对认证类错误切换：频控（退避重试）与网络错误（两通道同病）不切换」@ :137-138——TP-09 证伪判据「对网络/频控错误也切换」未触发）；switch 可见（last_switch 记录 @ :103-117、`tracing::warn` @ :120-131、角标数据源 @ :84-85）；`--channel auto` @ `crates/cloudmount-daemon/src/main.rs:518` |
+
+#### M3 状态标注（AC5 要求）
+
+- **「真实端到端待扫码验证」（L149 括号）**：路线图自带该限定且现状未变——代码面双向同步完整（上表），真实 115 账号扫码端到端**本期未执行**（外部依赖：真实账号；与 M0 L8/L16 外部链同源）。判定不因缺真实联调而降级（路线图声明本身即「待验证」措辞，诚实标注）。
+- 未勾项 L154（Cookie 独有能力：分享/转存/批量操作）：未勾属实（`docs/ROADMAP.md:154`），归集见 §3（U4）。
+
+### §1.6 M4 · 边缘网关（TP-10，2/2 条）
+
+| ROADMAP 行 | 声明 | 三态 | 严重度 | 证据 |
+|---|---|---|---|---|
+| L159-164 | **WebDAV 出口+web-ui 托管**（curl 实测）：`--serve` /dav/ 走 ProviderFs（路径↔ID 解析+TTL 缓存、PUT spool 上传、MKCOL/DELETE/MOVE/COPY）；Basic 认证；web-ui 静态托管（穿越防护）；--mock 自检；4 项集成测试+curl 实测双平台通过；v1 为 HTTP | **已证实**（代码面+mock 腿集成测试现值 12/12 本机全过）；「curl 实测」**声称·未独立复现** | — | `/dav/*`→DavHandler→ProviderFs @ `crates/cloudmount-daemon/src/webdav.rs:10-11,35-37,62`；路径逐级解析+TTL 30s 缓存 @ :54-56,106-119；PUT spool 临时文件 @ :30,321-323；MKCOL（`create_dir` @ :415）/DELETE（`remove_file`/`remove_dir` @ :432,:436）/MOVE（`rename`：同父纯重命名、跨父 move+rename @ :440-461）/COPY（`copy` @ :472）；Basic 认证 @ `crates/cloudmount-daemon/src/main.rs:114`（缺省无认证注记）+负路径测试 `webdav_auth_rejects_missing_credentials`；穿越防护测试 `web_ui_traversal_vectors_rejected`（`crates/cloudmount-daemon/tests/webdav_serve.rs`）；**集成测试现值 12/12 全过**（`cargo test -p cloudmount-daemon --features mock`：webdav_serve 6+webdav_write 6——历史「4 项」=当时口径，增长含 audit-p0p1-fixes 加固面，量级对照通过；裸 `cargo test --workspace` 不含该腿=0/0，mock feature 门控与 CI `rust-mock-features` job 一致）。「curl 实测（OPTIONS/GET/PUT/回读/PROPFIND）双平台」=手测声称（现代等价=上述程序化集成测试，本机全过） |
+| L165-169 | **musl 静态交叉+TLS+打包**：CI 双目标（aarch64/x86_64 musl，含 daemon+CLI+冒烟）；rustls TLS（`--tls-cert/--tls-key`，自签证书 curl 实测 HTTPS）；systemd unit（内存上限+安全加固）；Dockerfile 多架构+release workflow（GHCR）；docs/edge.md | **已证实**（静态+结构面）；「自签证书 curl 实测」**声称·未独立复现** | — | CI 双 musl 目标+冒烟 @ `.github/workflows/ci.yml:76-95`（`target: [aarch64-unknown-linux-musl, x86_64-unknown-linux-musl]` @ :81、x86_64 Smoke test @ :94-95）；rustls 参数 @ `main.rs:122-128`（`--tls-cert/--tls-key` 成对校验 @ :611）；systemd（`User=cloudmount` @ :17、`MemoryMax=64M`/`MemoryHigh=48M` @ :27-28、`NoNewPrivileges`/`ProtectSystem=strict` @ :33-34）@ `packaging/systemd/cloudmountd.service`；Dockerfile @ `packaging/docker/Dockerfile`（release.yml docker job 引用 packaging/ 侧）；release workflow GHCR：`docker` job @ `.github/workflows/release.yml:285`、`merge`（多架构清单）@ :355——九 job 名全部命中（:13,46,70,106,164,203,229,285,355）；`docs/edge.md` 存在。edge/ 与 packaging/ 双布局分叉实况=U3/TP-24 范围（architecture 分叉实证已备案） |
+
+#### M4 验收指标状态标注（AC6 要求）
+
+- **「512MB 内存设备稳定运行 48h」（L170 验收行）＝未验证**：无自动化观测面（无 soak/内存采样 job 或脚本佐证）；现有 `MemoryMax=64M`（packaging systemd）/`MemoryMax=256M`（edge systemd）为**配置上限**而非实测值；「局域网设备经 WebDAV 挂载读写」亦无自动化证据（手测声称）。**达成状态：未达成验证**——非外部阻塞项（不依赖 AppID/审核），属后续可开 intent 的实测任务（归集 §3，U4）。
+
+### §1.7 M5 · 打磨（TP-11，3/3 条）
+
+| ROADMAP 行 | 声明 | 三态 | 严重度 | 证据 |
+|---|---|---|---|---|
+| L174-177 | **缓存可视化/设置页/日志导出**（42ab2c9）：web-ui 完整化（标签页+占用/命中率进度条+一键清理+日志 Blob 导出，零框架 2.48KB gzip）；壳 8 命令（引擎 Arc+日志环形缓冲）；daemon serve `/api/*` REST 同名同参（同一 UI 双宿主） | **已证实**（主声明；「Tauri 壳 8 命令」子声称**漂移**——随 AC4 结论一并落字） | — | web-ui 四特性：标签导航 @ `web-ui/src/main.ts:227`、占用/命中率+百分比条 @ main.ts:36,112-113、一键清理 @ :121-134、导出日志 @ :189-194；dist 现值 gzip **2345 字节（≈2.29KB）** vs 声称 2.48KB（构建时点值微差，同量级零框架属实——`gzip -c web-ui/dist/assets/index-*.js | wc -c`）；8 命令契约 @ `web-ui/src/api.ts:44-80`（get_status/get_cache_stats/clear_cache/get_quota/export_logs/set_sync_root/toggle_pause/open_sync_folder）；daemon `/api/*` **同名同参** @ `crates/cloudmount-daemon/src/webdav.rs:925-963`（clear_cache/open_sync_folder 边缘模式 501=文档化边界）；「引擎 Arc+日志环形缓冲」@ `apps/desktop/src/main.rs:12-14,55`（egui 侧等价实现）。**漂移子声称**：桌面壳无「8 命令」IPC 层（`grep -rn 'fn get_status\|…' apps/desktop/src` 零命中）——「Tauri 壳」措辞漂移同 §1.4 AC4 结论。commit 42ab2c9 存在且主题吻合（`git log -1 42ab2c9`：feat(M5) 打磨——缓存可视化/设置页/日志导出+/api REST 双宿主+万级投影基准） |
+| L178-180 | **万级投影基准**（真机）：10,100 条目 618ms（16,330 条/秒）——CfCreatePlaceholders 每父目录一次内核批量调用已足够，无需优化 | **已证实**（基准测试在位且**本机复测**；历史数值=当时时点值） | — | 基准测试 `project_10k_entries_benchmark` @ `crates/cloudmount-vfs/tests/cfapi_hydration.rs:70`；**本机复测（2026-10-16，真实 cldflt）**：`万级投影基准：10100 / 10100 条目，耗时 693.8374ms（14557 条/秒）`（`cargo test -p cloudmount-vfs --test cfapi_hydration project_10k_entries_benchmark -- --nocapture`）——与声称同量级（618ms→693.8ms，测试构建档+机器状态波动）、「批量调用已足够无需优化」结论复现 |
+| L182-184 | **并发水合**（0fb1c4e）：CDN 限速与 API 拆分（8 并发流）——原共用 1 r/s 限速器把多文件读取串行化；实测 4 并行下载 0.31s（修复前 ≥3s） | **已证实**（代码面）；「实测 4 并行 0.31s」**声称·未独立复现** | — | `CDN_RATE_PER_SEC=8.0`/`CDN_BURST=8.0`（8 并发流）@ `crates/cloudmount-driver115/src/client.rs:20-22`；独立 `cdn_limiter`（「勿与 API 共用——并发水合时共用会把多文件读取串行化到 1 r/s」）@ :30-32,56；CDN 直链走宽松限速 @ :174；commit 0fb1c4e 存在且主题吻合（perf(M5) 并发水合——CDN 限速与 API 拆分，实测 4 并行 0.31s） |
+
+#### M5 状态标注（AC7 要求）
+
+- 未勾项 L181（macOS File Provider 扩展）：未勾属实（`docs/ROADMAP.md:181`），与 `apps/shell-macos` 占位态吻合（architecture.md D3 判「一致」）——归集 §3（U4）。
+
+### §1.8 长期 · 自研 Windows minifilter（TP-12，叙述性声明全量核验）
+
+> 「长期」段无 checkbox（AC1 形态出入已在 §1.0 声明）；核对象=「实现方案已定稿」叙述的全部事实性声称。
+
+| 声称 | 三态 | 证据 |
+|---|---|---|
+| 设计文档存在且已定稿（`drivers/win/RUST-MINIFILTER-DESIGN.md`） | **已证实** | 文件存在（46,345 字节；`ls drivers/win/RUST-MINIFILTER-DESIGN.md`）；`drivers/win/README.md` 状态「设计定稿/待实现」（4,956 字节） |
+| Rust 从零实现（cdylib 直出 `.sys`，自建 FltMgr 绑定层+薄 C 壳回退路径） | **已证实** | cdylib 直出 `.sys` @ design.md:453（KM-0 行）；回退路径（「内核侧保留 <800 行 C（仅 DriverEntry+回调转调），逻辑仍全在 Rust…必须在 KM-1 前保持可切」）@ :95 |
+| 14 项稳定机制 | **已证实** | 「## 7. 十四项稳定机制」表 @ design.md:284（第 1–14 行逐项，:289-:301） |
+| S1–S6 门禁 | **已证实** | S1（卸载零泄漏）…S6（兼容性矩阵）表 @ design.md:31-38（「每条机制都映射到 S1–S6」@ :38） |
+| KM-0…KM-7 里程碑 | **已证实** | KM-0…KM-7 @ design.md:21,:453（KM-0 骨架行含门禁/工期） |
+| 18–30 人月（验证占半） | **已证实** | 「18–30 人月（含验证）…验证占一半以上」@ design.md:21 |
+| 官方两条红线已写入设计 | **已证实** | 红线①（HSM 组内不得对 `RECALL_ON_DATA_ACCESS` 文件做 targeted 缓存读写）+②（必须处理 section 同步钩子）@ design.md:19,:66（展开论述 @ :65-68） |
+| 零售分发需过 HLK/WHCP（2026 签名政策收紧） | **已证实** | design.md:20（「零售分发需 HLK/WHCP…Server 2016+ 不接受 attestation」）+:402（「HLK 认证当作独立里程碑（KM-7）」） |
+| 「不阻塞任何产品里程碑」 | **已证实** | design.md:462（「M2 用 CfAPI 发布产品；cmflt 完成后经 MountBackend 切换…不阻塞任何产品里程碑」） |
 
 ---
 
@@ -187,6 +252,53 @@
 - 重命名：`reconcile.rs:328-347`（保守配对条件：同步记录+大小相等+只配对文件）；`exec.rs:314-368`（move_remote：哈希二次确认 :320-327、回退「上传+删旧远端」:360-367）、`:374-413`（rename_local：哈希确认 :378-387、回退「回收站+下载」:409-413）；e2e `engine_e2e.rs:528,575,608`。证伪判据（无条件宽泛配对/无哈希确认/无回退）未触发。
 - schema v0.2：`store.rs:79-99`（`migrate_v02_content_check` 幂等 ALTER TABLE+pragma 探测）；`state.rs:120`。
 
+### TP-07（M2·CfAPI 基座与 CfapiBackend，L63/L74）
+
+- `grep -n 'CfConnectSyncRoot\|CF_OPERATION_TYPE_TRANSFER_DATA\|RETRIEVE_DATA\|STATUS_UNSUCCESSFUL' crates/cloudmount-vfs/src/backends/cfapi*.rs` → `cfapi.rs:734`（连接）、`:923-934`（TRANSFER_DATA+「RETRIEVE_DATA 不用于完成 FETCH_DATA」）、`:846,:969`（STATUS_UNSUCCESSFUL=0xC0000001）。证伪判据（TRANSFER_DATA 缺失或用 RETRIEVE_DATA）未触发。
+- 三细则 → `cfapi.rs:56`（DISABLE_ON_DEMAND_POPULATION）、`:397-407`（RelativeFileName 无分隔符/父目录分组/深度升序）；幂等注册 → `:284-293`；callbackcontext/FileIdentity → `:26,:365,:644`。
+- 金标准测试存在性 → `ls crates/cloudmount-vfs/tests/`（cfapi_backend.rs 13 测试/cfapi_hydration.rs 8 测试/control_dehydrate.rs 3 测试）；`golden_hydration_flow` @ `cfapi_hydration.rs:164`（注释「金标准链路」@ :3）。本机复跑（U1 共享 `cargo test --workspace`）：cfapi_hydration **8 passed / 0 failed（11.79s）**＝cldflt 腿真实执行（本机=开发机）。
+- project 幂等 → `cfapi_mount.rs:207,225-227`（`projected.contains(rel) → continue`）；open_range 水合 → `:137,:184`。
+
+### TP-08（M2·daemon 接线与双向写路径，L83/L98）
+
+- `grep -rn 'LocalChangeUploader\|CfSetInSyncState\|RemoteViewTracker\|placeholder-mount' crates/` → `cfapi_mount.rs:596`（struct）+判定表 `:583-596`+实现 `:624-679`（is_projected 跳过/水合 mtime 跳过/Removed 保守）；`cfapi.rs:93-116`（set_in_sync）+`cfapi_mount.rs:722`（接线）；daemon `main.rs:38,62,324-325,801,811-812`（tracker/uploader/循环）；`--mock` @ `main.rs:39,101-104`。
+- 判定表五行与实现逐行对照 → 文档表 `cfapi_mount.rs:585-593`（Created 双分支/Modified 双分支/Removed=不上传）；双 mtime 防御物理形态 → `:319-328`（hydration_log 复用为同步水位）+`:341-345`（脱水安全双匹配拒绝）。
+- 循环顺序 → `main.rs:798-822`（注释「先处理本地→远端…再处理远端→视图」）；probe 短路+周期全量安全网 → `crates/cloudmount-sync/src/remote.rs:52-68,75`。
+- 真机声称（跨进程验证/Win11 内核态水合无 RDC 事件）→ **声称·未独立复现**（无自动化载体；判定表与 e2e 的程序化等价面本机全过）。
+
+### TP-30（M2·剩余六条批量，L80/L87/L95/L106/L116/L129）
+
+- L80：`apply_remote_view` @ `cfapi_mount.rs:471-527`（逆序删除嵌套子树 @ :486-492、计数 @ :436-440）；e2e `cfapi_backend.rs:178`。
+- L87/L106：冲突保护 @ `cfapi_mount.rs:392-424`；DEHYDRATE 字面 @ `cfapi.rs:61,126-129`；共享冲突约束 @ `cfapi.rs:198-200`；ensure_remote_dir @ `cfapi_mount.rs:730-758`；e2e @ `cfapi_backend.rs:239,286,554,609`+`control_dehydrate.rs:116,217,283`。L106 与 L87 同载体——标注重复。
+- L95：`cfapi.rs:319-323`（ALWAYS_FULL(3)+FULL(2) 症状叙述逐字）+`:32,:59`；`shell_reg.rs:80-81`。
+- L116：四处过滤 → `scan.rs:88`/`rdc.rs:182`/`inotify_watcher.rs:106`/`remote.rs:142`；`.git` 论证 @ `exclude.rs:3-29`（禁冲突副本+静默期门控 @ :28-29）；测试四句 → `scan.rs:297`+`engine_e2e.rs:782,802`+`cfapi_backend.rs:495`。
+- L129：`shell_reg.rs:1-60`（WinRT 注册参数面）；pin 状态 @ `cfapi.rs:93-116`；「CloudMount 云挂」@ `apps/desktop/src/main.rs:769,906,918`。真机表现/脱水实测 → **声称·未独立复现**。
+
+### TP-09（M3 全量，L138/L145/L150）
+
+- 扫码链路 → `crates/cloudmount-auth/src/cookie.rs:29-33,281,337,362`；独立容器 → `store.rs:14-28`；四条风险 → `crates/cloudmount-cli/src/main.rs:328-337`（逐项四条）+参数 `:50-53`；只读探测 → `cookie.rs:47-51,194-199`。
+- ec115 → `crates/cloudmount-driver115/src/ec115.rs:5-11,20-24`；initupload/STS/V1/回调 → `cookie.rs:46-48,489,599-640`；全套写操作 → `cookie.rs:1009-1159`（copy 异步回查/delete 进回收站，无桩）。
+- Router → `crates/cloudmount-driver115/src/router.rs:103-131`（switch 可见）、`:137-152`（**仅 `Err(Error::Auth)` 切换**、一次不乒乓——证伪判据未触发）；`--channel auto/cookie` → `crates/cloudmount-daemon/src/main.rs:494-500,518`。
+- 状态标注：L149「真实端到端待扫码验证」现状未变（外部依赖：真实账号扫码）；历史佐证 commit d42456d（真实 115 端到端全链路打通）。
+
+### TP-10（M4 全量，L159/L165）
+
+- WebDAV → `crates/cloudmount-daemon/src/webdav.rs:10-11,54-56,106-119,284,321-323,365,415,432,436,440-472`（/dav/→ProviderFs/TTL 30s/PUT spool/五方法）；Basic 认证 → `main.rs:114`；穿越防护+认证负路径测试在 webdav_serve.rs。
+- mock 腿集成测试：`cargo test -p cloudmount-daemon --features mock --test webdav_serve --test webdav_write` → **6+6=12 passed / 0 failed**（裸 workspace 0/0=feature 门控，与 ci.yml `rust-mock-features` 一致）；历史「4 项」=当时口径。
+- musl/TLS/systemd/docker/edge.md → `ci.yml:76-95`；`main.rs:122-128,611`（--tls-cert/--tls-key）；`packaging/systemd/cloudmountd.service:17,27-28,33-34`；`packaging/docker/Dockerfile`；`ls docs/edge.md` 存在；release.yml 九 job 名 @ `:13,46,70,106,164,203,229,285,355`（docker @ :285、merge @ :355）。
+- 验收指标「512MB/48h」→ **未验证**（无观测面；MemoryMax 为配置上限非实测）。
+
+### TP-11（M5 全量，L174/L178/L182）
+
+- web-ui 8 命令契约 → `web-ui/src/api.ts:44-80`（恰 8 个）；daemon 同名同参 → `webdav.rs:925-963`（8 命令，2 个边缘 501 边界）；web-ui 完整化 → `main.ts:36,112-113,121-134,189-194,227`；gzip 现值 → `gzip -c web-ui/dist/assets/index-*.js | wc -c` = 2345（≈2.29KB，声称 2.48KB 为时点值）；egui 侧 Arc/环形缓冲 → `apps/desktop/src/main.rs:12-14,55`；「壳 8 命令」IPC 层 → grep 零命中（漂移子声称，随 AC4 结论）。
+- 万级投影基准 → `cfapi_hydration.rs:70`（测试）；**本机复测** `cargo test -p cloudmount-vfs --test cfapi_hydration project_10k_entries_benchmark -- --nocapture` → `万级投影基准：10100 / 10100 条目，耗时 693.8374ms（14557 条/秒）`（与声称 618ms/16,330 同量级，结论复现）。
+- 并发水合 → `client.rs:20-22,30-32,56,174`（CDN 8.0 r/s 拆分）；commit 存在性 → `git log -1 42ab2c9`（feat(M5) 打磨…）、`git log -1 0fb1c4e`（perf(M5) 并发水合——8 并发流）。
+- 真机声称（4 并行 0.31s/内存 23.8MB）→ **声称·未独立复现**（0.31s 有 commit message 留痕；无自动化基准）。
+
+### TP-12（长期段叙述性声明全量）
+
+- `ls drivers/win/RUST-MINIFILTER-DESIGN.md` → 存在（46,345 字节）；结构逐项 grep → cdylib/.sys ×8 命中（KM-0 行 @ :453）、薄 C 壳回退 @ :95、14 项 @ :284（表 :289-:301）、S1–S6 @ :31-38、KM-0…KM-7 @ :21,453、18–30 人月 @ :21、两条红线 @ :19,66、HLK/WHCP @ :20,402、「不阻塞任何产品里程碑」@ :462。
+
 ---
 
-*（U1 收尾：23/23 条判定齐、证据可复现、骨架 §0–§6 就位。U2 续写 §1.4/§1.5，U3 写 §2/§4，U4 收口 §0/§3/§5。）*
+*（U2 收尾：43/43 条判定齐——U1 23 条+U2 21 条（去重后对应 ROADMAP 全部 `[x]`）；累计漂移 2 条（L111/L124 Tauri 壳，P1）+独立小发现 5 条（P2）；真机子声称逐处标注。U3 写 §2/§4，U4 收口 §0/§3/§5。）*
