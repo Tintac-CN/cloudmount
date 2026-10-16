@@ -5,7 +5,9 @@
 //! （Inter/Archivo/Geist Mono 需要字体文件，此处用 egui 默认 +
 //! 等宽字体做 HUD 标签）。
 
-use eframe::egui::{self as egui, Color32, CornerRadius, FontFamily, FontId, Stroke, TextStyle, Visuals};
+use eframe::egui::{
+    self as egui, Color32, CornerRadius, FontFamily, FontId, Stroke, TextStyle, Visuals,
+};
 
 const fn hex(rgb: u32) -> Color32 {
     let [_, r, g, b] = rgb.to_be_bytes();
@@ -135,11 +137,23 @@ pub fn apply(ctx: &egui::Context) {
         style.spacing.interact_size.y = CONTROL_H;
         style.spacing.window_margin = egui::Margin::same(16);
         style.text_styles = [
-            (TextStyle::Heading, FontId::new(24.0, FontFamily::Proportional)),
+            (
+                TextStyle::Heading,
+                FontId::new(24.0, FontFamily::Proportional),
+            ),
             (TextStyle::Body, FontId::new(14.0, FontFamily::Proportional)),
-            (TextStyle::Button, FontId::new(14.0, FontFamily::Proportional)),
-            (TextStyle::Small, FontId::new(12.0, FontFamily::Proportional)),
-            (TextStyle::Monospace, FontId::new(13.0, FontFamily::Monospace)),
+            (
+                TextStyle::Button,
+                FontId::new(14.0, FontFamily::Proportional),
+            ),
+            (
+                TextStyle::Small,
+                FontId::new(12.0, FontFamily::Proportional),
+            ),
+            (
+                TextStyle::Monospace,
+                FontId::new(13.0, FontFamily::Monospace),
+            ),
         ]
         .into();
     });

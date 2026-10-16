@@ -229,16 +229,23 @@ impl eframe::App for CloudMountApp {
                 );
             } else {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                let pos = ctx
-                    .input(|i| i.viewport().outer_rect)
-                    .map(|r| r.min)
-                    .unwrap_or(egui::pos2(120.0, 120.0));
-                self.restore_pos = Some(pos);
-                platform_set_tool_window(frame, true);
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-                    HIDE_POS, HIDE_POS,
-                )));
-                tracing::info!("关闭请求：已拦截——隐藏到托盘（托盘「显示主窗口」复位/「退出」真退）");
+                // 已隐藏态（restore_pos 在位）的再次 close_requested 只重复拦截：
+                // 此时 outer_rect 已是离屏坐标，覆写 restore_pos 会让「显示主窗口」
+                // 永久复位到不可见位置（gate2 互审 M1——伪隐藏下隐藏窗仍可收 WM_CLOSE）。
+                if self.restore_pos.is_none() {
+                    let pos = ctx
+                        .input(|i| i.viewport().outer_rect)
+                        .map(|r| r.min)
+                        .unwrap_or(egui::pos2(120.0, 120.0));
+                    self.restore_pos = Some(pos);
+                    platform_set_tool_window(frame, true);
+                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
+                        HIDE_POS, HIDE_POS,
+                    )));
+                }
+                tracing::info!(
+                    "关闭请求：已拦截——隐藏到托盘（托盘「显示主窗口」复位/「退出」真退）"
+                );
             }
         }
 
@@ -254,7 +261,12 @@ impl eframe::App for CloudMountApp {
                     ui.add_space(12.0);
                     ui.heading("CloudMount");
                 });
-                let ver = self.state.status.lock().map(|s| s.version.clone()).unwrap_or_default();
+                let ver = self
+                    .state
+                    .status
+                    .lock()
+                    .map(|s| s.version.clone())
+                    .unwrap_or_default();
                 ui.colored_label(FAINT, format!("云挂 · v{ver}"));
                 ui.add_space(16.0);
 
@@ -272,7 +284,12 @@ impl eframe::App for CloudMountApp {
                     egui::pos2(12.0, ui.max_rect().bottom() - 60.0),
                     egui::pos2(ui.max_rect().right() - 12.0, ui.max_rect().bottom() - 12.0),
                 );
-                let s = self.state.status.lock().map(|s| s.clone()).unwrap_or_default();
+                let s = self
+                    .state
+                    .status
+                    .lock()
+                    .map(|s| s.clone())
+                    .unwrap_or_default();
                 let (color, label) = if s.paused {
                     (BADGE_BETA, "已暂停")
                 } else if s.syncing {
@@ -298,14 +315,16 @@ impl eframe::App for CloudMountApp {
 
         // ---- 右侧内容面板（BG 底色） ----
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(BG).inner_margin(egui::Margin::same(24)))
-            .show(ctx, |ui| {
-                match self.page {
-                    Page::Status => self.status_page(ui),
-                    Page::Cache => self.cache_page(ui),
-                    Page::Settings => self.settings_page(ui),
-                    Page::Login => self.login_page(ui, ctx),
-                }
+            .frame(
+                egui::Frame::NONE
+                    .fill(BG)
+                    .inner_margin(egui::Margin::same(24)),
+            )
+            .show(ctx, |ui| match self.page {
+                Page::Status => self.status_page(ui),
+                Page::Cache => self.cache_page(ui),
+                Page::Settings => self.settings_page(ui),
+                Page::Login => self.login_page(ui, ctx),
             });
 
         // 登录轮询（每帧检查——短轮询立即返回；复用会话级 auth，不再每帧重建）
@@ -356,14 +375,27 @@ impl eframe::App for CloudMountApp {
 
 impl CloudMountApp {
     fn status_page(&self, ui: &mut egui::Ui) {
-        let s = self.state.status.lock().map(|s| s.clone()).unwrap_or_default();
+        let s = self
+            .state
+            .status
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_default();
         widgets::hud(ui, "Status", FAINT);
         ui.add_space(8.0);
         ui.heading("状态");
         ui.add_space(12.0);
 
         widgets::kv_row(ui, "版本", &s.version);
-        widgets::kv_row(ui, "登录", if s.logged_in { "已登录" } else { "未登录" });
+        widgets::kv_row(
+            ui,
+            "登录",
+            if s.logged_in {
+                "已登录"
+            } else {
+                "未登录"
+            },
+        );
         widgets::kv_row(
             ui,
             "同步",
@@ -420,7 +452,11 @@ impl CloudMountApp {
                 widgets::kv_row(
                     ui,
                     "占用",
-                    &format!("{}/{}", human_bytes(stats.bytes), human_bytes(stats.limit_bytes)),
+                    &format!(
+                        "{}/{}",
+                        human_bytes(stats.bytes),
+                        human_bytes(stats.limit_bytes)
+                    ),
                 );
                 widgets::kv_row(
                     ui,
@@ -439,8 +475,7 @@ impl CloudMountApp {
                 widgets::progress(ui, ratio, &human_bytes(stats.bytes));
 
                 ui.add_space(16.0);
-                if widgets::button(ui, "一键清理", widgets::Kind::Secondary, 120.0, 36.0)
-                    .clicked()
+                if widgets::button(ui, "一键清理", widgets::Kind::Secondary, 120.0, 36.0).clicked()
                 {
                     let _ = engine.lock().unwrap().cache().clear();
                 }
@@ -462,7 +497,11 @@ impl CloudMountApp {
         let paused = self.state.paused.load(Ordering::SeqCst);
         if widgets::button(
             ui,
-            if paused { "恢复同步" } else { "暂停同步" },
+            if paused {
+                "恢复同步"
+            } else {
+                "暂停同步"
+            },
             widgets::Kind::Primary,
             140.0,
             36.0,
@@ -514,7 +553,10 @@ impl CloudMountApp {
         }
         ui.colored_label(
             FAINT,
-            format!("最近 {} 行（INFO 及以上）", self.state.logs.snapshot().len()),
+            format!(
+                "最近 {} 行（INFO 及以上）",
+                self.state.logs.snapshot().len()
+            ),
         );
     }
 
@@ -559,8 +601,7 @@ impl CloudMountApp {
             // 未勾选同意：登录按钮禁用（同意是登录的前置交互）
             ui.disable();
             widgets::button(ui, "开始扫码登录", widgets::Kind::Secondary, 180.0, 40.0);
-        } else if widgets::button(ui, "开始扫码登录", widgets::Kind::Accent, 180.0, 40.0)
-            .clicked()
+        } else if widgets::button(ui, "开始扫码登录", widgets::Kind::Accent, 180.0, 40.0).clicked()
         {
             // 会话级 CookieAuth：一次构造、轮询复用（消除每帧重建）
             let policy = cookie_policy_from_login_state(self.consent_checked);
@@ -568,8 +609,8 @@ impl CloudMountApp {
             let auth = cloudmount_auth::cookie::CookieAuth::new(policy, store);
             match auth.begin_login() {
                 Ok(challenge) => {
-                    let qr = qrcode::QrCode::new(challenge.qr_content.as_bytes())
-                        .expect("二维码编码");
+                    let qr =
+                        qrcode::QrCode::new(challenge.qr_content.as_bytes()).expect("二维码编码");
                     let size = qr.width();
                     let colors = qr.to_colors();
                     let mut pixels = Vec::with_capacity(size * size);
@@ -583,8 +624,7 @@ impl CloudMountApp {
                         size: [size, size],
                         pixels,
                     };
-                    let texture =
-                        ctx.load_texture("login-qr", image, egui::TextureOptions::LINEAR);
+                    let texture = ctx.load_texture("login-qr", image, egui::TextureOptions::LINEAR);
                     self.qr_texture = Some(texture);
                     self.login_challenge = Some(challenge);
                     self.login_polling = true;
@@ -834,7 +874,9 @@ fn human_bytes(n: u64) -> String {
 
 fn main() -> eframe::Result<()> {
     let logs = Arc::new(LogBuffer::new(2000));
-    let writer = SharedWriter { buffer: logs.clone() };
+    let writer = SharedWriter {
+        buffer: logs.clone(),
+    };
     tracing_subscriber::fmt()
         .with_writer(std::sync::Mutex::new(writer))
         .with_env_filter(

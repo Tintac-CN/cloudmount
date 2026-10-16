@@ -1,19 +1,24 @@
 //! ArtCraft 风格控件：HUD 标签、侧边栏导航行、按钮、进度条。
 
 use crate::theme;
-use eframe::egui::{self as egui, Align2, Color32, FontFamily, FontId, Rect, Response, Sense, Stroke, Ui, pos2, vec2};
+use eframe::egui::{
+    self as egui, pos2, vec2, Align2, Color32, FontFamily, FontId, Rect, Response, Sense, Stroke,
+    Ui,
+};
 
 /// 文本大写 + 等宽 + 宽字距（HUD 风格）。
 pub fn hud(ui: &mut Ui, text: &str, color: Color32) -> Response {
-    let galley = ui.painter().layout_job(egui::text::LayoutJob::single_section(
-        text.to_uppercase(),
-        egui::TextFormat {
-            font_id: FontId::new(theme::HUD_SIZE, FontFamily::Monospace),
-            color,
-            extra_letter_spacing: theme::HUD_SPACING,
-            ..Default::default()
-        },
-    ));
+    let galley = ui
+        .painter()
+        .layout_job(egui::text::LayoutJob::single_section(
+            text.to_uppercase(),
+            egui::TextFormat {
+                font_id: FontId::new(theme::HUD_SIZE, FontFamily::Monospace),
+                color,
+                extra_letter_spacing: theme::HUD_SPACING,
+                ..Default::default()
+            },
+        ));
     let (rect, resp) = ui.allocate_exact_size(galley.size(), Sense::hover());
     ui.painter().galley(rect.min, galley, color);
     resp
@@ -21,19 +26,18 @@ pub fn hud(ui: &mut Ui, text: &str, color: Color32) -> Response {
 
 /// 章节标签（侧边栏分组标题）。
 pub fn section_label(ui: &mut Ui, text: &str, color: Color32) -> Response {
-    let galley = ui.painter().layout_job(egui::text::LayoutJob::single_section(
-        text.to_uppercase(),
-        egui::TextFormat {
-            font_id: FontId::new(theme::HUD_SIZE, FontFamily::Monospace),
-            color,
-            extra_letter_spacing: theme::LABEL_SPACING,
-            ..Default::default()
-        },
-    ));
-    let (rect, resp) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 32.0),
-        Sense::hover(),
-    );
+    let galley = ui
+        .painter()
+        .layout_job(egui::text::LayoutJob::single_section(
+            text.to_uppercase(),
+            egui::TextFormat {
+                font_id: FontId::new(theme::HUD_SIZE, FontFamily::Monospace),
+                color,
+                extra_letter_spacing: theme::LABEL_SPACING,
+                ..Default::default()
+            },
+        ));
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
     let pos = pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0);
     ui.painter().galley(pos, galley, color);
     resp
@@ -41,10 +45,7 @@ pub fn section_label(ui: &mut Ui, text: &str, color: Color32) -> Response {
 
 /// 侧边栏导航行（选中 = white/8 填充 + 左侧白色指示条）。
 pub fn nav_row(ui: &mut Ui, label: &str, selected: bool) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 36.0),
-        Sense::click(),
-    );
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::click());
     let hovered = resp.hovered();
     let p = ui.painter();
     if selected {
@@ -69,7 +70,8 @@ pub fn nav_row(ui: &mut Ui, label: &str, selected: bool) -> bool {
         FontId::new(14.0, FontFamily::Proportional),
         ink,
     );
-    resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+        .clicked()
 }
 
 /// 按钮类型。
@@ -85,15 +87,17 @@ pub enum Kind {
 /// ArtCraft 风格按钮：HUD 等宽标签 + 3px 圆角。
 pub fn button(ui: &mut Ui, text: &str, kind: Kind, width: f32, height: f32) -> Response {
     let enabled = ui.is_enabled();
-    let galley = ui.painter().layout_job(egui::text::LayoutJob::single_section(
-        text.to_uppercase(),
-        egui::TextFormat {
-            font_id: FontId::new(theme::HUD_SIZE, FontFamily::Monospace),
-            color: theme::INK,
-            extra_letter_spacing: theme::LABEL_SPACING,
-            ..Default::default()
-        },
-    ));
+    let galley = ui
+        .painter()
+        .layout_job(egui::text::LayoutJob::single_section(
+            text.to_uppercase(),
+            egui::TextFormat {
+                font_id: FontId::new(theme::HUD_SIZE, FontFamily::Monospace),
+                color: theme::INK,
+                extra_letter_spacing: theme::LABEL_SPACING,
+                ..Default::default()
+            },
+        ));
     let size = vec2((galley.size().x + 40.0).max(width), height);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     let hovered = resp.hovered() && enabled;
@@ -104,7 +108,11 @@ pub fn button(ui: &mut Ui, text: &str, kind: Kind, width: f32, height: f32) -> R
             theme::INVERT_FG,
         ),
         Kind::Accent => (
-            if hovered { theme::ACCENT_400 } else { theme::ACCENT },
+            if hovered {
+                theme::ACCENT_400
+            } else {
+                theme::ACCENT
+            },
             Stroke::NONE,
             Color32::WHITE,
         ),
@@ -142,10 +150,7 @@ pub fn button(ui: &mut Ui, text: &str, kind: Kind, width: f32, height: f32) -> R
 
 /// 键值行（状态页用）：左标签右值，发丝线分隔。
 pub fn kv_row(ui: &mut Ui, key: &str, value: &str) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 32.0),
-        Sense::hover(),
-    );
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
     let p = ui.painter();
     p.hline(rect.left()..=rect.right(), rect.bottom(), theme::hairline());
     p.text(
@@ -167,13 +172,19 @@ pub fn kv_row(ui: &mut Ui, key: &str, value: &str) -> Response {
 
 /// 进度条（品牌蓝填充 + 发丝线底 + HUD 文本）。
 pub fn progress(ui: &mut Ui, ratio: f32, text: &str) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 24.0),
-        Sense::hover(),
-    );
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::hover());
     let p = ui.painter();
-    p.rect(rect, theme::RADIUS, theme::SUNKEN, theme::hairline(), egui::StrokeKind::Inside);
-    let fill = Rect::from_min_size(rect.min, vec2(rect.width() * ratio.clamp(0.0, 1.0), rect.height()));
+    p.rect(
+        rect,
+        theme::RADIUS,
+        theme::SUNKEN,
+        theme::hairline(),
+        egui::StrokeKind::Inside,
+    );
+    let fill = Rect::from_min_size(
+        rect.min,
+        vec2(rect.width() * ratio.clamp(0.0, 1.0), rect.height()),
+    );
     if fill.width() > 0.0 {
         p.rect_filled(fill, theme::RADIUS, theme::ACCENT);
     }
