@@ -47,12 +47,12 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending",
+    "U1": "completed",
     "U2": "pending",
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-16T21:33:00+08:00",
+  "updatedAt": "2026-10-16T22:05:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -95,6 +95,12 @@
       "from": "construction",
       "to": "construction",
       "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-16）→ 串行派发 U1（里程碑断言核验上：M0/M1/M1.5 23 条，TP-01..06+28/29，创建 audit-findings.md 骨架+§1 前半）；执行泳道=dev（无 TDD 测试面，按 TP 四要素产出审核证据）"
+    },
+    {
+      "at": "2026-10-16T22:05:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 里程碑断言核验·上完成 → completed：TP-01..06+28/29 执行，M0×7/M1×9/M1.5×7=23/23 判定齐（已证实 23/漂移 0/不可证 0），测试计数复跑 277/0 与基线一致+静态交叉验证 281-4(inotify Linux-only)=277 吻合；audit-findings.md @ 83e43c0（骨架 §0–§6+§1 M0–M1.5，192 行）；随附 P2 小发现 4 条（水合位图注记未字面落地/store.rs Linux 头注/PKCE S256 命名/usertime 命名——归 U4 处理）；test-strategy 契约零错误（回报条款未触发）"
     }
   ]
 }
