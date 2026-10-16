@@ -59,3 +59,25 @@ GATE-REJECTED gate1 2026-10-16
 - **test-strategy.md**：M6（「风险排序门」改「进出门（TDD 红→锁→绿对齐）」——P0 全部落位且可运行（红态）方可进 Construction，全绿为准出门）/M7（TP-16 改 RT_GROUP_ICON 资源枚举/位图采样品牌色可判定式；TP-09 钉托盘 init 区段 MenuItem 计数=2+两 id MenuEvent 匹配+无其他 tray Menu 构造）/M1（TP-11 icns 项按首日验证③结论落位后断言）/MINOR（TP-05/15 负断言补、TP-04 32 位目录负断言、TP-03 快照基线+实际 job 名映射、TP-22 载体钉仓库内附录文件、TP-24 Windows SmartScreen 侧）；头部/覆盖核对/缺口节同步；计数如实不变 P0=16/P1=6/P2=2。
 - 修订轮对齐拍：映射未变无需重对齐（本轮回填仅措辞/枚举/锚注），prd 锚注与 test-strategy 映射列双向一致（AC1←TP-06/11/12/16、AC2←TP-09/20/21、AC3←TP-03/04/05/13/14/15/17/18/23、AC4←TP-07/08/19/23/24、AC5←TP-01/02/18/22、AC6←TP-10/03）。
 - 相位转移：修订轮两工件提交 → gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-16 之后须新回执），phase → gate1。复审重点核对 B1/B2/M1/M2/M7 消解。
+
+---
+
+2026-10-16 Gate#1 复审人类审批（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 互审输入：`reviews/gate1-ai-r2.md` @ 37bfc49（reviewer-pm 0/4/3 + architect 0/4/5 + qa 0/2/5 + dev 0/3/8；合并 0 BLOCKER / 4 MAJOR / 12 MINOR。上轮 2 BLOCKER/8 MAJOR 大部消解实证——B1 授权链/B2 拓扑钉死均确认）。
+- 呈批三问（AskUserQuestion 呈出，用户对话逐条裁决）：
+  问：「Gate#1 复审（r2）：上轮 2 BLOCKER/8 MAJOR 大部消解实证（B1 授权链/B2 拓扑钉死均确认）；新检出 4 MAJOR（B2 口径扫荡残留/AC5⑤ 4 行口径不可判定/RGBA 解码链延留认领/body 编辑授权相抵）+ 12 MINOR——均为措辞/枚举/锚注级，一轮轻量修订可闭合。如何裁决？」
+  答：「打回第二轮轻量修订」
+  问：「RGBA 解码链选型（M-R2-4：tray-icon Windows 侧/egui 均需原始 RGBA，png 解码依赖缺位）：」
+  答：「gen_icons.py 增发 Rust RGBA 常量源文件」
+  问：「intent 改动面补齐授权（M-R2-4 延留认领 + B1 锁修订的文件面）：」
+  答：「齐 apps/desktop/Cargo.toml + build.rs + icons/ + installers-yaml.test.sh T4 修订授权——消除 Construction 守卫误判越界风险」
+  （body 产物表口径随第一问推荐选项一并裁决：**8 行口径——7 既有行零删改 + MSI 行描述更新 + 追加 .dmg 行，TP-01 补 body 锚**）
+- 裁决落点（编排者执行）：
+  1. gate1 第二次打回（gate1=rejected，phase 回 inception；第 2 轮/上限 3 轮）：只重跑 pm+qa 修订被点名项，修订后复审 r3 只核收敛点。
+  2. **RGBA 解码链裁决**：`gen_icons.py` 增发 Rust RGBA 常量源文件（icons.rs：尺寸+RGBA 字节组，apps/desktop include 后喂 tray-icon `Icon::from_rgba`/egui `IconData`）——零新增 crate 依赖，供应链面最小；产物面从 `{icon.ico,*.png,*.icns}` 扩为含 `icons.rs`。
+  3. **intent 改动面补齐授权**：intent.md 改动面补 `apps/desktop/Cargo.toml`+`build.rs`（winres）+`apps/desktop/icons/`（图标产物含 icons.rs）+ `scripts/installers-yaml.test.sh`（T4 断言字面收窄——B1 授权，Construction 期执行）。
+  4. **body 产物表口径裁决**：8 行口径——7 既有行零删改 + MSI 行描述更新 + 追加 .dmg 行；TP-01 补 body 锚。
+  5. 第二轮修订范围点名——pm：M-R2-2（AC5⑤ 三处「4 行口径」改 8 行逐行枚举）/M-R2-3（AC5③ 措辞扩「body 行追加及 AC5⑤ 所指 MSI 行描述更新」）/M-R2-4-part1（语义对齐「有图标」补 RGBA 解码链声明+产物面扩 icons.rs）/MINOR（AC5④ 删「及 needs/body 行追加」授权噪声、AC5① 改「新增 macos-15 job」、追加步次序声明、AC2④/TP-21 降级连锁锚注记、main.wxs L8-11 头注更新注记）；qa：M-R2-1（L13 四 job 口径+TP-01/TP-02/L55 拓扑措辞改追加步+AC6 锚双向一致 TP-03 映射列改 AC3/AC6+L49 同步）/M-R2-2（TP-01 补 body 8 行锚）/M-R2-3（TP-03 注明 body 按 AC5⑤ 为断言对象）/M-R2-4（TP-11 补 icons.rs 存在性断言）/MINOR（TP-04 边界化、TP-09 区段定位+MenuEvent 轮询、TP-21 降级镜像、TP-03 精确清单、TP-11 icns 首日定稿豁免+多尺寸对齐、四锁定脚本精确文件名）。
+  6. GATE-REJECTED 第二次标记在后；修订轮完成后 gate1 复位 pending 复审 r3（只核收敛点）。
+
+GATE-REJECTED gate1 2026-10-16
