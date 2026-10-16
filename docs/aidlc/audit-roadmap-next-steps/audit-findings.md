@@ -11,9 +11,38 @@
 
 ---
 
-## §0 摘要与计数矩阵（待 U4 补齐）
+## §0 摘要与计数矩阵（U4 收口）
 
-（占位：U4 汇总三态×严重度计数矩阵与头号方向建议一句话；最终矩阵以全量 43 条 `[x]` + 长期段声明收口，并与 §1–§5 明细行数机械一致〔AC15⑤〕。当前进度：**U1 已核 23 条**（已证实 23）+ **U2 已核 21 条**（已证实 19／漂移 2）＝43 条全量已核；**U3 偏离扫描+体检已完成**（§2/§4）：四苗头对账（为真 2/为假半边 1/非偏离 1）+扩展扫描新增偏离 5 条（NEW-1..5：README 四处 stale Tauri 含 `cargo tauri dev` 死命令=P1、webdav.rs TLS 注释过时/ROADMAP L164 未收敛/edge-packaging 分叉/D5 owner 元数据=P2）+TP-17 自检 3/3 可复现；TP-13/14 全绿（五脚本 112/72/23/13/9+fmt/clippy 双面 clean）。最终矩阵待 U4 填写。）
+### §0.1 审核方法声明
+
+**证据标准＝全量验证**（gate1 人类裁决③，覆盖 decisions.md A1 缺省抽样）：`docs/ROADMAP.md` 逐 `[x]` 条目+句内子声称落证据，每条三态判定〔已证实/漂移/不可证〕+严重度〔P0/P1/P2〕+可复现证据（`文件路径:行`/命令/输出片段）；测试计数声明按双口径判读（历史 114/131=当时存在性，现值 277=基线对照）；真机/外部子声称逐处标「声称·未独立复现」（其中 cldflt 金标准/RDC 5/5/万级投影基准三项在本机=开发机真实复跑升级为已复现）。30 个测试点（TP-01..30）全执行，负路径探测器（计数复跑/脚本复跑/死链对账/job 名存在性/边界矛盾检出）零触发证伪。执行分工：U1（§1.0-1.3）→U2（§1.4-1.8）→U3（§2/§4）→U4（§0/§3/§5+AC15 自检），TP-17 自检 3/3 可复现。
+
+### §0.2 计数矩阵（与 §1–§5 明细行数一致，AC15⑤）
+
+| 计数面 | 数值 | 明细落点 |
+|---|---|---|
+| ROADMAP `[x]` 声明总量 | **43 条**（M0×7/M1×9/M1.5×7/M2 段×12/M3×3/M4×2/M5×3） | §1.1（7 行）/§1.2（9）/§1.3（7）/§1.4（12）/§1.5（3）/§1.6（2）/§1.7（3） |
+| ├ 已证实 | **41** | 各段表（真机子声称两项升级为本机复现：cldflt 金标准 8/8、万级投影 693.8ms 复测） |
+| ├ 漂移 | **2**（均 P1） | §1.4 L111/L124「Tauri 壳」两行（AC4 漂移结论落字 @ §1.4 专节） |
+| └ 不可证 | **0** | — |
+| 长期段叙述性声明 | **9 项全部已证实**（该段无 checkbox——AC1 形态出入已在 §1.0 声明） | §1.8 表 9 行 |
+| 严重度分布（发现面） | **P0=0／P1=3／P2=9** | P1=L111、L124、NEW-1（README 四处 stale Tauri 含 `cargo tauri dev` 死命令）；P2=小发现①..⑤+NEW-2..5 |
+| 偏离清单 | 四苗头 4 项分项判定（**为真 2／半边为假 1／非偏离 1**）+ 扩展扫描新增 **5 条**（NEW-1..5）+「无其它新增偏离」显式声明 | §2.1/§2.2/§2.3 |
+| backlog 归集 | **37 条**（四 runbook P2 去重 28+观察项 5 组+retro 候选 4；六组重复〔D:n源〕合并；1 条已被后续落地消解标注） | §3.2（37 行） |
+| 开放项归集 | **12 项**（ROADMAP 未勾 7+长期 1+本期新增 4） | §3.1（12 行） |
+| 下一阶段批次 | **8 批次+长期 1 轨道**（每项带出处；批次依赖图与 ROADMAP.md:196-201 自洽） | §5.1/§5.2 |
+| 测试与 CI 现值 | workspace **277/0**；五脚本 **112/72/23/13/9** 全 exit 0；fmt/clippy 双面 clean；CI 缺口 3 条实锚 | §4.1 |
+| 已知边界七项 | 2 项被后续里程碑消解（#1 同秒盲区/#7 TLS）、5 项未消解（均刻意取舍或外部依赖） | §4.2 |
+| 审核自检 | TP-17 抽样 **3/3 可复现**（行号零漂移） | §4.3 |
+
+### §0.3 关键结论预览
+
+1. **43 条 `[x]` 声明 41 条属实、零「勾了但没验」实锤**——两处失实均为「Tauri 壳」命名漂移（实现是 egui），功能面在 egui 侧等价存在；路线图整体可信，恢复可信度只需一批文档回写（B1）。
+2. **质量交付面健康**：277/0+五脚本全绿+fmt/clippy 双面 clean（含 desktop）；三项真机声称本机独立复现（cldflt 金标准/RDC 5/5/10k 投影基准）。
+3. **文档-实现漂移集中在「Tauri 叙事」一个根因**（13 处字面，三文件+两 README+api.ts 头注+根注释），另有 owner 元数据/edge-packaging 分叉两个独立小漂移——全部可一次 intent 闭环。
+4. **推进主链只卡一个外部项**：L8 资质申请（唯一外部阻塞源头）；B1/B3/B5 与其等待期完全并行，互不阻塞。
+
+**头号方向建议（一句话）**：B1 文档纠偏即刻开工（零依赖、半天清零 3 P1）+ B2 资质申请同步提交（外部链源头，等待期与 B3/B5 并行）——两条线互不阻塞，先跑起来。
 
 ---
 
@@ -198,9 +227,76 @@
 
 ---
 
-## §3 归集表（待 U4）
+## §3 归集表（TP-21/22/23，U4）
 
-（占位：U4 按 TP-21/22/23 落开放项归集（AC10）与四 runbook backlog+retro 候选归集（AC11），含来源/去重/分类列。）
+### §3.1 路线图开放项归集（AC10，TP-23）
+
+> ROADMAP 未勾项全量 7 处（`grep -n '\- \[ \]' docs/ROADMAP.md`：L8/L16/L35/L36/L133/L154/L181）+ 长期段叙述性开放项 + 本期审核新增候选。阻塞性质：**外部**=依赖第三方（115 审核/GitHub/Apple），**内部**=本仓可自行开工。
+
+| 开放项 | 来源锚 | 依赖源 | 阻塞性质 | 可独立开 intent 最小粒度 | 证据位置 |
+|---|---|---|---|---|---|
+| 申请 115 开放平台个人开发者+创建 PKCE 应用 | ROADMAP.md:8（**外部阻塞链源头**，:3-4「唯一的外部阻塞项」，审核约 7+7 工作日） | 115 开放平台人工审核 | **外部** | 单独 intent：材料提交+受理跟进（人类操作为主，工程侧零代码） | §1.1 M0 未勾项表 |
+| 待 AppID 实测：真实账号跑通全链路；确认 copy/新建目录响应字段 | ROADMAP.md:16 | 上项出 AppID | 外部（间接） | 单独 intent：真实凭据全链路实测+`open.rs:274,371` 两处 `TODO(verify)` 闭环 | §1.1；`crates/cloudmount-driver115/src/open.rs:274,371` |
+| 待真实凭据联调：两台设备经 115 完成一次干净双向同步 | ROADMAP.md:35 | 上项（依赖 M0 的 AppID，字面自证） | 外部（间接） | 并入上项 intent（同一真实凭据前置，拆分反增成本） | §1.1 |
+| 验收指标：空闲 RSS ≤ 20MB（`cloudmountd --once` 下观测） | ROADMAP.md:36 | 真机测量（本机即可，无外部依赖） | 内部 | 小 intent：观测脚本+数据留痕（可与 AppID 实测 intent 合并执行） | §1.1 |
+| MSIX 打包（可选：MSI+NSIS 已覆盖，仅 Store 渠道需要） | ROADMAP.md:133 | Store 渠道决策（人类偏好） | 内部（可长期搁置） | 独立 intent，仅当 Store 分发被裁决需要时开 | §1.4 未勾标注 |
+| Cookie 独有能力：分享/转存/批量操作（二级入口+常驻风险提示） | ROADMAP.md:154 | M3 通道已完成（无外部依赖）；UI 入口裁决 | 内部 | 单独 intent：三能力+二级入口+风险常驻提示 | §1.5 M3 状态标注 |
+| macOS File Provider 扩展（Swift 薄桥+core staticlib） | ROADMAP.md:181 | `apps/shell-macos` 占位（README 方案在案）；付费 Apple Developer 账号；mac 真机；**core 导出 ABI 冻结策略裁决**（architecture.md 开放问题） | 外部（账号/真机）+内部（ABI 裁决） | PoC intent（staticlib+薄桥最小挂载）→ 扩展 intent（两段式） | §1.8；`apps/shell-macos/README.md:3-25` |
+| 自研 Windows minifilter（长期） | ROADMAP.md:186-194（无 checkbox） | 设计已定稿（RUST-MINIFILTER-DESIGN.md，KM-0…KM-7，18–30 人月） | 内部（长周期，**不阻塞任何产品里程碑**） | 按 KM-0 起分段 intent（每 KM 一个） | §1.8 |
+| **【本期新增】M4 验收实测：512MB 内存设备稳定运行 48h+局域网 WebDAV 真机读写** | §1.6 状态标注（ROADMAP.md:170 验收行） | 一台低内存设备/受控环境 | 内部 | 小 intent：soak 观测+真机读写留痕 | §1.6；§4.2 |
+| **【本期新增】文档纠偏批：stale Tauri 全量面+owner 元数据+.gitignore 死路径+TLS 注释** | §2.1①④+§2.2 NEW-1..3/NEW-5（P1×3+P2 文档项） | 无（零依赖） | 内部 | 单独 intent：纯文档/元数据回写（约 15 处，见 §5 B1） | §2.1-§2.2；§6/TP-18,24 |
+| **【本期新增】部署面主从收敛裁决（edge/ vs packaging/）** | §2.2 NEW-4 | 人类裁决主从（architecture.md 开放问题） | 内部（裁决后开工） | 裁决→小 intent（声明废弃方或合并） | §2.2 NEW-4 |
+| **【本期新增】Intel mac 无 desktop 交付补登** | §4.2 边界 3（dmg aarch64-only「已知取舍」未列入任何开放项） | 人类确认是否需要 x86_64 dmg | 内部 | 若需要：小 intent（dmg job 加 x86_64 target）；若不需要：仅文档声明 | §4.2#3；`release.yml:200` |
+
+### §3.2 四 intent backlog 归集（AC11，TP-21+TP-22 去重）
+
+> 输入面=四 `ops-runbook.md`「P2 backlog」+「观察项」节 + 四 `retro.md`「下个 bolt 要改的」（过程学习节不入，AC11 约束）。去重标记：**〔D:n源〕**=跨 runbook 重复已合并。分类：代码/文档/CI/发布。
+
+| # | 归集条目 | 来源 intent（含行锚） | 去重 | 分类 | 关联开放项/备注 |
+|---|---|---|---|---|---|
+| 1 | ci.yml 增 actionlint 步骤（语法拦截前移） | macos-release(runbook:29)+installer-packages(runbook:31)+desktop-installers(沿用，runbook:33) | **〔D:3源〕** | CI | 消 §4.1 缺口 3；retro 三处同诉（macos-release retro:31、installer retro:31） |
+| 2 | Cargo.toml repository 元数据修正（zhonghaoxi→tintac-cn） | installer-packages(runbook:37)+desktop-installers(沿用，runbook:33) | **〔D:2源〕** | 文档 | =NEW-5/D5（根 Cargo.toml:20 错侧，§2.2） |
+| 3 | check-macos.yml `permissions:` 显式化（最小权限加固） | macos-release(runbook:30) | — | CI | architecture.md CI/CD 权限节佐证（release.yml 六 build job 同类缺口可一并考虑） |
+| 4 | 断言脚本 YAML 解析精度（job_block 行启发式→真解析） | macos-release(runbook:31) | — | CI | — |
+| 5 | package-macos.sh tar 半成品清理（临时名成功后 mv） | macos-release(runbook:32) | — | 发布 | — |
+| 6 | `.gitattributes` 行尾统一（release.yml CRLF/check-macos.yml LF） | macos-release(runbook:33) | — | CI | retro 优先项（macos-release retro:31） |
+| 7 | state.json U2 计数口径勘误注记（「MSI 侧 27 条」为时点值） | installer-packages(runbook:32)+desktop-installers(沿用) | **〔D:2源〕** | 文档 | 记录性 |
+| 8 | decisions「移除 ICE80」措辞勘误注记 | installer-packages(runbook:33) | — | 文档 | 记录性 |
+| 9 | T15 注入自校验正分支在 actionlint 可用环境补跑留痕 | installer-packages(runbook:34) | — | CI | 与条目 1 联动（actionlint 可用后自然可做） |
+| 10 | .wxs 无 UIRef 知会（双击安装走缺省 basic UI） | installer-packages(runbook:35) | — | 发布 | 知会性质 |
+| 11 | release 下载步注释「只取 binaries」语义漂移修正 | installer-packages(runbook:36) | — | 文档 | — |
+| 12 | wxs Package Description/Comments 两件套描述（ARP 元数据欠准） | desktop-installers(runbook:31 备案①) | — | 发布 | 需新授权（既有字面守护在案） |
+| 13 | HKCU KeyPath 多用户卸载孤儿（ICE43 经典代价） | desktop-installers(runbook:31 备案②) | — | 发布 | 决策留痕，记录性 |
+| 14 | dmg 脚本不校验二进制架构 | desktop-installers(runbook:31 备案③) | — | 发布 | — |
+| 15 | TP-23 无显式承接载体（建议补埋点） | desktop-installers(runbook:31 备案④) | — | 测试 | — |
+| 16 | T4 修订断言①防空真依赖步骤名字面（结构脆弱性） | desktop-installers(runbook:31 备案⑤) | — | CI | — |
+| 17 | desktop 断言计数环境相关口径（112/113）注记进 README/脚本头注 | desktop-installers(runbook:31 备案⑥) | — | 文档 | §2.3 已复证该口径 |
+| 18 | gen_icons 幂等跨 zlib 版本边界（注记） | desktop-installers(runbook:31 备案⑦) | — | 文档 | — |
+| 19 | TP-12 build.rs 'winres' 子串宽松（现态无害） | desktop-installers(runbook:31 备案⑧) | — | 测试 | 记录性 |
+| 20 | FFI GetWindowLongPtrW 32 位约束注释留痕 | desktop-installers(runbook:31 备案⑨) | — | 文档 | 记录性 |
+| 21 | units/2.md 契约字面补伪隐藏偏差指针 | desktop-installers(runbook:31 备案⑩) | — | 文档 | 已完结 intent 工件——按「不改原始工件」原则经新 intent 处理或豁免 |
+| 22 | .gitignore L13-14 src-tauri 死路径残留清理 | desktop-installers(runbook:31 备案⑪) | — | 文档 | =D2/§2.1③（TP-15 复证为真半边）；并入 §5 B1 |
+| 23 | **CI 补 desktop fmt/clippy 步骤**（终验口径缺口流水线上游补死） | desktop-installers(**retro:31——唯一未沉淀进 runbook 的新可执行候选**) | — | CI | §4.1 缺口 1/2 的上游消解；体积小 |
+| 24 | hash.rs:157 per-run 唯一 temp 目录（根治间歇 flaky 头号嫌疑） | audit-p0p1-fixes(runbook:54+retro:31 优先序) | — | 代码 | 31+5 跑零复现的 flaky 观察（runbook:54） |
+| 25 | exec.rs 错误路径 dir_creating 条目残留 | audit-p0p1-fixes(runbook:55) | — | 代码 | — |
+| 26 | webdav.rs:513 冗余条件 | audit-p0p1-fixes(runbook:55) | — | 代码 | — |
+| 27 | cookie_mock/mock_api ~60 行平行实现 | audit-p0p1-fixes(runbook:55) | — | 代码（重构） | — |
+| 28 | cookie.rs:584 initupload 解密明文日志收口为 status/pickcode | audit-p0p1-fixes(runbook:55+retro:31 优先序) | — | 代码（安全卫生） | F-04 脱敏不变量延伸 |
+| 29 | 观察项：macos-15 runner 退役公告跟踪（退役时三源同步改 runs-on+断言） | macos-release(观察1)+installer-packages(观察2)+desktop-installers(观察4) | **〔D:3源〕** | CI | 与 §4.2 边界 5 联动 |
+| 30 | 观察项：WiX 3.14.1.20250415 废弃公告跟踪（升 v4/v5 需 dotnet SDK 重写 .wxs） | installer-packages(观察1)+desktop-installers(观察3) | **〔D:2源〕** | 发布 | 与 §4.2 边界 4 联动 |
+| 31 | 观察项：安装包/dmg/托盘真机核验触发（首个含安装包 tag 后 T17-T21/T14-T16/release-checklist 人工清单） | installer-packages(观察3)+desktop-installers(特别项 c/d+观察2)+macos-release(retro:33) | **〔D:3源〕** | 发布 | 与 §5 B4 真机实测 intent 天然合流 |
+| 32 | 观察项：间歇 flaky CI 现身时按失败测试名定位 | audit-p0p1-fixes(runbook:54) | — | 测试 | 条目 24 的运行时伴生观察 |
+| 33 | 环境备注：`cargo test -p cloudmount-sync`（无 features）编译失败为既有状态（需 `--features testutil`） | audit-p0p1-fixes(runbook:56) | — | 测试 | test-strategy M9 口径一致；可作条目 24/27 同批小修（加门控） |
+| 34 | retro 候选：CI release workflow tag 三平台构建打包自动化 | audit-p0p1-fixes(retro:33) | — | — | **已被后续 intent 落地消解**（release.yml 九 job 现状，§4.1/TP-16）——标注，不再排队 |
+| 35 | retro 候选：伪隐藏 mac 形态二选一（Dock 留存 vs LSUIElement）随真机实测裁决 | desktop-installers(retro:35+runbook 观察2) | — | 代码 | 并入条目 31 真机核验批 |
+| 36 | retro 候选：gen_icons 扩尺寸集沿 stdlib 方案扩（幂等边界注记随行） | desktop-installers(retro:37) | — | 代码 | 条件性（仅当需要 256/512 组） |
+| 37 | retro 候选：AskUserQuestion 超时降级为对话式一句话裁决 | macos-release retro:35+installer-packages retro:35 | **〔D:2源〕** | — | 编排流程习惯（非本仓工程项），记录不入工程队列 |
+
+### §3.3 归集完整性与去重自检（TP-21/TP-22 判据落点）
+
+- **覆盖**：四 runbook P2 共 4+5+7+11+沿用 3=30 条原始条目 → 去重合并后 **28 条**（条目 1-28，其中条目 34 系 retro 落地消解不占工程队列）+ 观察项 5 组（29-33，三组多源已并）+ retro 新增候选 4 条（34-37）——逐条可溯源至 `docs/aidlc/<intent>/ops-runbook.md:行` 或 `retro.md:行`（表内已标）。
+- **去重正确性**（TP-22）：六组重复（actionlint 3 源/owner 元数据 2 源/decisions 勘误 2 源/macos-15 观察 3 源/WiX 观察 2 源/真机核验 3 源）均合并单行并标 **〔D:n源〕**；无不同项误并（actionlint=CI 语法门禁 vs 断言脚本解析精度=条目 4，分列未混）。
+- **计数不虚高**：43 条 ROADMAP `[x]` 声明与 backlog 零重叠（已完成项不入队列）；「~4 项+环境备注」口径与实读 4 P2+flaky 观察+环境备注吻合（audit-p0p1-fixes runbook:54-56）。
 
 ---
 
@@ -261,9 +357,39 @@
 
 ---
 
-## §5 下一阶段路线图（待 U4）
+## §5 下一阶段路线图（TP-25/26，U4）
 
-（占位：U4 按 TP-25/26 落排序批次表（批次／方向／依赖／风险／价值／建议 intent 边界）+ 批次间依赖；「不发明需求」守护在案。）
+> **排序依据（TP-26 三据=依赖/风险/价值）**+与 ROADMAP「里程碑依赖」图自洽（ROADMAP.md:196-201：M0→M1→M2→M3→M5，M2→M4 可并行）。**不发明需求**（TP-25）：每批次均回溯到 ROADMAP 未勾项/验收行或 §3 归集条目（出处列内标注）；未列能力不入队。
+
+### §5.1 排序批次表（AC14 固定六列）
+
+| 批次 | 方向（出处） | 依赖 | 风险 | 价值 | 建议 intent 边界 |
+|---|---|---|---|---|---|
+| **B1** | **文档与元数据纠偏批**（出处：§2.1①④+§2.2 NEW-1..3/NEW-5+§3.2 条目 2/22）——README 四处 stale Tauri（含 `cargo tauri dev` 死命令）+ARCHITECTURE 三处+ROADMAP 三处+web-ui README/api.ts 头注+根 Cargo.toml repository+`.gitignore:13-14`+webdav.rs:29 注释+脱水 API 命名注记 | **无（零依赖，可立即开工）** | 低（纯文档/元数据，无行为变更；唯一注意=与「代码回归 Tauri」裁决互斥——若人类选代码回归则本批改向，裁决点=architecture.md 开放问题） | 高（P1 漂移×3 清零；首屏 README 死命令消除；路线图可信度修复的最后一公里；成本约半天） | 单一 intent「docs-backfill」：一次闭环约 15 处回写+五断言脚本守护断言补位（防回潮）；不碰行为代码 |
+| **B2** | **M0 外部阻塞链启动**（出处：ROADMAP.md:8+§3.1 首行）——提交 115 开放平台个人开发者申请+创建 PKCE 应用材料 | 无（人类操作为主） | **外部审核 7+7 工作日不可控**（唯一外部阻塞项——排序论证：启动越早解锁越早；等待期不阻塞 B1/B3/B5 并行） | 极高（解锁 B4 AppID 实测→L16/L35 闭环→真实凭据全链路） | 单独轻量 intent：材料清单+提交+受理跟进留痕（工程侧零代码） |
+| **B3** | **backlog 批量清理：CI 加固+测试卫生**（出处：§3.2 条目 1/3/6/9/16/23/24/25/26/28/33 等）——actionlint 步骤〔D:3源〕、desktop fmt/clippy CI 步骤（retro 唯一新候选）、check-macos permissions 显式化、hash.rs flaky 根治、cookie.rs:584 日志收口、exec dir_creating 残留、行尾统一等 | 无（独立可并行） | 低-中（分散小项多，需防 scope 膨胀——建议按「CI 加固/测试卫生」两小批或一个 intent 内分区验收） | 中-高（CI 语法门禁从无到有；flaky 根治保基线可信；日志脱敏不变量延伸；全为既有备案非新需求） | 一个 intent「backlog-sweep」分区验收（CI 区+代码卫生区），或拆两个小 intent；观察项类（29/30/32）不入本批（跟踪性质） |
+| **B4** | **M0 AppID 实测+真实凭据联调**（出处：ROADMAP.md:16,:35,:36+§3.1）——真实账号全链路+copy/create_dir 响应字段确认+两台设备双向同步+RSS ≤20MB 观测 | **B2 审核通过出 AppID**；真机/真账号 | 中（实测可能暴露 `TODO(verify)` 处响应字段偏差——open.rs:274,371 预留了该预期；RSS 指标若不达标需调优） | 极高（M0 两条未勾验收闭环；ROADMAP M0 段收口；后续真实环境置信度基础） | 一个 intent「m0-realworld」：实测+字段确认+TODO 闭环+RSS 观测留痕；**与 B6 的真机核验观察项（§3.2 条目 31）合流执行** |
+| **B5** | **M3 Cookie 独有能力**（出处：ROADMAP.md:154+§3.1）——分享/转存/批量操作+二级入口+常驻风险提示 | M3 通道已完成（无外部依赖）；UI 入口形态裁决（轻） | 中（条款风险为通道已知属性——沿用知情同意+常驻提示设计；批次本身无新增合规面） | 高（Cookie 通道差异化能力；M3 段最后一项） | 一个 intent「cookie-extras」：三能力+二级入口+风险常驻提示（router last_switch 角标既有设计承接） |
+| **B6** | **M4 边缘验收实测+部署面收敛**（出处：§1.6 状态标注+§3.1 新增项+NEW-4）——512MB/48h soak+局域网 WebDAV 真机读写；edge/packaging 主从收敛（裁决先行） | 低内存设备/受控环境；**人类裁决 edge-packaging 主从** | 中（48h 长周期观测；指标若不达标需性能调优=范围扩张风险——实测 intent 应限定「测并留痕」） | 中（M4 验收行闭环；部署文档可信度） | 一个 intent「m4-soak」：soak 脚本+观测留痕+真机读写；收敛裁决单列（可先出裁决问卷） |
+| **B7** | **M5 macOS File Provider**（出处：ROADMAP.md:181+§3.1）——staticlib+Swift 薄桥 PoC→扩展 | **付费 Apple Developer 账号+mac 真机（外部）**；core ABI 冻结策略裁决（architecture.md 开放问题）；shell-macos README 方案（在案） | 高（外部依赖两项+新平台工程量大；ABI 未冻结则薄桥反复破坏——architecture.md 已预警） | 高（mac 平台占位符体验=M5 压轴项；ROADMAP M5 段收口） | 两段式：先「abi-freeze+PoC」小 intent（staticlib 导出面+最小挂载验证），再「provider-ext」主体 intent |
+| **B8** | **MSIX 打包**（出处：ROADMAP.md:133） | Store 渠道裁决（人类偏好） | 低（可选路径，MSI+NSIS 已覆盖 GitHub 分发） | 低-中（仅 Store 渠道有价值） | 条件 intent：仅当 Store 分发被裁决需要时开；否则保持未勾并注明 |
+| **长期** | **自研 minifilter**（出处：ROADMAP.md:186-194）——按 KM-0 起分段 | 设计定稿（在案）；无产品依赖 | 高（18–30 人月，验证占半；内核开发固有风险） | 高（长期旗舰）但**不阻塞任何产品里程碑**（设计文档 :462 明示） | 每 KM 一个 intent（KM-0 骨架起步）；门禁 S1–S6 为准出硬条件 |
+
+### §5.2 批次间依赖关系
+
+```text
+B1（文档纠偏）───────────────────────────→ 随时可开工（含与 B2 等待期并行）
+B2（资质申请）──→ [外部审核 7+7 工作日] ──→ B4（AppID 实测+联调+RSS）
+B3（backlog 清理）──────────────────────→ 独立并行；其 CI 产物为 B4-B7 提供门禁
+B5（Cookie 独有能力）──────────────────→ 独立（M3 已闭环）
+B6（M4 实测+收敛）←── 裁决（edge-packaging 主从）──┘
+B7（macOS File Provider）←── 外部（账号/真机）+ 裁决（core ABI 冻结）
+B8（MSIX）←── 裁决（Store 渠道）
+长期 minifilter ── 独立轨道（不阻塞任何产品里程碑）
+```
+
+- **与里程碑依赖图自洽**（ROADMAP.md:196-201）：M0→M1→M2→M3→M5 主链——M1/M2/M3 的 `[x]` 已核（§1），故图中剩余推进点=M0 实测（B4）、M3 最后一项（B5）、M5 压轴（B7）；M4 支线（B6）与 M2+ 可并行——本排序未绕开任何未完成前置（TP-26 证伪判据「绕开 M0 先做 M5」未触发：B7 的启动前置是外部账号与裁决，其工程 PoC 若提前开工也不消费 M0 未验项）。
+- **头号方向建议（一句话，§0 预览）**：**B1 文档纠偏即刻开工（零依赖、半天清零 3 P1）+ B2 资质申请同步提交（外部链源头，等待期与 B3/B5 并行）——两条线互不阻塞，先跑起来**。
 
 ---
 
@@ -420,4 +546,36 @@
 
 ---
 
-*（U3 收尾：TP-13..20+24 全执行——§2 偏离清单（四苗头四栏+扩展扫描 NEW-1..5+「无其它新增偏离」显式声明）与 §4 体检（AC12 现状+缺口清单、AC13 七项三栏+TLS 收敛句、TP-17 自检 3/3）就位。U4 收口 §0/§3/§5。）*
+*（U4 收尾：TP-01..30 全执行——§0 摘要/§3 归集 37 条/§5 路线图 8+1 批次落盘，AC15 五项自检全过（§7），报告完成待 gate2。审核零写入承诺全程保持：本文件为唯一仓库写入物。）*
+
+---
+
+## §7 报告完整性自检（AC15 五项机械判据，U4 收口执行）
+
+> 判据来源=prd AC15：「同时满足以下五项才判『报告完成』，任一不满足即『报告未完成』」。以下为逐项机械核查记录（2026-10-16，U4 收口时点）。
+
+**① §0–§6 七章齐备且非空 —— 通过。**
+`grep -cE '^## §[0-6]'` = **7**（§0 摘要/§1 断言核验/§2 偏离/§3 归集/§4 体检/§5 路线图/§6 证据索引，另有 §7 本自检节）；各章均有实质内容（空占位已全部替换）。
+
+**② AC1–AC13 每条 AC 在 §1–§4 有可按 AC 编号定位的落点 —— 通过。**（AC14/AC15 落 §5/§7）
+
+| AC | 落点 | AC | 落点 |
+|---|---|---|---|
+| AC1 | §1.0（方法与判定口径基线，含长期段形态出入声明） | AC8 | §2.1（四苗头四栏记录） |
+| AC2 | §1.1（M0 七条表+两未勾项标注表） | AC9 | §2.2+§2.3（NEW-1..5+「无其它新增偏离」显式声明） |
+| AC3 | §1.2+§1.3（M1/M1.5 表+TP-03 对照小节+盲区关闭结论 @ §1.3 L49-51 行） | AC10 | §3.1（开放项 12 行） |
+| AC4 | §1.4（M2 12 行表+「AC4 Tauri 壳漂移结论」专节落字） | AC11 | §3.2+§3.3（37 条归集+去重自检） |
+| AC5 | §1.5（M3 表+「M3 状态标注」节） | AC12 | §4.1（现状+CI 缺口清单 3 条实锚） |
+| AC6 | §1.6（M4 表+「M4 验收指标状态标注」节） | AC13 | §4.2（七项三栏，含 TLS 收敛句） |
+| AC7 | §1.7（M5 表+「M5 状态标注」节） | AC14 | §5.1/§5.2（六列批次表+依赖图）；AC15 | 本节 |
+
+**③ 每条非「已证实」判定与每条 P0/P1 发现均有 §6 可解析证据行 —— 通过。**
+非「已证实」判定共 2 条（L111/L124 漂移）→ §6/TP-18（grep tauri 命令+命中行清单：ROADMAP:111,124,176/ARCHITECTURE:22,48,86-87/Cargo.toml:12/README:89,96,133,151+`ls apps/desktop` 反证）。P0=0；P1 共 3 条（L111、L124、NEW-1）→ L111/L124 同 TP-18 证据行；NEW-1 → §6/TP-18+TP-24（README 四行锚+`ls apps/desktop` 无 src-tauri）。P2 九条均已在 §1/§2 行内带 `文件:行` 证据（AC15③ 对 P2 无强制 §6 行要求，事实覆盖）。
+
+**④ §5 含排序批次表与批次间依赖 —— 通过。**
+§5.1=固定六列（批次/方向/依赖/风险/价值/建议 intent 边界）9 行（B1-B8+长期）；§5.2=依赖图+里程碑依赖图自洽说明；每批次方向栏内含出处（ROADMAP 行锚/§2/§3 条目号——TP-25「不发明需求」守护）。
+
+**⑤ §0 计数矩阵与各章明细行数一致 —— 通过（机械复核）。**
+§1 声明行=7+9+7+12+3+2+3=**43**（§1.1 另含未勾项标注表 2 行，不计入 43）；§1.8=**9** 行；漂移=**2**（L111/L124）→ 已证实 41；§3.1=**12** 行；§3.2=**37** 行；§5.1=8 批次+1 长期；P1=3/P2=9/P0=0——与 §0.2 矩阵逐格一致（awk 按节计数复核，见上方执行记录）。
+
+**结论：AC15 五项全部通过 → 报告完成（gate2 可按 prd AC15 机械判定）。**
