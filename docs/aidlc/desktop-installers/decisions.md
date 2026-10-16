@@ -149,3 +149,21 @@ PLAN-CONFIRMED 2026-10-16
 - 附带说明：guard-gates 的 TDD 锁 deny 经查仅命中 `isTestFile()` 匹配的测试文件（.test.sh 不在其列）；本解锁属**流程纪律遵循**（授权→窗口→修订→重锁留痕），非 hook 强制——纪律不因机制宽松而免除。
 
 ---
+
+2026-10-16 U3 Windows MSI 扩展完成核收（编排者）：
+- 提交 9384be4（3 文件 +72/-14：packaging/wix/main.wxs / .github/workflows/release.yml / scripts/installers-yaml.test.sh[T4 授权修订]）。
+- **T4 授权锁修订执行实录**（解锁窗口 @29c5dd5 开启 → 本修订 → 重锁见下条）：仅 T4 两条负断言（单 hunk）；①MSI job：原「整块不含 desktop」→「daemon/cli 既有编译步+upload 步 desktop-free」（步骤语义行判定、注释叙述不计）；②main.wxs：原「整文件不含 desktop」→「daemon/cli 三既有铺放组件（CloudMountdComponent/CloudmountCliComponent/MachinePathEnv）desktop-free」（Id 定界提取、空块即红防空真）；ServiceInstall 两条零触碰；非恒真注入验证（副本注入 desktop 字面→双双捕获）；修订后 72/72 绿。
+- **本地 WiX 冒烟（TP-13..17+TP-18 注入）**：before=0.2 在位 → candle/light 全绿（全量 ICE 零抑制）→ msiexec /i /qn exit 0（MajorUpgrade 覆盖 0.2→0.3.0）→ 装后验证=三 exe 在位/两处快捷方式（开始菜单+公共桌面；Target=[INSTALLDIR]cloudmount-desktop.exe、IconLocation=MSI Installer cache）/desktop exe RT_GROUP_ICON id=1+RT_ICON×4/Machine PATH 含安装目录（尾反斜杠形态）/ARP DisplayVersion=0.3.0/安装副本启动+关闭隐藏到托盘 → msiexec /x /qn exit 0 → 卸载全清（目录/快捷方式 4 候选位置/PATH/HKCU+HKLM 键/ARP/无进程）→ TP-18 注入（BinDir 缺 desktop exe/icon.ico）light LGHT0103×2 exit 103 零 MSI 产出。终态=本机无 CloudMount（0.2 被覆盖后连同 0.3.0 一并卸载——A3 批准冒烟链路的预期终态；正式 tag 发布后重装新版）。
+- ICE43/ICE57 处置：首版 File 嵌套 Shortcut 触发 CNDL0062（File 不允许嵌套 @Target）；改组件级后触发 ICE43/ICE57（快捷方式组件混装）→ 拆独立快捷方式组件（CloudMountShortcutsComponent，HKCU 注册表 KeyPath）；candle/light 全绿零抑制（沿 T16 全量 ICE 口径）——U1 钉死字面（Shortcut 恰两处/Target 含 desktop exe/两目录）全部保持。
+- 核收证据（编排者独立复跑）：installers-yaml **72/72**、release-yaml **23/23**、check-macos-yaml **13/13**、desktop-installers-yaml **87/111**（余 24 红全为 dmg/body 面=U4）、`cargo test --workspace` **277/0**；机器状态复查=无 CloudMount 残留（目录无/ARP 0 条）。
+- 施工注记：candle 对 File@Source 不校验存在性，fail-fast 实际落点=light LGHT0103+CI 校验步（TP-12/18 断言已覆盖）；build/ 为本地冒烟产物目录（本地 MSI/日志/脚本）——加 `/build/` 入 .gitignore（本地 scratch 不入仓；保留本地 MSI 供试装）。
+- unitStatus.U3=completed。
+
+---
+
+2026-10-16 LOCK-TESTS（T4 修订后重锁；解锁窗口关闭）：
+- 修订已按授权完成（commit 9384be4，上条实录）：仅 T4 两条负断言字面收窄，其余断言零触碰；修订后 installers-yaml.test.sh 72/72 绿。
+- state.json：tddLockOverride 清除（置 null）；tddLock 保持 true（tddLockPaths=[scripts/desktop-installers-yaml.test.sh] 不变，并集只增）。
+- **修订后字面纳入零删改基线（TP-03 口径）**：installers-yaml.test.sh 自本条目起重归零删改状态；后续任何改动（含 U5 终验）均须新的授权解锁。
+
+---

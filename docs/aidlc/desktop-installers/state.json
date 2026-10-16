@@ -8,11 +8,7 @@
   "tddLockPaths": [
     "scripts/desktop-installers-yaml.test.sh"
   ],
-  "tddLockOverride": {
-    "by": "human",
-    "at": "2026-10-16",
-    "reason": "gate1 B1 裁决授权的 T4 两条负断言字面收窄（首次打回逐字『授权锁修订（推荐）』；裁决落点 3 沿 T16 先例）——仅 scripts/installers-yaml.test.sh T4 两条负断言，修订后重锁"
-  },
+  "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-16T09:29:20+08:00",
     "command": "cargo test --workspace",
@@ -52,11 +48,11 @@
   "unitStatus": {
     "U1": "completed",
     "U2": "completed",
-    "U3": "pending",
+    "U3": "completed",
     "U4": "pending",
     "U5": "pending"
   },
-  "updatedAt": "2026-10-16T11:32:00+08:00",
+  "updatedAt": "2026-10-16T11:58:30+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -117,6 +113,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2 应用层完成核收 → completed：提交 c8521cc（gen_icons 重写+图标四件套入仓）/3bbbec3（build.rs+winresource）/533e456（main.rs 托盘接线）；首日验证 4 项结论——①集成形态可行（初始化=首帧 update；MenuEvent 全局 receiver 轮询）②winres 定稿选 winresource（winres 停更，winresource 活跃继任；RT_GROUP_ICON id=1+RT_ICON×4 实证）③icns 定稿 stdlib 手写 PNG-in-ICNS 预生成入仓 ④CancelClose API 可行未降级，但 Visible(false) 真隐藏实测两缺陷（WM_PAINT 帧饥饿+ControlFlow::Poll 自旋）→ 改伪隐藏（离屏+WS_EX_TOOLWINDOW，帧流不断 CPU 0.016s/5s；语义与 AC2④/TP-21 一致，连锁锚修订未激活）——decisions.md 偏差留痕；核收证据（编排者复跑）：断言脚本 73/111（应用层 +15 全转绿，余 38 红全为 MSI/dmg 面）、基线 277/0、release 构建零警告 8.1MB exe、四锁定脚本回归全绿、gen_icons 幂等、src-tauri 引用清零；遗留观察：mac 无 TOOLWINDOW 等效步（Dock 图标留存）/raw-window-handle 直声明（原传递依赖）/OneDrive R 属性环境注记。同日开启 UNLOCK-TESTS 窗口（授权依据=gate1 B1 人类裁决逐字复引，tddLockOverride 置位）——U3 执行 T4 两条负断言字面收窄，核收后重锁；下一步 U3"
+    },
+    {
+      "at": "2026-10-16T11:58:30+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 Windows MSI 扩展完成核收 → completed；T4 修订后重锁（override 清除）：提交 9384be4（main.wxs desktop 组件+两处 Shortcut[独立组件 HKCU KeyPath 过 ICE43/ICE57，全量 ICE 零抑制]+Icon/ARPPRODUCTICON；release.yml 追加 desktop 构建[--manifest-path]+归集[exe+icon.ico]步[次序在校验/candle 前]+校验扩三 exe；installers-yaml.test.sh T4 两条负断言授权收窄[单 hunk——MSI job daemon/cli 编译步+upload 步 desktop-free / wxs 三既有组件 desktop-free，空块防空真+非恒真注入验证]）。本地 WiX 冒烟全过：candle/light 全绿→msiexec /i /qn exit 0（MajorUpgrade 0.2→0.3.0）→三 exe+两处快捷方式[Target=desktop exe]/RT_GROUP_ICON id=1+RT_ICON×4/PATH/ARP 0.3.0/启动隐藏到托盘→msiexec /x /qn exit 0→卸载全清→TP-18 注入 light LGHT0103×2 exit 103 零产出；终态=本机无 CloudMount（预期）。核收证据（编排者独立复跑）：installers-yaml 72/72、release-yaml 23/23、check-macos-yaml 13/13、desktop-installers-yaml 87/111（余 24 红全为 dmg/body 面=U4）、基线 277/0、机器无残留；/build/ 入 .gitignore（本地冒烟 scratch）。LOCK-TESTS 条目落 decisions.md——installers-yaml.test.sh 重归零删改基线；下一步 U4（mac .app+.dmg+release body 8 行）"
     }
   ]
 }

@@ -2,6 +2,9 @@
 /target/
 **/*.rs.bk
 
+# 本地 WiX/msiexec 冒烟产物（candle/light 输出与日志，不入仓）
+/build/
+
 # Node / web-ui
 node_modules/
 web-ui/dist/
