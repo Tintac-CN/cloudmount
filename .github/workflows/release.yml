@@ -100,7 +100,8 @@ jobs:
           if-no-files-found: error
 
   # ============ Windows MSI 安装包（installer-packages；gate1 Q2：手写 .wxs + CI 直接 WiX） ============
-  # 安装面（A1）：只铺 cloudmountd.exe + cloudmount.exe 与 Machine PATH（.wxs 承载），SCM 注册留用户命令自管
+  # 安装面（desktop-installers A1 扩展）：三件套 cloudmountd.exe + cloudmount.exe + cloudmount-desktop.exe
+  # 与 Machine PATH + 开始菜单/桌面快捷方式 + 品牌图标（.wxs 承载），SCM 注册留用户命令自管
 
   installer-msi-windows:
     name: Windows MSI 安装包（x64）
