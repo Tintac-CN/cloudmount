@@ -48,11 +48,11 @@
   },
   "unitStatus": {
     "U1": "completed",
-    "U2": "pending",
+    "U2": "completed",
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-16T22:05:00+08:00",
+  "updatedAt": "2026-10-16T23:20:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -101,6 +101,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U1 里程碑断言核验·上完成 → completed：TP-01..06+28/29 执行，M0×7/M1×9/M1.5×7=23/23 判定齐（已证实 23/漂移 0/不可证 0），测试计数复跑 277/0 与基线一致+静态交叉验证 281-4(inotify Linux-only)=277 吻合；audit-findings.md @ 83e43c0（骨架 §0–§6+§1 M0–M1.5，192 行）；随附 P2 小发现 4 条（水合位图注记未字面落地/store.rs Linux 头注/PKCE S256 命名/usertime 命名——归 U4 处理）；test-strategy 契约零错误（回报条款未触发）"
+    },
+    {
+      "at": "2026-10-16T23:20:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 里程碑断言核验·下完成 → completed：TP-07..12+30 执行，21/21 判定齐（已证实 19/漂移 2[即 AC4 明文要求的「Tauri 壳」结论 L111/L124，§1.4 专节落字+回写建议]/不可证 0）；§1 全量覆盖 43 条声明（累计已证实 42/漂移 2）；两处真机声称升级本机复现（cldflt 金标准复跑 8/8、万级投影 693.8ms vs 声称 618ms 同量级）；新发现：CfDehydratePlaceholder API 命名偏差（实现刻意绕开未文档化导出，P2）、M4 mock 腿 12/12 解释 webdav 双目标 0 passed、512MB/48h=未验证（可独立开 intent）；audit-findings.md @ 980d216（§1.0–1.8 完整，§2–§5 待 U3/U4）"
     }
   ]
 }
