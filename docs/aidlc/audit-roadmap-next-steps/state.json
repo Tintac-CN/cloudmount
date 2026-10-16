@@ -52,7 +52,7 @@
     "U3": "pending",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-16T21:30:00+08:00",
+  "updatedAt": "2026-10-16T21:33:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -89,6 +89,12 @@
       "from": "construction",
       "to": "construction",
       "why": "Sprint Planning：plan.md（4 units 串行——U1 里程碑核验上[M0/M1/M1.5 23 条]/U2 下[M2 段/M3/M4/M5/长期 21 条]/U3 偏离扫描+质量体检[TP-13..20+24]/U4 归集+路线图+报告集成[AC15 自检]；影响面全 low[审核单文件产出无代码引用方]；TDD 锁 N/A 如实记录[零写入 intent 无测试工件]）+ units/1-4.md 落盘；第 0 步基线：cargo test --workspace 277 passed/0 failed（26 目标）+ 五断言脚本 112/72/23/13/9 全 exit 0 @ 21:26:42；回归语义特化声明=终验重跑同命令保持 277/0+计数不变即零影响证明；A3 拆分确认呈出（凭据=decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-16T21:33:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-16）→ 串行派发 U1（里程碑断言核验上：M0/M1/M1.5 23 条，TP-01..06+28/29，创建 audit-findings.md 骨架+§1 前半）；执行泳道=dev（无 TDD 测试面，按 TP 四要素产出审核证据）"
     }
   ]
 }

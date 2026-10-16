@@ -69,3 +69,12 @@ GATE-APPROVED gate1 2026-10-16
 - gate1 裁决的全部准出条件闭合；phase=construction；下一步 `/aidlc:construct` 进入 Sprint Planning（A3 拆分确认将在派发 dev 泳道前呈出——本 intent 经命令体 A1 式分级确认接入，凭据=decisions.md A1 记录）。
 
 ---
+
+2026-10-16 A3 拆分确认（AskUserQuestion，逐字转写——凭据=decisions.md A1 记录）：
+- 呈批对象：plan.md @ 8374b51（4 units 串行只读审核——U1 里程碑核验上[M0/M1/M1.5 23 条：TP-01..06+28/29]/U2 下[M2 段/M3/M4/M5/长期 21 条：TP-07..12+30]/U3 偏离扫描+质量体检[TP-13..20+24]/U4 归集+路线图+报告集成[TP-21..23+25/26+AC15 五项自检]；影响面全 low；TDD 锁 N/A[零写入 intent 无测试工件]；验证命令=cargo test --workspace+五断言脚本；基线 277/0+112/72/23/13/9 @ 21:26:42 已录；报告载体=audit-findings.md）。
+- 问：「A3 拆分确认（intent audit-roadmap-next-steps，4 units 串行只读审核）：是否批准开审？」
+  答：「**批准开审（推荐）**」
+- 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；串行派发 U1→U2→U3→U4（审核执行由 dev 泳道承担——本 intent 无 TDD 测试面，dev 按 TP 四要素产出审核证据）。
+
+PLAN-CONFIRMED 2026-10-16
+---
