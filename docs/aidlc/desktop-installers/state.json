@@ -4,8 +4,10 @@
   "phase": "construction",
   "route": "express",
   "gates": { "gate1": "approved", "gate2": "pending" },
-  "tddLock": false,
-  "tddLockPaths": [],
+  "tddLock": true,
+  "tddLockPaths": [
+    "scripts/desktop-installers-yaml.test.sh"
+  ],
   "tddLockOverride": null,
   "testBaseline": {
     "recordedAt": "2026-10-16T09:29:20+08:00",
@@ -44,13 +46,13 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending",
+    "U1": "completed",
     "U2": "pending",
     "U3": "pending",
     "U4": "pending",
     "U5": "pending"
   },
-  "updatedAt": "2026-10-16T09:29:20+08:00",
+  "updatedAt": "2026-10-16T10:32:54+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -99,6 +101,12 @@
       "from": "construction",
       "to": "construction",
       "why": "Construction 首日：gate1 r3 授权 6 MINOR 回填执行（@ 8e21992：括注 off-by-one/Gatekeeper 子锚绑定/TP-02 if: 断言面/intent L22 例外注记/desktop 面措辞/图标入仓声明）+ Sprint Planning 落盘（plan.md + units/1-5 @ e621ef6；5 units——U1 断言脚本红/U2 应用层[图标管线+托盘接线]/U3 MSI 扩展含 T4 授权锁修订+本地 WiX 冒烟/U4 mac dmg+body/U5 终验；影响面 low×2/med×3）+ 第 0 步基线记录（cargo test --workspace 26 目标 277 passed 0 failed exit 0）；unitStatus 初始化 pending；A3 拆分确认呈出（A1 接入 intent）"
+    },
+    {
+      "at": "2026-10-16T10:32:54+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-16 @ bbe706e）→ U1 红阶段完成并置锁：dev 交付 scripts/desktop-installers-yaml.test.sh @ 2a16a3a（TP-01..TP-24 静态面 111 断言；红态 58 passed/53 failed——53 红全为 desktop 面断言[被测对象缺失/零接线即 FAIL 防空真]，58 绿为护栏现状绿；TP-13..17 集成面归 U3、TP-19..23 E2E/人工面头注留痕；5 项契约歧义处置留痕[TP-04 Id 定界/红阶段钉死字面 installer-dmg-macos+cloudmount-desktop.dmg+--manifest-path+show/quit/TP-03 字面锚定集/TP-09 全文件计数/次序行号比较]；四锁定脚本回归全绿+基线 277/0 一致）；tddLock=true（tddLockPaths=[desktop-installers-yaml.test.sh]）；U1 完成判据（红提交+锁）达成 → completed；下一步 U2 应用层"
     }
   ]
 }
