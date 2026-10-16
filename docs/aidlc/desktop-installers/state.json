@@ -55,7 +55,7 @@
     "U4": "completed",
     "U5": "completed"
   },
-  "updatedAt": "2026-10-16T17:02:00+08:00",
+  "updatedAt": "2026-10-16T17:25:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -152,6 +152,12 @@
       "from": "operations",
       "to": "done",
       "why": "完结确认（对话逐字「确认完结，在github上发布v0.2.1结束」+ INTENT-DONE 回执）：retro.md 落盘（保留裁决）+ 人类确认 → phase=done，intent 退出活跃位；附带裁决=发布 tag v0.2.1（首个含 desktop 的 tag——MSI 三件套+dmg 首次上线，runbook「首个 tag 特别项」适用，tag 后按 release-checklist ④⑤ 核验；pre-tag 自动化子集发布前即时执行留痕）；四裁决（checklist 单载体/轻量+四观察/retro 保留/无窗口约束）随 ops-runbook 在案"
+    },
+    {
+      "at": "2026-10-16T17:25:00+08:00",
+      "from": "done",
+      "to": "done",
+      "why": "tag v0.2.1 发布留痕（附记）：release.yml run 38881067261 全 9 job 绿（~8 分钟）→ 正式 Release（prerelease=false）；产物 9 文件全数在位（cloudmount-desktop.dmg 首次上线 4.1MB/MSI 三件套 8.3MB）；mac desktop CI 首跑成功 3m31s（U4 遗留观察 a 消解）；body 8 行口径核验过；checklist ④ 真机人工冒烟为发布后遗留核验项"
     }
   ]
 }

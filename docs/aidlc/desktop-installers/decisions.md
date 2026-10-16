@@ -250,3 +250,10 @@ GATE-APPROVED gate2 2026-10-16
 
 INTENT-DONE 2026-10-16
 ---
+
+2026-10-16 tag v0.2.1 发布留痕（编排者，INTENT-DONE 后附记）：
+- main 推送 @ f8a26a6；tag v0.2.1（annotated）推送 → release.yml run 38881067261 全 job 绿（9 job+Release job，总时长 ~8 分钟）→ **正式 Release 创建（prerelease=false）**。
+- **mac desktop CI 首跑成功**（3m31s）——U4 遗留观察 a) 消解：desktop 应用于 macos-15 aarch64 编译无碍。
+- 产物清单 9 文件全数在位（checklist ⑤ 核验过）：cloudmount-windows-x64.msi（8.3MB 三件套）/windows-x64.zip/darwin-{aarch64,x86_64}.{tar.gz,pkg}/linux-{x86_64,aarch64}-musl.tar.gz/**cloudmount-desktop.dmg（4.1MB，首次上线）**。
+- release body 8 行口径核验过：既有 7 行+MSI 行三件套描述（含开始菜单/桌面快捷方式）+.dmg 行含 Gatekeeper「右键→打开」引导。
+- checklist ④ 托盘/关闭语义真机人工冒烟仍未施行（Windows 侧已有自动化实证；完整体验待人工按 checklist §4）——作为发布后遗留核验项在案。
