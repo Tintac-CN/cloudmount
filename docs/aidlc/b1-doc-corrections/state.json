@@ -1,21 +1,30 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "inception",
+  "phase": "gate1",
   "route": "classic",
-  "gates": { "gate1": "pending", "gate2": "pending" },
+  "gates": {
+    "gate1": "pending",
+    "gate2": "pending"
+  },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-16T23:36:31+08:00",
+  "updatedAt": "2026-10-17T02:40:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
       "from": null,
       "to": "inception",
       "why": "intent created via ops 裁决③预先指令「收口后直接开 B1 文档纠偏批」（audit-roadmap-next-steps INTENT-DONE 后自动接入）+ 显式 /aidlc:inception 入口；A1 表单呈出未获选择 → 按协议缺省 route=classic（未选 express 的 fail-safe 全量路径）；范围已被审核报告 §2.1① 明细+backlog.md 台账🚀行钉死（decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-17T02:40:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "classic 三工件齐且对齐拍完成：prd（AC1..AC6，AC1 清单经对齐拍扩至 23 处[16 清单+7 实测新发现——编排者裁决意图忠实，gate1 过目]）/architecture（回写蓝图 28 项全行锚实测+AS-IS 基准 F1-F7+断言面零联动结论）/test-strategy（7 TP P0=4/P1=2/P2=1，词边界+排除清单五项[含守护断言自身字面]+基线保护）；qa 引用 AC↔prd 实际编号一致、AC1..AC6 全覆盖无空锚；architect 知会 package.json name 无字面不改（D10）；phase → gate1"
     }
   ]
 }
