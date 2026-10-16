@@ -72,12 +72,12 @@ core,auth,driver115,sync,vfs ← daemon
 
 ## 与 PRD 的语义对齐表
 
-> `prd.md` 已落盘（AC1..AC14）；本表按 prd 动词/语义锚定，并标注对应 AC 编号，与 prd 验收标准双向一致。下表落到**物理语义**（读什么文件、跑什么、证据形态），是 **qa 设计断言锚的接口**。
+> `prd.md` 已落盘（AC1..AC15）；本表按 prd 动词/语义锚定，并标注对应 AC 编号，与 prd 验收标准双向一致。下表落到**物理语义**（读什么文件、跑什么、证据形态），是 **qa 设计断言锚的接口**。
 
 | PRD 动词 | 物理语义 | 说明 | AC 锚 |
 |---|---|---|---|
-| 核验（路线图 `[x]` 声明） | 读 `docs/ROADMAP.md` 里程碑条目 → 提取 claim → 在代码/测试/CI 定位对应证据；证据形态 = 文件路径+行号 / 命令输出 / workflow job 名 | 抽样标准：每里程碑 1-3 条关键声明（intent 开放问题），本期默认抽样 | AC1（抽证方法/分级基线）+ AC2–AC7（M0/M1+M1.5/M2+M2.5/M3/M4/M5 各段） |
-| 审核（功能实现，只读） | 只读扫描 `crates/*/src`、`apps/desktop/src`、`edge/`、`drivers/win/`、`web-ui/src`、CI；**不写产品代码/配置** | 只读硬约束（intent 约束节） | AC1–AC13（共同约束；AC14 排序基于 AC1–13 结论） |
+| 核验（路线图 `[x]` 声明） | 读 `docs/ROADMAP.md` 里程碑条目 → 提取 claim → 在代码/测试/CI 定位对应证据；证据形态 = 文件路径+行号 / 命令输出 / workflow job 名 | 全量验证（gate1 裁决③，覆盖 A1 缺省——见 prd 头注「不得缩减为抽样」）：逐 [x] 条目+句内子声称 | AC1（抽证方法/分级基线）+ AC2–AC7（M0/M1+M1.5/M2+M2.5/M3/M4/M5 各段） |
+| 审核（功能实现，只读） | 只读扫描 `crates/*/src`、`apps/desktop/src`、`edge/`、`drivers/win/`、`web-ui/src`、CI；**零写入：不写产品代码/配置，亦不回写任何文档与 `.gitignore`**（gate1 裁决② M4 条款） | 只读硬约束（intent 约束节） | AC1–AC13（共同约束；AC14 排序基于 AC1–13 结论） |
 | 盘点（计划-实现偏离） | `diff`（路线图/文档声称架构）vs（Cargo.toml/目录树/源码自证）；证据 = 两侧原文+定位，形如 §逻辑架构 D1–D6 表 | 已见苗头四条 + 本次补核（含苗头对账注记） | AC8（已见苗头偏离核验；本档 D1–D6 表 + 苗头对账注记即其已核实偏离基线）+ AC9（偏离面扩展扫描） |
 | 盘点（质量与交付面） | 核验测试计数（runbook/retro 记载 277/0）与五断言脚本计数 112/72/23/13/9，对照 CI 工作流覆盖与 `apps/desktop` workspace-exclude 事实；证据 = 命令输出 + workflow job + provide 缺口 | 承载节：§逻辑架构「CI」段（9 job 结构）+ §安全与权限「已知边界」与「CI/CD 权限」节 | AC12（测试与 CI 现状盘点）+ AC13（已知边界与交付面盘点） |
 | 归集（backlog） | 抄录四份 `ops-runbook.md` 的「P2 backlog」节条目并去重；证据 = runbook 路径+行号 | 来源：audit-p0p1-fixes(:52-55)、macos-release(:27-33)、installer-packages(:30-38)、desktop-installers(:30-33)；合计约 20+ 项（audit-p0p1 数字为约数，需重新逐条核对源码） | AC10（路线图开放项归集）+ AC11（四 intent backlog 归集） |

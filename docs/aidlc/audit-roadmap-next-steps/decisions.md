@@ -63,3 +63,9 @@ GATE-REJECTED gate1 2026-10-16
 
 GATE-APPROVED gate1 2026-10-16
 ---
+
+2026-10-16 Gate#1 准出回填核收（编排者内联执行——人类裁决「通过+准出回填」的条件式一行级订正）：
+- **7 处全部落位**（机械 patch+复验零残留）：M-R2-1 architecture 对齐表「本期默认抽样」→全量验证口径（引 prd 头注「不得缩减」）；M-R2-2 TP-28 路径清单改实存模块 {store,state,engine,exec,queue,cache,watcher}（附落点对照：SQLite=store/state、change_probe=engine/remote、执行器=exec）；m1 只读面措辞补「亦不回写任何文档与 .gitignore（gate1 裁决② M4 条款）」；m2 「AC1..AC14」→「AC1..AC15」（architecture 对齐表头+test-strategy 头注/分层节三处）；m3 头注 M2 分区枚举补 TP-18（2/12）；m4 TP-25/26 映射列改 AC14/AC15；m5 TP-27⑥ 行号 :48-51→:50-53。
+- gate1 裁决的全部准出条件闭合；phase=construction；下一步 `/aidlc:construct` 进入 Sprint Planning（A3 拆分确认将在派发 dev 泳道前呈出——本 intent 经命令体 A1 式分级确认接入，凭据=decisions.md A1 记录）。
+
+---
