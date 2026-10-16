@@ -4,15 +4,17 @@
 
   裁决锚（gate1）：Q2 = 手写 .wxs + CI 直接 WiX（candle/light，cargo-wix 不采用）；
   Q3 = 写 Machine 级 PATH；Q4 = 安装到 Program Files\CloudMount。
-  安装面（A1）：仅铺 cloudmountd.exe + cloudmount.exe 并写 Machine PATH；
-  不含服务注册元素（Windows SCM 注册留 cloudmountd 服务子命令由用户自管）、
-  不含桌面快捷方式；per-machine 安装触发 UAC 提权为预期；
+  安装面（A1 扩展——desktop-installers 三件套）：铺 cloudmountd.exe + cloudmount.exe +
+  cloudmount-desktop.exe 并写 Machine PATH；两处快捷方式（开始菜单 + 桌面，指向 desktop
+  exe，gate1 Q2 裁决）+ 品牌图标（Icon/ARPPRODUCTICON，源自 gen_icons 的 icon.ico）；
+  不含服务注册元素（Windows SCM 注册留 cloudmountd 服务子命令由用户自管）；
+  per-machine 安装触发 UAC 提权为预期；
   ARP（Add/Remove Programs）卸载条目为 WiX 缺省行为（Name/Version/Manufacturer 自动登记）。
 
   变量注入（本文件不写死版本号/构建路径）：
     candle -dProductVersion=<tag 去 v 前缀的数值>   —— CI 步由 github.ref_name 适配（WiX 要求数值格式，
                                                        rc 形态 tag 不在发布语义内，prd AC5；校验在 CI 步）
-    candle -dBinDir=<含 cloudmountd.exe/cloudmount.exe 的目录>  —— CI 传 target/release 的绝对 Windows 路径
+    candle -dBinDir=<含三 exe 与 icon.ico 的目录>  —— CI 传 target/release 的绝对 Windows 路径
 
   T16 本地冒烟实证留痕（2026-10-15，wixtoolset 3.14.1.20250415 / candle-light 3.14.1.8722；
   裁决与锁修订授权见 decisions.md 2026-10-15 T16 条目）：
@@ -49,12 +51,20 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- desktop-installers AC3③：MSI 内嵌品牌图标（源自 gen_icons 单一管线产物 icon.ico，
+         经 CI 归集步同置 BinDir）；ARPPRODUCTICON 令 ARP 卸载条目显示品牌图标 -->
+    <Icon Id="CloudMountIcon.ico" SourceFile="$(var.BinDir)/icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="CloudMountIcon.ico" />
+
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <!-- Q4：INSTALLDIR 解析为 C:\Program Files\CloudMount（candle -arch x64 的 64 位标准目录；
              头注②③实证：ProgramFilesFolder 在 x64 包下落 C:\Program Files (x86)，弃用） -->
         <Directory Id="INSTALLDIR" Name="CloudMount" />
       </Directory>
+      <!-- desktop-installers Q2：快捷方式两处标准目录（开始菜单 + 桌面；per-machine 解析为公共位置） -->
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="DesktopFolder" />
     </Directory>
 
     <Feature Id="ProductFeature" Title="CloudMount" Level="1">
@@ -64,7 +74,7 @@
 
   <Fragment>
     <ComponentGroup Id="ProductComponents">
-      <!-- 一文件一组件（WiX 最佳实践，Guid="*" 自动 GUID 前提；A1 范围：daemon + cli，无其他文件）。
+      <!-- 一文件一组件（WiX 最佳实践，Guid="*" 自动 GUID 前提；范围：daemon + cli + desktop 三件套）。
            T16 冒烟修正留痕：双 File 组件在非 KeyPath 文件带版本资源时触发 LGHT0368（自动 GUID 不适用），
            拆分后对真实产物（带/无版本资源）均成立。 -->
       <Component Id="CloudMountdComponent" Directory="INSTALLDIR" Guid="*">
@@ -79,6 +89,21 @@
       <Component Id="MachinePathEnv" Directory="INSTALLDIR" Guid="*">
         <Environment Id="UpdateMachinePath" Name="PATH" Value="[INSTALLDIR]" Part="last" Action="set" System="yes" />
         <RegistryValue Root="HKLM" Key="Software\CloudMount" Name="InstallDir" Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
+      </Component>
+      <!-- desktop-installers（gate1 A1 三件套）：desktop exe 与 daemon/cli 同铺 INSTALLDIR。
+           本组件与 Icon/ARPPRODUCTICON 为 desktop 授权面（installers-yaml T4 修订依据 =
+           decisions.md gate1 B1）：daemon/cli 三既有铺放组件保持 desktop-free。 -->
+      <Component Id="CloudMountDesktopComponent" Directory="INSTALLDIR" Guid="*">
+        <File Id="CloudMountDesktopExeFile" Name="cloudmount-desktop.exe" Source="$(var.BinDir)/cloudmount-desktop.exe" KeyPath="yes" />
+      </Component>
+      <!-- desktop-installers（gate1 Q2 两处快捷方式）：独立组件——快捷方式置于用户目录
+           （开始菜单 + 桌面），KeyPath=HKCU 注册表值（ICE43 模式：含非广告快捷方式的组件
+           须以注册表键为 KeyPath；独立成组件同时满足 ICE57 的 per-user/per-machine 不混装）。
+           目标指向 desktop exe、图标用品牌 icon.ico；随组件安装/卸载，无孤儿残留（TP-17）。 -->
+      <Component Id="CloudMountShortcutsComponent" Directory="DesktopFolder" Guid="*">
+        <Shortcut Id="StartMenuCloudMountShortcut" Directory="ProgramMenuFolder" Name="CloudMount" Target="[INSTALLDIR]cloudmount-desktop.exe" WorkingDirectory="INSTALLDIR" Icon="CloudMountIcon.ico" Advertise="no" />
+        <Shortcut Id="DesktopCloudMountShortcut" Directory="DesktopFolder" Name="CloudMount" Target="[INSTALLDIR]cloudmount-desktop.exe" WorkingDirectory="INSTALLDIR" Icon="CloudMountIcon.ico" Advertise="no" />
+        <RegistryValue Root="HKCU" Key="Software\CloudMount" Name="ShortcutsInstalled" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>

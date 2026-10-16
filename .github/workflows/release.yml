@@ -111,12 +111,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: 编译（release，daemon + cli）
         run: cargo build --release -p cloudmount-daemon -p cloudmount-cli
+      # desktop 三件套追加步（gate1 B2：installer-msi-windows 内追加，不另立 Windows job）。
+      # 次序约束（prd AC3）：构建 + 归集须在既有「校验构建输入/WiX 构建」步之前——desktop exe
+      # 与 icon.ico 归集入 BinDir(target/release) 后方能被 WiX 编入 MSI。
+      # 独立 cargo 项目（workspace exclude）：--manifest-path 口径，产物落 apps/desktop/target。
+      - name: 构建 desktop（三件套：cloudmount-desktop.exe）
+        run: cargo build --release --manifest-path apps/desktop/Cargo.toml
+      - name: 归集 desktop exe 与图标到 BinDir
+        shell: bash
+        run: |
+          cp apps/desktop/target/release/cloudmount-desktop.exe target/release/
+          cp apps/desktop/icons/icon.ico target/release/
       # 前置硬校验：构建输入缺失即失败（防 WiX 产出半成品 MSI；WiX 对缺失 File/@Source 天然报错为二道注记）
-      - name: 校验构建输入（两 exe 在位）
+      # desktop-installers：校验扩三 exe（追加步产出的 desktop exe 同为构建输入）
+      - name: 校验构建输入（三 exe 在位）
         shell: bash
         run: |
           test -f target/release/cloudmountd.exe
           test -f target/release/cloudmount.exe
+          test -f target/release/cloudmount-desktop.exe
       # WiX 工具链（T16 已本地实证，decisions.md 2026-10-15）：WiX v3 最终线（gate1 Q2 口径；
       # WiX v4/v5 为独立 wix 包不采用）。gate2 准出回填 M1：废弃预装探测，强制安装+版本硬锁
       # （T16 实测 wixtoolset 3.14.1.20250415 / candle+light 3.14.1.8722——预装 candle 版本漂移风险）。

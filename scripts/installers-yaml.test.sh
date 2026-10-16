@@ -254,14 +254,34 @@ grep_ok "$MSI_BLK" -qF 'github.ref_name' && ok=0
 report "T3 msi job 安装器版本取 github.ref_name 字面（M3：与 pkg --version 同源）" "$ok"
 
 # ============ T4：负断言——范围排除（AC1；A1：只铺文件+PATH，SCM 注册留用户命令） ============
+# ── 授权锁修订（gate1 B1，decisions.md 2026-10-16「B1 裁决（锁修订授权）」条目逐字依据：
+#    「沿 T16 先例授权修订 installers-yaml.test.sh T4 两条负断言字面（「不含 desktop 字面」
+#     → 精确化「daemon/cli 铺放组件除外」或等价形式）；修订后重锁」）——desktop 组件/快捷方式/
+#    图标为 B2 授权面，原「整体不含 desktop 字面」与之物理冲突。修订后精确形式：
+#    ① MSI job：daemon/cli 既有编译步与产物上传步保持 desktop-free（步骤语义行判定，行内注释
+#       叙述不计——沿 TP-04 注释叙述不计先例；desktop 构建/归集/校验追加步为 B2 授权面）；
+#    ② main.wxs：daemon/cli 三既有铺放组件（CloudMountdComponent/CloudmountCliComponent/
+#       MachinePathEnv）保持 desktop-free（desktop 组件/快捷方式/Icon/ARPPRODUCTICON 为授权面）。
+#    以下两条即修订后的精确形式；同节其余两条（ServiceInstall 面）零触碰。
 
 ok=1
-grep_absent_ok "$MSI_BLK" -iE 'desktop' && ok=0
-report "T4 负 msi job 块不含 desktop/cloudmount-desktop 字面" "$ok"
+MSI_T4_BUILD="$TMP_ROOT/t4-rev-msi-daemon-cli-build.txt"
+MSI_T4_UPLOAD="$TMP_ROOT/t4-rev-msi-upload.yml"
+steps_matching "$MSI_BLK" 'daemon [+] cli' 2>/dev/null | grep -v '^[[:space:]]*#' >"$MSI_T4_BUILD"
+upload_step_block "$MSI_BLK" >"$MSI_T4_UPLOAD"
+if [ -s "$MSI_T4_BUILD" ] && [ -s "$MSI_T4_UPLOAD" ] \
+   && ! grep -qi 'desktop' "$MSI_T4_BUILD" && ! grep -qi 'desktop' "$MSI_T4_UPLOAD"; then ok=0; fi
+report "T4 修订 负 msi job daemon/cli 编译步与 upload 步不含 desktop 字面（字面收窄：desktop 追加步为 B2 授权面）" "$ok"
 
 ok=1
-grep_absent_ok "$WXS_NORM" -iE 'desktop' && ok=0
-report "T4 负 main.wxs 不含 desktop 字面" "$ok"
+t4_wxs_ok=1
+for cid in CloudMountdComponent CloudmountCliComponent MachinePathEnv; do
+  blk="$TMP_ROOT/t4-rev-wxs-$cid.xml"
+  sed -n "/<Component Id=\"$cid\"/,/<\/Component>/p" "$WXS_NORM" >"$blk" 2>/dev/null
+  if [ ! -s "$blk" ] || grep -qi 'desktop' "$blk"; then t4_wxs_ok=0; fi
+done
+[ "$t4_wxs_ok" -eq 1 ] && ok=0
+report "T4 修订 负 daemon/cli 三既有铺放组件不含 desktop 字面（字面收窄：desktop 组件/快捷方式/图标为 B2 授权面）" "$ok"
 
 ok=1
 grep_absent_ok "$MSI_BLK" -iE 'ServiceInstall|service install' && ok=0
