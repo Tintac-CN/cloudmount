@@ -104,3 +104,13 @@ GATE-REJECTED gate1 2026-10-16
   4. 后续：phase = construction，`/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认表单在派发 dev 泳道前呈出）。
 
 GATE-APPROVED gate1 2026-10-16
+
+---
+
+2026-10-16 A3 拆分确认（AskUserQuestion 首次呈批未获选择；用户对话逐字裁决，逐字转写）：
+- 呈批对象：plan.md @ e621ef6（5 units 串行 TDD——U1 安装包结构断言脚本红/U2 应用层[图标管线+winres+托盘接线，含首日验证 4 项]/U3 Windows MSI 扩展[含 T4 授权锁修订+本地 WiX 冒烟]/U4 mac .app+.dmg+release body/U5 终验收尾；验证命令=cargo test --workspace，基线 26 目标 277 passed 0 failed（@ 525c55a 记录）；gate1 r3 授权 6 MINOR 已首日回填 @ 8e21992；串行派发沿限流教训）。
+- 问：「A3 拆分确认（intent desktop-installers，5 units 串行 TDD）：是否批准开始施工？」
+  答：「批准」
+- 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；开始串行派发 U1→U2→U3→U4→U5。
+
+PLAN-CONFIRMED 2026-10-16
