@@ -10,9 +10,49 @@
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
-  "testBaseline": null,
-  "unitStatus": {},
-  "updatedAt": "2026-10-16T20:52:00+08:00",
+  "testBaseline": {
+    "recordedAt": "2026-10-16T21:26:42+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending"
+  },
+  "updatedAt": "2026-10-16T21:30:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -43,6 +83,12 @@
       "from": "gate1",
       "to": "construction",
       "why": "Gate#1 复审 r2 人类通过（decisions.md GATE-APPROVED gate1 2026-10-16）：复审只核收敛点确认上轮 10 MAJOR+16 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 0aa0048，四方 0B/2M/5m——arch 侧全清/D1 区间锚处置判定正确）；新发现 2 MAJOR（对齐表残留抽样措辞/TP-28 路径失锚）+5 MINOR 均字面级→随准出回填闭合；§8 追认打包（qa 对齐回填内联代行+编排者代提交）；phase → construction"
+    },
+    {
+      "at": "2026-10-16T21:30:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Sprint Planning：plan.md（4 units 串行——U1 里程碑核验上[M0/M1/M1.5 23 条]/U2 下[M2 段/M3/M4/M5/长期 21 条]/U3 偏离扫描+质量体检[TP-13..20+24]/U4 归集+路线图+报告集成[AC15 自检]；影响面全 low[审核单文件产出无代码引用方]；TDD 锁 N/A 如实记录[零写入 intent 无测试工件]）+ units/1-4.md 落盘；第 0 步基线：cargo test --workspace 277 passed/0 failed（26 目标）+ 五断言脚本 112/72/23/13/9 全 exit 0 @ 21:26:42；回归语义特化声明=终验重跑同命令保持 277/0+计数不变即零影响证明；A3 拆分确认呈出（凭据=decisions.md A1 记录）"
     }
   ]
 }
