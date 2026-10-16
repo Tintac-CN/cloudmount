@@ -26,20 +26,21 @@
 | ├ 漂移 | **2**（均 P1） | §1.4 L111/L124「Tauri 壳」两行（AC4 漂移结论落字 @ §1.4 专节） |
 | └ 不可证 | **0** | — |
 | 长期段叙述性声明 | **9 项全部已证实**（该段无 checkbox——AC1 形态出入已在 §1.0 声明） | §1.8 表 9 行 |
-| 严重度分布（发现面） | **P0=0／P1=3／P2=9** | P1=L111、L124、NEW-1（README 四处 stale Tauri 含 `cargo tauri dev` 死命令）；P2=小发现①..⑤+NEW-2..5 |
+| 严重度分布（发现面） | **P0=0／P1=3／P2=9**（计数基=发现条目；P1 归并为 2 个根因簇：Tauri 叙事簇〔L111/L124 两独立条目+L176 子声称，§2.1①〕+web-ui 角色变迁簇〔NEW-1，§2.1④〕） | P1=L111、L124、NEW-1（README 四处 stale Tauri 含 `cargo tauri dev` 死命令）；P2=小发现①..⑤+NEW-2..5 |
 | 偏离清单 | 四苗头 4 项分项判定（**为真 2／半边为假 1／非偏离 1**）+ 扩展扫描新增 **5 条**（NEW-1..5）+「无其它新增偏离」显式声明 | §2.1/§2.2/§2.3 |
 | backlog 归集 | **37 条**（四 runbook P2 去重 28+观察项 5 组+retro 候选 4；六组重复〔D:n源〕合并；1 条已被后续落地消解标注） | §3.2（37 行） |
 | 开放项归集 | **12 项**（ROADMAP 未勾 7+长期 1+本期新增 4） | §3.1（12 行） |
 | 下一阶段批次 | **8 批次+长期 1 轨道**（每项带出处；批次依赖图与 ROADMAP.md:196-201 自洽） | §5.1/§5.2 |
 | 测试与 CI 现值 | workspace **277/0**；五脚本 **112/72/23/13/9** 全 exit 0；fmt/clippy 双面 clean；CI 缺口 3 条实锚 | §4.1 |
 | 已知边界七项 | 2 项被后续里程碑消解（#1 同秒盲区/#7 TLS）、5 项未消解（均刻意取舍或外部依赖） | §4.2 |
-| 审核自检 | TP-17 抽样 **3/3 可复现**（行号零漂移） | §4.3 |
+| 真机子声称标注 | 43 行已证实中约 **9 行含「声称·未独立复现」子声称**（跨进程验证/内核态 RDC 实测/真机 e2e/脱水实测/待扫码/curl 实测/自签 HTTPS/4 并行 0.31s/内存 23.8MB——见各段表行内标注；其中 cldflt 金标准、RDC 5/5、10k 基准三项已本机复现升级） | §1 各段表 |
+| 审核自检 | TP-17 抽样 **3/3 可复现**（§1 行锚零漂移；§3 行锚经 gate2 M4 实测订正后零漂移） | §4.3；§6/TP-21 |
 
 ### §0.3 关键结论预览
 
 1. **43 条 `[x]` 声明 41 条属实、零「勾了但没验」实锤**——两处失实均为「Tauri 壳」命名漂移（实现是 egui），功能面在 egui 侧等价存在；路线图整体可信，恢复可信度只需一批文档回写（B1）。
 2. **质量交付面健康**：277/0+五脚本全绿+fmt/clippy 双面 clean（含 desktop）；三项真机声称本机独立复现（cldflt 金标准/RDC 5/5/10k 投影基准）。
-3. **文档-实现漂移集中在「Tauri 叙事」一个根因**（13 处字面，三文件+两 README+api.ts 头注+根注释），另有 owner 元数据/edge-packaging 分叉两个独立小漂移——全部可一次 intent 闭环。
+3. **文档-实现漂移集中在「Tauri 叙事」一个根因**（**16 处字面**：ROADMAP×3+ARCHITECTURE×3+web-ui/README×4+根 README×4+api.ts 头注×1+根 Cargo.toml 注释×1——与 §2.1① 明细一致），另有 owner 元数据/edge-packaging 分叉两个独立小漂移——全部可一次 intent 闭环。
 4. **推进主链只卡一个外部项**：L8 资质申请（唯一外部阻塞源头）；B1/B3/B5 与其等待期完全并行，互不阻塞。
 
 **头号方向建议（一句话）**：B1 文档纠偏即刻开工（零依赖、半天清零 3 P1）+ B2 资质申请同步提交（外部链源头，等待期与 B3/B5 并行）——两条线互不阻塞，先跑起来。
@@ -80,7 +81,7 @@
 
 | ROADMAP 行 | 声明 | 三态 | 严重度 | 证据 |
 |---|---|---|---|---|
-| L21-22 | SQLite（bundled）元数据库：上次同步快照（三向对比基准）、状态机、pin 策略 | **已证实**（主声明） | — | bundled @ 根 `Cargo.toml:38`（`rusqlite = { version="0.37", features=["bundled"] }`）+ `crates/cloudmount-sync/src/store.rs:4` 注释；快照记录 `EntryRecord`→`entries` 表 @ `crates/cloudmount-sync/src/state.rs:95-117`；状态机 `SyncState` @ `state.rs:9`；pin 策略 `PinState`（Pinned/Online/Excluded/Inherit 往返）@ `state.rs:61-91`。**子声称漂移（小发现④，P2）**：括号注记「`水合范围位图` 属 VFS 层随 M2 落地」——全仓无位图实现（`grep -rni 'bitmap\|位图' crates/ apps/desktop/src` 仅构建产物与图标注释噪音）；M2 实际以 CfAPI 内核原生检索状态+分块推送承接（`crates/cloudmount-vfs/src/backends/cfapi.rs:22,586`），前瞻注记的**命名工件未以字面落地**，能力语义已被替代方案覆盖 |
+| L21-22 | SQLite（bundled）元数据库：上次同步快照（三向对比基准）、状态机、pin 策略 | **已证实**（主声明） | — | bundled @ 根 `Cargo.toml:38`（`rusqlite = { version="0.37", features=["bundled"] }`）+ `crates/cloudmount-sync/src/store.rs:4` 注释；快照记录 `EntryRecord`→`entries` 表 @ `crates/cloudmount-sync/src/state.rs:95-117`；状态机 `SyncState` @ `state.rs:9`；pin 策略 `PinState`（Pinned/Online/Excluded/Inherit 往返）@ `state.rs:61-91`。**子声称漂移（小发现④，P2）**：括号注记「`水合范围位图` 属 VFS 层随 M2 落地」——源码面零证据（实跑 `grep -rni 'bitmap\|位图' crates/*/src apps/desktop/src` 零命中——排除 target 构建产物后无任何噪音，结论比「仅噪音」更强）；M2 实际以 CfAPI 内核原生检索状态+分块推送承接（`crates/cloudmount-vfs/src/backends/cfapi.rs:22,586`），前瞻注记的**命名工件未以字面落地**，能力语义已被替代方案覆盖 |
 | L23-24 | 本地监控抽象 `LocalWatcher` + 可移植轮询基线（`PollingWatcher`）；USN/FSEvents/inotify 原生实现待接入（M1.5） | **已证实** | — | `pub trait LocalWatcher` @ `crates/cloudmount-sync/src/scan.rs:40`；`pub struct PollingWatcher` @ `scan.rs:147`（impl @ :161）；`watcher.rs:28` 导入并作统一差异计算（`diff_snapshots` @ `watcher.rs:175-202`）。括号前瞻由 M1.5 段承接：inotify 已接入（§1.3 L46）、USN 被 RDC 取代（取舍理由 @ `rdc.rs:7-9`）、FSEvents 待 M2+（`watcher.rs:58,93-98`——与 M1.5 段 L48 声明一致，非失实） |
 | L25-26 | 远端变更发现：`change_probe` 廉价探测（1 请求）+ 全量扫描兜底 + 水位短路（短路时用快照合成远端视图，零远端请求） | **已证实** | — | 1 请求探测（`user_utime` 倒序 1 条+总数，与 list 同口径）@ `crates/cloudmount-driver115/src/open.rs:418-430`；探测→水位比对→短路 @ `crates/cloudmount-sync/src/remote.rs:4-9,106-115`（短路返回 `None` @ :75）；全量兜底 @ `remote.rs:6`；**快照合成** `synthesize_remote_from_snapshot` @ `crates/cloudmount-sync/src/engine.rs:429-430`（接线 @ engine.rs:214-218「远端未变：用快照合成远端视图」）；测试 `tracker_short_circuits_then_refetches_on_change` @ `remote.rs:294`。子声称全部✓（「零远端请求」= 合成路径无 provider 调用，engine.rs:8 注释+实现吻合） |
 | L27-28 | 三向对比 `reconcile::plan`：纯函数、确定性输出、可穷举测试；冲突默认"保留两者"，删除传播默认关闭 | **已证实** | — | `pub fn plan(input: &PlanInput<'_>) -> Vec<Action>` @ `crates/cloudmount-sync/src/reconcile.rs:204`——签名纯引用无 IO/时间/随机（TP-04 证伪判据未触发）；模块注释自证纯函数动机 @ reconcile.rs:2-4；`ConflictPolicy::KeepBoth` 为 `#[default]` @ reconcile.rs:31-32（Default @ :59）；`propagate_remote_deletes`/`propagate_local_deletes` 默认 `false` @ reconcile.rs:52-55,64-66；确定性输出测试 `output_is_sorted_deterministically` @ reconcile.rs:802；穷举测试面 16 个（判定矩阵逐情形：:565-:831，含 `both_modified_conflicts` @ :642、`remote_delete_not_propagated_by_default_resurrects` @ :675、`local_delete_not_propagated_by_default_restores` @ :711） |
@@ -170,7 +171,7 @@
 
 | ROADMAP 行 | 声明 | 三态 | 严重度 | 证据 |
 |---|---|---|---|---|
-| L174-177 | **缓存可视化/设置页/日志导出**（42ab2c9）：web-ui 完整化（标签页+占用/命中率进度条+一键清理+日志 Blob 导出，零框架 2.48KB gzip）；壳 8 命令（引擎 Arc+日志环形缓冲）；daemon serve `/api/*` REST 同名同参（同一 UI 双宿主） | **已证实**（主声明；「Tauri 壳 8 命令」子声称**漂移**——随 AC4 结论一并落字） | — | web-ui 四特性：标签导航 @ `web-ui/src/main.ts:227`、占用/命中率+百分比条 @ main.ts:36,112-113、一键清理 @ :121-134、导出日志 @ :189-194；dist 现值 gzip **2345 字节（≈2.29KB）** vs 声称 2.48KB（构建时点值微差，同量级零框架属实——`gzip -c web-ui/dist/assets/index-*.js | wc -c`）；8 命令契约 @ `web-ui/src/api.ts:44-80`（get_status/get_cache_stats/clear_cache/get_quota/export_logs/set_sync_root/toggle_pause/open_sync_folder）；daemon `/api/*` **同名同参** @ `crates/cloudmount-daemon/src/webdav.rs:925-963`（clear_cache/open_sync_folder 边缘模式 501=文档化边界）；「引擎 Arc+日志环形缓冲」@ `apps/desktop/src/main.rs:12-14,55`（egui 侧等价实现）。**漂移子声称**：桌面壳无「8 命令」IPC 层（`grep -rn 'fn get_status\|…' apps/desktop/src` 零命中）——「Tauri 壳」措辞漂移同 §1.4 AC4 结论。commit 42ab2c9 存在且主题吻合（`git log -1 42ab2c9`：feat(M5) 打磨——缓存可视化/设置页/日志导出+/api REST 双宿主+万级投影基准） |
+| L174-177 | **缓存可视化/设置页/日志导出**（42ab2c9）：web-ui 完整化（标签页+占用/命中率进度条+一键清理+日志 Blob 导出，零框架 2.48KB gzip）；壳 8 命令（引擎 Arc+日志环形缓冲）；daemon serve `/api/*` REST 同名同参（同一 UI 双宿主） | **已证实**（主声明；「Tauri 壳 8 命令」子声称**漂移**——随 AC4 结论一并落字） | — | web-ui 四特性：标签导航 @ `web-ui/src/main.ts:227`、占用/命中率+百分比条 @ main.ts:36,112-113、一键清理 @ :121-134、导出日志 @ :189-194；dist 现值 gzip **2345 字节（≈2.29KB）** vs 声称 2.48KB（构建时点值微差，同量级零框架属实——`gzip -c web-ui/dist/assets/index-*.js | wc -c`）；8 命令契约 @ `web-ui/src/api.ts:44-80`（get_status/get_cache_stats/clear_cache/get_quota/export_logs/set_sync_root/toggle_pause/open_sync_folder）；daemon `/api/*` **同名同参** @ `crates/cloudmount-daemon/src/webdav.rs:925-963`（get_cache_stats/clear_cache/set_sync_root/open_sync_folder 四命令边缘模式 501=文档化边界 @ webdav.rs:940,942,960,962）；「引擎 Arc+日志环形缓冲」@ `apps/desktop/src/main.rs:12-14,55`（egui 侧等价实现）。**漂移子声称**：桌面壳无「8 命令」IPC 层（`grep -rn 'fn get_status\|…' apps/desktop/src` 零命中）——「Tauri 壳」措辞漂移同 §1.4 AC4 结论。commit 42ab2c9 存在且主题吻合（`git log -1 42ab2c9`：feat(M5) 打磨——缓存可视化/设置页/日志导出+/api REST 双宿主+万级投影基准） |
 | L178-180 | **万级投影基准**（真机）：10,100 条目 618ms（16,330 条/秒）——CfCreatePlaceholders 每父目录一次内核批量调用已足够，无需优化 | **已证实**（基准测试在位且**本机复测**；历史数值=当时时点值） | — | 基准测试 `project_10k_entries_benchmark` @ `crates/cloudmount-vfs/tests/cfapi_hydration.rs:70`；**本机复测（2026-10-16，真实 cldflt）**：`万级投影基准：10100 / 10100 条目，耗时 693.8374ms（14557 条/秒）`（`cargo test -p cloudmount-vfs --test cfapi_hydration project_10k_entries_benchmark -- --nocapture`）——与声称同量级（618ms→693.8ms，测试构建档+机器状态波动）、「批量调用已足够无需优化」结论复现 |
 | L182-184 | **并发水合**（0fb1c4e）：CDN 限速与 API 拆分（8 并发流）——原共用 1 r/s 限速器把多文件读取串行化；实测 4 并行下载 0.31s（修复前 ≥3s） | **已证实**（代码面）；「实测 4 并行 0.31s」**声称·未独立复现** | — | `CDN_RATE_PER_SEC=8.0`/`CDN_BURST=8.0`（8 并发流）@ `crates/cloudmount-driver115/src/client.rs:20-22`；独立 `cdn_limiter`（「勿与 API 共用——并发水合时共用会把多文件读取串行化到 1 r/s」）@ :30-32,56；CDN 直链走宽松限速 @ :174；commit 0fb1c4e 存在且主题吻合（perf(M5) 并发水合——CDN 限速与 API 拆分，实测 4 并行 0.31s） |
 
@@ -204,7 +205,7 @@
 
 | # | 苗头 | 结论 | 文档/路线图字面 | 实际实现 | 证据 | 建议回写位置 |
 |---|---|---|---|---|---|---|
-| ① | 「Tauri 壳」vs egui | **为真（漂移，P1）** | ROADMAP L111/L124「Tauri 壳」两 `[x]` 条目+L176「Tauri 壳 8 命令」；ARCHITECTURE.md:22/:48/:86-87；web-ui/README.md:3,7,18,23；web-ui/src/api.ts:2-4 头注；**根 README.md:89,96,133,151（扩展扫描新增，见 §2.2 NEW-1）**；根 Cargo.toml:12 注释 | `apps/desktop`=egui/eframe 0.31+wgpu+rfd+tray-icon 纯 Rust 壳，无 tauri 依赖无 WebView（Cargo.toml:13-27）；`apps/desktop/src-tauri/` 不存在 | `grep -rn -i tauri apps/desktop/Cargo.toml apps/desktop/src`→零命中；§1.4 AC4 漂移结论专节（三态判定已落字） | ROADMAP 三处+ARCHITECTURE.md 三处+web-ui/README.md+api.ts 头注+根 README 四处+根 Cargo.toml:12 注释——统一改称「桌面壳（egui/eframe）」；或人类裁决代码回归 Tauri（architecture.md 开放问题） |
+| ① | 「Tauri 壳」vs egui | **为真（漂移，P1）** | ROADMAP L111/L124「Tauri 壳」两 `[x]` 条目+L176「Tauri 壳 8 命令」；ARCHITECTURE.md:22/:48/:86-87；web-ui/README.md:7,10,18,23；web-ui/src/api.ts:2-4 头注；**根 README.md:89,96,133,151（扩展扫描新增，见 §2.2 NEW-1）**；根 Cargo.toml:12 注释 | `apps/desktop`=egui/eframe 0.31+wgpu+rfd+tray-icon 纯 Rust 壳，无 tauri 依赖无 WebView（Cargo.toml:13-27）；`apps/desktop/src-tauri/` 不存在 | `grep -rn -i tauri apps/desktop/Cargo.toml apps/desktop/src`→零命中；§1.4 AC4 漂移结论专节（三态判定已落字） | ROADMAP 三处+ARCHITECTURE.md 三处+web-ui/README.md+api.ts 头注+根 README 四处+根 Cargo.toml:12 注释——统一改称「桌面壳（egui/eframe）」；或人类裁决代码回归 Tauri（architecture.md 开放问题） |
 | ② | `apps/shell-macos` 占位 | **非偏离（一致，TP-19）** | ROADMAP L181 `[ ]` macOS File Provider 未勾 | `apps/shell-macos/` 仅 README.md（无代码）；README.md:3「状态：**占位**。计划于 Windows 版（M2）稳定后启动」+「目录（待建）」节 | `ls apps/shell-macos`→仅 README.md；README.md:3,:25 | 无需纠偏（README 与路线图未勾吻合=D3）；启动 M5 时按 README 方案（staticlib+Swift 薄桥）建目录 |
 | ③ | `.gitignore`/`gen_icons.py` src-tauri 残留 | **半真半假（分项判定）** | 苗头声称两处残留 | `.gitignore:13-14` 残留**为真**（`apps/desktop/src-tauri/gen/`、`apps/desktop/src-tauri/target/` 两行）；`scripts/gen_icons.py` 残留**为假**（`grep -i tauri scripts/gen_icons.py` 零命中——desktop-installers intent 已清除） | `.gitignore:13-14`；gen_icons 零命中；守护断言在位 @ `scripts/desktop-installers-yaml.test.sh:697-698`（TP-11 负断言「gen_icons.py 无 src-tauri 字面」） | `.gitignore:13-14` 两行删除（待后续 intent，审核期不动）——归 U4 §3 backlog 归集 |
 | ④ | web-ui 角色变迁未回写 | **为真（漂移，P1）** | ROADMAP L114「与 web-ui api.ts 契约对齐」/L159-162 web-ui 托管/L174 web-ui 完整化——以「双宿主」语境叙述；ARCHITECTURE.md §前端复用「一套 SPA 两种宿主」 | `platform.ts` 已单宿主化（:2-5 头注「桌面端已切换为纯 Rust（egui + wgpu + rfd，apps/desktop），不再使用本 web-ui。本模块保留 fetch 单路径」，hostKind 恒 "web"）；唯一宿主=`cloudmountd --serve`（webdav.rs:7-14） | `web-ui/src/platform.ts:2-5`；api.ts 契约仍为两宿主措辞（:2-4「桌面 Tauri 壳与边缘 cloudmountd 都要实现」） | web-ui/README.md+api.ts 头注改「边缘单宿主」；ROADMAP L114 的「契约对齐」改指 daemon `/api/*`（webdav.rs:925-963）；ARCHITECTURE §前端复用重写（=苗头①同批回写） |
@@ -254,43 +255,43 @@
 
 | # | 归集条目 | 来源 intent（含行锚） | 去重 | 分类 | 关联开放项/备注 |
 |---|---|---|---|---|---|
-| 1 | ci.yml 增 actionlint 步骤（语法拦截前移） | macos-release(runbook:29)+installer-packages(runbook:31)+desktop-installers(沿用，runbook:33) | **〔D:3源〕** | CI | 消 §4.1 缺口 3；retro 三处同诉（macos-release retro:31、installer retro:31） |
-| 2 | Cargo.toml repository 元数据修正（zhonghaoxi→tintac-cn） | installer-packages(runbook:37)+desktop-installers(沿用，runbook:33) | **〔D:2源〕** | 文档 | =NEW-5/D5（根 Cargo.toml:20 错侧，§2.2） |
+| 1 | ci.yml 增 actionlint 步骤（语法拦截前移） | macos-release(runbook:29)+installer-packages(runbook:32)+desktop-installers(沿用，runbook:33) | **〔D:3源〕** | CI | 消 §4.1 缺口 3；retro 三处同诉（macos-release retro:31、installer retro:32、desktop retro:30） |
+| 2 | Cargo.toml repository 元数据修正（zhonghaoxi→tintac-cn） | installer-packages(runbook:38)+desktop-installers(沿用，runbook:33) | **〔D:2源〕** | 文档 | =NEW-5/D5（根 Cargo.toml:20 错侧，§2.2） |
 | 3 | check-macos.yml `permissions:` 显式化（最小权限加固） | macos-release(runbook:30) | — | CI | architecture.md CI/CD 权限节佐证（release.yml 六 build job 同类缺口可一并考虑） |
 | 4 | 断言脚本 YAML 解析精度（job_block 行启发式→真解析） | macos-release(runbook:31) | — | CI | — |
 | 5 | package-macos.sh tar 半成品清理（临时名成功后 mv） | macos-release(runbook:32) | — | 发布 | — |
 | 6 | `.gitattributes` 行尾统一（release.yml CRLF/check-macos.yml LF） | macos-release(runbook:33) | — | CI | retro 优先项（macos-release retro:31） |
-| 7 | state.json U2 计数口径勘误注记（「MSI 侧 27 条」为时点值） | installer-packages(runbook:32)+desktop-installers(沿用) | **〔D:2源〕** | 文档 | 记录性 |
-| 8 | decisions「移除 ICE80」措辞勘误注记 | installer-packages(runbook:33) | — | 文档 | 记录性 |
-| 9 | T15 注入自校验正分支在 actionlint 可用环境补跑留痕 | installer-packages(runbook:34) | — | CI | 与条目 1 联动（actionlint 可用后自然可做） |
-| 10 | .wxs 无 UIRef 知会（双击安装走缺省 basic UI） | installer-packages(runbook:35) | — | 发布 | 知会性质 |
-| 11 | release 下载步注释「只取 binaries」语义漂移修正 | installer-packages(runbook:36) | — | 文档 | — |
-| 12 | wxs Package Description/Comments 两件套描述（ARP 元数据欠准） | desktop-installers(runbook:31 备案①) | — | 发布 | 需新授权（既有字面守护在案） |
-| 13 | HKCU KeyPath 多用户卸载孤儿（ICE43 经典代价） | desktop-installers(runbook:31 备案②) | — | 发布 | 决策留痕，记录性 |
-| 14 | dmg 脚本不校验二进制架构 | desktop-installers(runbook:31 备案③) | — | 发布 | — |
-| 15 | TP-23 无显式承接载体（建议补埋点） | desktop-installers(runbook:31 备案④) | — | 测试 | — |
-| 16 | T4 修订断言①防空真依赖步骤名字面（结构脆弱性） | desktop-installers(runbook:31 备案⑤) | — | CI | — |
-| 17 | desktop 断言计数环境相关口径（112/113）注记进 README/脚本头注 | desktop-installers(runbook:31 备案⑥) | — | 文档 | §2.3 已复证该口径 |
-| 18 | gen_icons 幂等跨 zlib 版本边界（注记） | desktop-installers(runbook:31 备案⑦) | — | 文档 | — |
-| 19 | TP-12 build.rs 'winres' 子串宽松（现态无害） | desktop-installers(runbook:31 备案⑧) | — | 测试 | 记录性 |
-| 20 | FFI GetWindowLongPtrW 32 位约束注释留痕 | desktop-installers(runbook:31 备案⑨) | — | 文档 | 记录性 |
-| 21 | units/2.md 契约字面补伪隐藏偏差指针 | desktop-installers(runbook:31 备案⑩) | — | 文档 | 已完结 intent 工件——按「不改原始工件」原则经新 intent 处理或豁免 |
-| 22 | .gitignore L13-14 src-tauri 死路径残留清理 | desktop-installers(runbook:31 备案⑪) | — | 文档 | =D2/§2.1③（TP-15 复证为真半边）；并入 §5 B1 |
+| 7 | state.json U2 计数口径勘误注记（「MSI 侧 27 条」为时点值） | installer-packages(runbook:33)+desktop-installers(沿用) | **〔D:2源〕** | 文档 | 记录性 |
+| 8 | decisions「移除 ICE80」措辞勘误注记 | installer-packages(runbook:34) | — | 文档 | 记录性 |
+| 9 | T15 注入自校验正分支在 actionlint 可用环境补跑留痕 | installer-packages(runbook:35) | — | CI | 与条目 1 联动（actionlint 可用后自然可做） |
+| 10 | .wxs 无 UIRef 知会（双击安装走缺省 basic UI） | installer-packages(runbook:36) | — | 发布 | 知会性质 |
+| 11 | release 下载步注释「只取 binaries」语义漂移修正 | installer-packages(runbook:37) | — | 文档 | — |
+| 12 | wxs Package Description/Comments 两件套描述（ARP 元数据欠准） | desktop-installers(runbook:32 备案①) | — | 发布 | 需新授权（既有字面守护在案） |
+| 13 | HKCU KeyPath 多用户卸载孤儿（ICE43 经典代价） | desktop-installers(runbook:32 备案②) | — | 发布 | 决策留痕，记录性 |
+| 14 | dmg 脚本不校验二进制架构 | desktop-installers(runbook:32 备案③) | — | 发布 | — |
+| 15 | TP-23 无显式承接载体（建议补埋点） | desktop-installers(runbook:32 备案④) | — | 测试 | — |
+| 16 | T4 修订断言①防空真依赖步骤名字面（结构脆弱性） | desktop-installers(runbook:32 备案⑤) | — | CI | — |
+| 17 | desktop 断言计数环境相关口径（112/113）注记进 README/脚本头注 | desktop-installers(runbook:32 备案⑥) | — | 文档 | §2.3 已复证该口径 |
+| 18 | gen_icons 幂等跨 zlib 版本边界（注记） | desktop-installers(runbook:32 备案⑦) | — | 文档 | — |
+| 19 | TP-12 build.rs 'winres' 子串宽松（现态无害） | desktop-installers(runbook:32 备案⑧) | — | 测试 | 记录性 |
+| 20 | FFI GetWindowLongPtrW 32 位约束注释留痕 | desktop-installers(runbook:32 备案⑨) | — | 文档 | 记录性 |
+| 21 | units/2.md 契约字面补伪隐藏偏差指针 | desktop-installers(runbook:32 备案⑩) | — | 文档 | 已完结 intent 工件——按「不改原始工件」原则经新 intent 处理或豁免 |
+| 22 | .gitignore L13-14 src-tauri 死路径残留清理 | desktop-installers(runbook:32 备案⑪) | — | 文档 | =D2/§2.1③（TP-15 复证为真半边）；并入 §5 B1 |
 | 23 | **CI 补 desktop fmt/clippy 步骤**（终验口径缺口流水线上游补死） | desktop-installers(**retro:31——唯一未沉淀进 runbook 的新可执行候选**) | — | CI | §4.1 缺口 1/2 的上游消解；体积小 |
 | 24 | hash.rs:157 per-run 唯一 temp 目录（根治间歇 flaky 头号嫌疑） | audit-p0p1-fixes(runbook:54+retro:31 优先序) | — | 代码 | 31+5 跑零复现的 flaky 观察（runbook:54） |
 | 25 | exec.rs 错误路径 dir_creating 条目残留 | audit-p0p1-fixes(runbook:55) | — | 代码 | — |
 | 26 | webdav.rs:513 冗余条件 | audit-p0p1-fixes(runbook:55) | — | 代码 | — |
 | 27 | cookie_mock/mock_api ~60 行平行实现 | audit-p0p1-fixes(runbook:55) | — | 代码（重构） | — |
 | 28 | cookie.rs:584 initupload 解密明文日志收口为 status/pickcode | audit-p0p1-fixes(runbook:55+retro:31 优先序) | — | 代码（安全卫生） | F-04 脱敏不变量延伸 |
-| 29 | 观察项：macos-15 runner 退役公告跟踪（退役时三源同步改 runs-on+断言） | macos-release(观察1)+installer-packages(观察2)+desktop-installers(观察4) | **〔D:3源〕** | CI | 与 §4.2 边界 5 联动 |
-| 30 | 观察项：WiX 3.14.1.20250415 废弃公告跟踪（升 v4/v5 需 dotnet SDK 重写 .wxs） | installer-packages(观察1)+desktop-installers(观察3) | **〔D:2源〕** | 发布 | 与 §4.2 边界 4 联动 |
-| 31 | 观察项：安装包/dmg/托盘真机核验触发（首个含安装包 tag 后 T17-T21/T14-T16/release-checklist 人工清单） | installer-packages(观察3)+desktop-installers(特别项 c/d+观察2)+macos-release(retro:33) | **〔D:3源〕** | 发布 | 与 §5 B4 真机实测 intent 天然合流 |
+| 29 | 观察项：macos-15 runner 退役公告跟踪（退役时三源同步改 runs-on+断言） | macos-release(runbook:24)+installer-packages(runbook:27)+desktop-installers(runbook:28) | **〔D:3源〕** | CI | 与 §4.2 边界 5 联动 |
+| 30 | 观察项：WiX 3.14.1.20250415 废弃公告跟踪（升 v4/v5 需 dotnet SDK 重写 .wxs） | installer-packages(runbook:26)+desktop-installers(runbook:27) | **〔D:2源〕** | 发布 | 与 §4.2 边界 4 联动 |
+| 31 | 观察项：安装包/dmg/托盘真机核验触发（首个含安装包 tag 后 T17-T21/T14-T16/release-checklist 人工清单） | installer-packages(runbook:28)+desktop-installers(runbook:18 特别项 c/d+runbook:26)+macos-release(retro:32) | **〔D:3源〕** | 发布 | 与 §5 B4 真机实测 intent 天然合流 |
 | 32 | 观察项：间歇 flaky CI 现身时按失败测试名定位 | audit-p0p1-fixes(runbook:54) | — | 测试 | 条目 24 的运行时伴生观察 |
 | 33 | 环境备注：`cargo test -p cloudmount-sync`（无 features）编译失败为既有状态（需 `--features testutil`） | audit-p0p1-fixes(runbook:56) | — | 测试 | test-strategy M9 口径一致；可作条目 24/27 同批小修（加门控） |
-| 34 | retro 候选：CI release workflow tag 三平台构建打包自动化 | audit-p0p1-fixes(retro:33) | — | — | **已被后续 intent 落地消解**（release.yml 九 job 现状，§4.1/TP-16）——标注，不再排队 |
-| 35 | retro 候选：伪隐藏 mac 形态二选一（Dock 留存 vs LSUIElement）随真机实测裁决 | desktop-installers(retro:35+runbook 观察2) | — | 代码 | 并入条目 31 真机核验批 |
-| 36 | retro 候选：gen_icons 扩尺寸集沿 stdlib 方案扩（幂等边界注记随行） | desktop-installers(retro:37) | — | 代码 | 条件性（仅当需要 256/512 组） |
-| 37 | retro 候选：AskUserQuestion 超时降级为对话式一句话裁决 | macos-release retro:35+installer-packages retro:35 | **〔D:2源〕** | — | 编排流程习惯（非本仓工程项），记录不入工程队列 |
+| 34 | retro 候选：CI release workflow tag 三平台构建打包自动化 | audit-p0p1-fixes(retro:32) | — | — | **已被后续 intent 落地消解**（release.yml 九 job 现状，§4.1/TP-16）——标注，不再排队 |
+| 35 | retro 候选：伪隐藏 mac 形态二选一（Dock 留存 vs LSUIElement）随真机实测裁决 | desktop-installers(retro:32+runbook:26) | — | 代码 | 并入条目 31 真机核验批 |
+| 36 | retro 候选：gen_icons 扩尺寸集沿 stdlib 方案扩（幂等边界注记随行） | desktop-installers(retro:33) | — | 代码 | 条件性（仅当需要 256/512 组） |
+| 37 | retro 候选：AskUserQuestion 超时降级为对话式一句话裁决 | macos-release(retro:33)+installer-packages(retro:34) | **〔D:2源〕** | — | 编排流程习惯（非本仓工程项），记录不入工程队列 |
 
 ### §3.3 归集完整性与去重自检（TP-21/TP-22 判据落点）
 
@@ -331,7 +332,7 @@
 4. （非缺口佐证）webdav mock 集成腿 CI 有覆盖：ci.yml `rust-mock-features` job（:39）三 OS `--features cloudmount-daemon/mock`——U2 补跑的 12 项 webdav 测试在 CI linux/win/mac 腿执行。
 5. （非缺口佐证）check-macos 仅手动触发=刻意低频（check 腿与 ci.yml arm-cross/release mac 腿互补，非缺覆盖）。
 
-### §4.2 已知边界七项盘点（AC13，逐项三栏）
+### §4.2 已知边界七项盘点（AC13，逐项三栏——**本节=TP-27 执行载体**〔AC13 主载体，gate1 r1 新增 TP；第 1 项主证=TP-06/§1.3，第 7 项含 AC6 TLS 口径收敛〕）
 
 | # | 边界 | 当前状态 | 残留风险 | 是否被后续里程碑消解 |
 |---|---|---|---|---|
@@ -339,7 +340,7 @@
 | 2 | mac 产物无 Developer ID 签名/公证（arm64 链接器 ad-hoc）；Windows MSI 无 Authenticode | **属实**：release body 三行明示（mac dmg 行 @ release.yml:263「未签名」、:265「mac 产物无 Developer ID 签名/公证（arm64…ad-hoc）」、:266「Windows MSI 无 Authenticode」、:267「mac pkg 无…」）——流水线无任何签名步（grep codesign/sign 仅有 ad-hoc 说明） | 首启 Gatekeeper/SmartScreen 拦截（body 附解除指引：右键→打开/`xattr -cr`/更多信息→仍要运行）；企业分发不可用 | **未消解**（无后续里程碑声称签名；需付费 Apple Developer 账号+EV 证书——外部依赖，macos-release/installer runbook backlog 域） |
 | 3 | dmg aarch64-only | **属实**：`installer-dmg-macos` 仅 `--target aarch64-apple-darwin`（release.yml:210-211「aarch64 原生」）+「aarch64-only…Intel mac 无 desktop 交付为已知取舍」注释 @ :200 + body「aarch64-only」@ :263 | Intel mac 无 desktop 渠道（可用 `cloudmount-darwin-aarch64` CLI tar.gz 非桌面壳） | **未消解**（显式取舍，未列入任何开放项——如需 x86_64 dmg 应归集为新 backlog 项） |
 | 4 | WiX 硬锁 3.14.1.20250415 | **属实**：`choco install wixtoolset --version 3.14.1.20250415` 硬锁+candle 缺失即 `exit 1`（release.yml:145-147「版本 3.14.1.20250415 硬锁」） | WiX v3 处于维护模式；锁死版本免疫上游破坏但累积升级债（v3→v4 迁移为大改） | **未消解**（installer-packages backlog 域；属刻意锁定非疏漏） |
-| 5 | `macos-15` runner 依赖 | **属实**：check-macos.yml:13+release.yml:72,166 三处 `runs-on: macos-15`（「pin macos-15（arm64）单 runner 双 target」裁决注释 @ :79,check-macos.yml:20） | GitHub 淘汰旧 runner 镜像时 CI 突然失败；arm64-only runner 决定 mac 产物架构面（与边界 3 联动） | **未消解**（gate1 Q1 刻意 pin；升级 runner=有意识变更） |
+| 5 | `macos-15` runner 依赖 | **属实**：check-macos.yml:13+release.yml:72,166,205 四处 `runs-on: macos-15`（「pin macos-15（arm64）单 runner 双 target」裁决注释 @ :79,check-macos.yml:20） | GitHub 淘汰旧 runner 镜像时 CI 突然失败；arm64-only runner 决定 mac 产物架构面（与边界 3 联动） | **未消解**（gate1 Q1 刻意 pin；升级 runner=有意识变更） |
 | 6 | Cookie 通道条款风险 | **属实且已有防护**：协议条款引用 @ cloudmount-auth/src/lib.rs:5-9（3.2.3(4)/4.2(11)/5.4+挤掉其它设备会话）；CLI 知情同意**四条风险逐项**+默认关闭+`yes` 显式确认 @ cli main.rs:328-352；独立容器物理隔离（store.rs:14-28）；切换常驻提示（router.rs:120-131「补充通道有协议风险，UI 应常驻提示」） | 账号冻结/限速/协议随时变更失效（风险②④）；无官方追索 | **未消解**（设计上以「官方通道优先+Cookie 兜底+显式知情同意」控制；该通道本身即 M3 交付物，风险为其已知属性——归集 §3 的 L154 未勾项延续） |
 | 7 | WebDAV TLS 口径收敛（AC13「无内置 TLS/无速率限制配置」vs M4「rustls 可选」） | **收敛为一句**：WebDAV v1 **默认 HTTP（LAN 场景），TLS 为可选非默认**——`--tls-cert/--tls-key` 成对传入即 rustls HTTPS（main.rs:122-128,611；「自签证书 curl 实测」为手测声称·未独立复现）；速率限制**无用户配置面**（API 1 r/s+CDN 8 r/s 内置拆分 @ client.rs:20-22,55-56，CLI/daemon 无限速参数）。AC13 原表述「无内置 TLS」按此句理解；「TLS 见后续」类过时叙述=§2.2 NEW-2/NEW-3 | 缺省 HTTP 明文+Basic 认证缺省关闭（main.rs:114「缺省无认证，仅建议内网」）——公网直暴露风险由部署文档对冲（docs/edge.md 安全节+Tailscale 建议） | **已被 M4 消解**（TLS 可选能力落地；「默认关」为设计取向非缺口） |
 
@@ -382,7 +383,7 @@ B1（文档纠偏）────────────────────
 B2（资质申请）──→ [外部审核 7+7 工作日] ──→ B4（AppID 实测+联调+RSS）
 B3（backlog 清理）──────────────────────→ 独立并行；其 CI 产物为 B4-B7 提供门禁
 B5（Cookie 独有能力）──────────────────→ 独立（M3 已闭环）
-B6（M4 实测+收敛）←── 裁决（edge-packaging 主从）──┘
+B6（M4 实测+收敛）←── 前置裁决：edge-packaging 主从（人类）
 B7（macOS File Provider）←── 外部（账号/真机）+ 裁决（core ABI 冻结）
 B8（MSIX）←── 裁决（Store 渠道）
 长期 minifilter ── 独立轨道（不阻塞任何产品里程碑）
@@ -492,7 +493,7 @@ B8（MSIX）←── 裁决（Store 渠道）
 
 ### TP-11（M5 全量，L174/L178/L182）
 
-- web-ui 8 命令契约 → `web-ui/src/api.ts:44-80`（恰 8 个）；daemon 同名同参 → `webdav.rs:925-963`（8 命令，2 个边缘 501 边界）；web-ui 完整化 → `main.ts:36,112-113,121-134,189-194,227`；gzip 现值 → `gzip -c web-ui/dist/assets/index-*.js | wc -c` = 2345（≈2.29KB，声称 2.48KB 为时点值）；egui 侧 Arc/环形缓冲 → `apps/desktop/src/main.rs:12-14,55`；「壳 8 命令」IPC 层 → grep 零命中（漂移子声称，随 AC4 结论）。
+- web-ui 8 命令契约 → `web-ui/src/api.ts:44-80`（恰 8 个）；daemon 同名同参 → `webdav.rs:925-963`（8 命令，4 个边缘 501 边界 @ :940,942,960,962）；web-ui 完整化 → `main.ts:36,112-113,121-134,189-194,227`；gzip 现值 → `gzip -c web-ui/dist/assets/index-*.js | wc -c` = 2345（≈2.29KB，声称 2.48KB 为时点值）；egui 侧 Arc/环形缓冲 → `apps/desktop/src/main.rs:12-14,55`；「壳 8 命令」IPC 层 → grep 零命中（漂移子声称，随 AC4 结论）。
 - 万级投影基准 → `cfapi_hydration.rs:70`（测试）；**本机复测** `cargo test -p cloudmount-vfs --test cfapi_hydration project_10k_entries_benchmark -- --nocapture` → `万级投影基准：10100 / 10100 条目，耗时 693.8374ms（14557 条/秒）`（与声称 618ms/16,330 同量级，结论复现）。
 - 并发水合 → `client.rs:20-22,30-32,56,174`（CDN 8.0 r/s 拆分）；commit 存在性 → `git log -1 42ab2c9`（feat(M5) 打磨…）、`git log -1 0fb1c4e`（perf(M5) 并发水合——8 并发流）。
 - 真机声称（4 并行 0.31s/内存 23.8MB）→ **声称·未独立复现**（0.31s 有 commit message 留痕；无自动化基准）。
@@ -535,7 +536,7 @@ B8（MSIX）←── 裁决（Store 渠道）
 
 ### TP-20（偏离扫描·web-ui 角色变迁回写）
 
-- `platform.ts:2-5` 头注（单宿主化自证「桌面端已切换为纯 Rust…不再使用本 web-ui」）vs `api.ts:2-4` 头注（仍双宿主措辞「桌面 Tauri 壳与边缘 cloudmountd 都要实现」）+web-ui/README.md:3,7,18,23 → **角色变迁未回写=真**（§2.1④）；ROADMAP 对 web-ui 的「M4 边缘专属」定位未反映 daemon `/api/*` 双宿主现状（webdav.rs:925-963 实锚）。
+- `platform.ts:2-5` 头注（单宿主化自证「桌面端已切换为纯 Rust…不再使用本 web-ui」）vs `api.ts:2-4` 头注（仍双宿主措辞「桌面 Tauri 壳与边缘 cloudmountd 都要实现」）+web-ui/README.md:7,10,18,23 → **角色变迁未回写=真**（§2.1④）；ROADMAP 对 web-ui 的「M4 边缘专属」定位未反映 daemon `/api/*` 双宿主现状（webdav.rs:925-963 实锚）。
 
 ### TP-24（文档互相一致性/偏离扩展扫描）
 
@@ -543,6 +544,33 @@ B8（MSIX）←── 裁决（Store 渠道）
 - edge/packaging 分叉复证 → edge/systemd:14,19（内联 listen+256M）vs packaging/systemd:20,22,27（EnvironmentFile+$LM_ARGS+64M）；edge/Dockerfile:5 三平台宣称 vs packaging/Dockerfile:4 双平台+release.yml:293-297 matrix `linux/amd64`/`linux/arm64`（NEW-4）。
 - workspace 结构 → 根 Cargo.toml:3-13 members 七 crate+exclude 一致；crate 清单 vs `crates/` 目录一致。
 - stale Tauri 全量面三锚+README 四处 → 见 TP-18；新发现 NEW-1..5 全录 §2.2；除 NEW-1..5 外未发现其它新增偏离（§2.3 显式声明）。
+
+### TP-21（归集完整性·四 runbook+retro 逐条对照——引用 §3.2 既有证据，不重执行）
+
+- 证据主体=§3.2 表 37 行（每行「来源 intent（含行锚）」列即溯源锚）；原始输入面实测锚：audit-p0p1-fixes runbook:52-56（P2 四项 @ :55、flaky 观察 @ :54、环境备注 @ :56）、macos-release runbook:27-33（P2 五项 @ :29-33）、installer-packages runbook:30-38（P2 七项 @ :32-38）、desktop-installers runbook:30-33（备案十一项 @ :32+沿用三项 @ :33）；retro「下个 bolt」：audit-p0p1 retro:31-34、macos-release retro:31-33、installer-packages retro:32-34、desktop-installers retro:30-33（实文件 `grep -n` 实测——gate2 M4 订正后口径）。
+- 「过程学习节不入」约束执行：四 retro 的过程学习节（什么有效/没用/学到）未产生归集行；retro 候选仅 4 行入表（条目 23/34/35/36/37 中 34=已消解标注、37=非工程项）。
+
+### TP-22（归集去重正确——引用 §3.2 去重标记+§3.3，不重执行）
+
+- 证据主体=§3.2 六组 **〔D:n源〕** 标记（条目 1〔D:3源〕/2〔D:2源〕/7〔D:2源〕/29〔D:3源〕/30〔D:2源〕/31〔D:3源〕）+§3.3 去重算术（30 条 P2 原始−4=26 行；11 条观察−5=6 行；retro 独有 5 行=37）。
+- 反例核对（无误并）：actionlint 门禁（条目 1）与断言脚本解析精度（条目 4）分列；真机核验（条目 31）与 LSUIElement 形态裁决（条目 35）分列。
+
+### TP-23（开放项集合完整性——引用 §3.1 既有证据，不重执行）
+
+- 证据主体=§3.1 表 12 行（ROADMAP 未勾 7 处全覆盖：L8 外部阻塞链源头标注入表 @ 首行、L16/L35/L36/L133/L154/L181 各行+长期 minifilter 行+本期新增 4 行）。
+- 抽取命令（可重跑）：`grep -n '\- \[ \]' docs/ROADMAP.md` → L8/L16/L35/L36/L133/L154/L181 七行——与 §3.1 前七行一一对应，无缺漏（尤其 L8 在列）。
+
+### TP-25（排序「不发明需求」守护——引用 §5.1 出处列，不重执行）
+
+- 证据主体=§5.1 批次表「方向（出处）」列：B1←§2.1①④+§2.2 NEW-1..3/NEW-5+§3.2 条目 2/22；B2←ROADMAP.md:8；B3←§3.2 条目 1/3/6/9/16/23/24/25/26/28/33；B4←ROADMAP.md:16,35,36；B5←ROADMAP.md:154；B6←§1.6 状态标注+NEW-4；B7←ROADMAP.md:181；B8←ROADMAP.md:133；长期←ROADMAP.md:186-194——每项均回溯到 ROADMAP 未勾项/验收行或 §3 归集条目，零新发明能力。
+
+### TP-26（排序依据三据充分性——引用 §5.1/§5.2，不重执行）
+
+- 证据主体=§5.1 六列表（每行含依赖/风险/价值三据，B2 行含「外部阻塞链源头优先」论证：唯一外部项、7+7 工作日、启动越早解锁越早）+§5.2 依赖图与 ROADMAP.md:196-201 里程碑依赖自洽说明（未绕开未完成前置）。
+
+### TP-27（AC13 已知边界七项批量——执行载体=§4.2，不重执行）
+
+- 证据主体=§4.2 七项三栏表（本节即其执行载体）：①同秒漏检→引 TP-06 结论（§1.3 L49-51，不重复执行——TP-27 行预注）；②未签名声明→release.yml body :263-267 字面+无签名步；③dmg aarch64-only→release.yml:200,210-211+body :263；④WiX 硬锁→release.yml:145-147；⑤macos-15 runner→check-macos.yml:13+release.yml:72,166,205 四处；⑥Cookie 条款→auth/lib.rs:5-9+cli 四条风险（§1.5 交叉）；⑦TLS 口径收敛→§4.2 第 7 项「收敛为一句」+§2.2 NEW-2/NEW-3。每条含当前状态/残留风险/是否消解三栏结论——TP-27 通过判据全满足。
 
 ---
 
@@ -567,7 +595,8 @@ B8（MSIX）←── 裁决（Store 渠道）
 | AC4 | §1.4（M2 12 行表+「AC4 Tauri 壳漂移结论」专节落字） | AC11 | §3.2+§3.3（37 条归集+去重自检） |
 | AC5 | §1.5（M3 表+「M3 状态标注」节） | AC12 | §4.1（现状+CI 缺口清单 3 条实锚） |
 | AC6 | §1.6（M4 表+「M4 验收指标状态标注」节） | AC13 | §4.2（七项三栏，含 TLS 收敛句） |
-| AC7 | §1.7（M5 表+「M5 状态标注」节） | AC14 | §5.1/§5.2（六列批次表+依赖图）；AC15 | 本节 |
+| AC7 | §1.7（M5 表+「M5 状态标注」节） | AC14 | §5.1/§5.2（六列批次表+依赖图） |
+| — | — | AC15 | §7（本节） |
 
 **③ 每条非「已证实」判定与每条 P0/P1 发现均有 §6 可解析证据行 —— 通过。**
 非「已证实」判定共 2 条（L111/L124 漂移）→ §6/TP-18（grep tauri 命令+命中行清单：ROADMAP:111,124,176/ARCHITECTURE:22,48,86-87/Cargo.toml:12/README:89,96,133,151+`ls apps/desktop` 反证）。P0=0；P1 共 3 条（L111、L124、NEW-1）→ L111/L124 同 TP-18 证据行；NEW-1 → §6/TP-18+TP-24（README 四行锚+`ls apps/desktop` 无 src-tauri）。P2 九条均已在 §1/§2 行内带 `文件:行` 证据（AC15③ 对 P2 无强制 §6 行要求，事实覆盖）。
