@@ -114,3 +114,38 @@ GATE-APPROVED gate1 2026-10-16
 - 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；开始串行派发 U1→U2→U3→U4→U5。
 
 PLAN-CONFIRMED 2026-10-16
+
+---
+
+2026-10-16 U1 红阶段完成并置锁（编排者核收）：
+
+- 交付：`scripts/desktop-installers-yaml.test.sh` @ 2a16a3a（831 行，仅此一文件）；**TP-01..TP-24 静态面合计 111 断言，红态 58 passed / 53 failed**（53 红全为 desktop 面断言——被测对象缺失/零接线即 FAIL 防空真；58 绿为既有护栏现状绿）。
+- 落位口径（dev 处置留痕）：TP-13..TP-17 集成面归 U3（本阶段仅结构子集）；TP-19..TP-23 E2E/人工面头注注明非本脚本面；TP-18 结构子集由 needs/upload 断言承载；5 项契约歧义处置——①TP-04 32 位负断言改 Id 定界（「先滤 64Folder」实测假红：现行 wxs 注释含裸字面）②红阶段钉死字面（installer-dmg-macos 新 job 名/cloudmount-desktop.dmg/--manifest-path 构建形态/菜单 id "show"/"quit"/图标产物名沿 gen_icons 基线）③TP-03 快照对照以字面锚定集承载（U5 另做全量基线比对）④TP-09 采全文件计数界定（严格强于函数区段界定）⑤追加步次序=行号比较断言。
+- TDD 锁置位 @ 8d838a9：tddLock=true，tddLockPaths=["scripts/desktop-installers-yaml.test.sh"]（并集只增）；U1 完成判据（红提交+锁）达成 → unitStatus.U1=completed。
+- 回归证据：四既有锁定脚本全绿（零触碰）；`cargo test --workspace` 277 passed/0 failed（与基线逐数一致）。
+
+---
+
+2026-10-16 U2 应用层完成核收（编排者）：
+- 提交：c8521cc（U2-icons：gen_icons 重写+四件套入仓）/ 3bbbec3（U2-winres：build.rs+winresource）/ 533e456（U2-tray：main.rs 托盘接线）；改动面 10 文件全在授权范围（scripts/gen_icons.py + apps/desktop/{Cargo.toml,Cargo.lock,build.rs,src/main.rs,icons/×5}）。
+- **首日验证 4 项结论**（units/2.md 开工执行要求，留痕于提交信息+此处）：
+  ① tray-icon 0.21+eframe 0.31 集成形态=**可行**：初始化落点=首次 update()（主线程+事件循环已运行，macOS 主线程硬约束满足；Windows 同事件循环线程）；菜单事件=update() 内全局 receiver 轮询（`MenuEvent::receiver().try_recv()`，帧节奏驱动，与既有 1s request_repaint_after 兼容）。
+  ② winres 构建=**定稿选 winresource**（winres 0.1.12 停更于 2021-09-28；winresource 0.1.34 @ 2026-10-12 活跃维护、WindowsResource API 兼容）；build.rs 目标门控 CARGO_CFG_TARGET_OS=windows（mac 跳过）；嵌入实证=exe RT_GROUP_ICON id=1+RT_ICON×4（多帧 16/32/48/256）。
+  ③ icns 生成链=**定稿 stdlib 手写 PNG-in-ICNS 预生成入仓**（icon.icns=ic11 32+ic07 128+ic08 256；免 CI iconutil 依赖，.app bundle 直接携带）。
+  ④ CancelClose API=**可行**（egui 0.31.1 `ViewportInfo::close_requested()`+`ViewportCommand::CancelClose`，源码核实+实测），**未触发降级**；但配套实测发现 `Visible(false)` 真隐藏两缺陷（见偏差条目）——落码形态修订为「CancelClose+伪隐藏」。
+- **偏差留痕（物理形态；未触发连锁锚修订）**：units/2.md 契约字面「CancelClose+Visible(false)」，实测后改「CancelClose+伪隐藏（离屏 OuterPosition(-32000,-32000)+WS_EX_TOOLWINDOW 去任务栏/Alt-Tab，Win32 FFI 直连 user32，零新 crate）」。两项实测缺陷（3 探针+winit/eframe 源码佐证）：① `Visible(false)` 后窗口不再收 WM_PAINT（winit 源码注释：WM_PAINT 投递要求窗口可见）→ update() 停帧，菜单轮询/恢复失联；② 专用线程轮询绕开①后，重绘到期 eframe 事件循环进入 ControlFlow::Poll 且 egui 重绘请求在无帧期被抑制→实测隐藏态 CPU 5.016s/5s（100% 单核自旋）。伪隐藏保持 WS_VISIBLE→帧流不断（实测隐藏 5s CPU 0.016s）、用户不可见（离屏+去任务栏）、恢复=位置复位+去 TOOLWINDOW+Focus。**语义与 AC2④/TP-21 完全一致**（关闭=隐藏到托盘/托盘常驻/托盘「退出」真退）——未触发降级（「关闭即真退出」），故 AC2④/TP-21 字面连锁锚修订未激活：prd AC2④ 钉死的 CancelClose 落码形态保留成立，test-strategy TP-21「按首日验证④落定语义核验」即按本条落定；物理形态差异备案本条目供 gate2 核验。
+- **核收证据（编排者独立复跑）**：desktop-installers-yaml.test.sh **73/111**（红 58→73：应用层 +15 全转绿——TP-06×1/TP-09×7/TP-11×5/TP-12 build.rs×2；剩余 38 红全为 MSI/dmg 面：TP-01×16/TP-02×6/TP-04+13 wxs×1/TP-05×5/TP-07×6/TP-12 wxs+dmg×4，归 U3/U4）；`cargo test --workspace` **277 passed/0 failed**（与 testBaseline 逐数一致）；`cd apps/desktop && cargo build --release` 零警告（8.1MB exe 在位）；四既有锁定脚本回归全绿（installers-yaml 72/72 等）；gen_icons 幂等（二次运行 5 产物全 unchanged）；全仓 `src-tauri` 引用清零。
+- **本地冒烟（自动化部分）**：启动→窗口可见→WM_CLOSE→窗口离屏(-32000)+TOOLWINDOW 位置位+进程存活（关闭=隐藏到托盘）；隐藏 5s CPU 0.016s；帧流保持+恢复原语（位置复位/去 TOOLWINDOW）实证有效。**不可自动化如实标注**：真实托盘图标点击（「显示主窗口」/「退出」）——托盘图标非可编程 HWND，待人工冒烟（TP-20/21 真机项）。
+- **遗留观察**：a) macOS 无 WS_EX_TOOLWINDOW 等效步→伪隐藏后 Dock 图标留存（已知差异，待真机核验/后续处理）；b) raw-window-handle 0.6 直声明（原为既存传递依赖，零新供应链面）；c) 本机 OneDrive 目录 R 属性触发 autocfg 严格可写误报（清属性后过——环境注记，非代码问题，CI 不受影响）。
+- unitStatus.U2=completed；下一步 U3（含 T4 授权锁修订——解锁窗口随 U3 派发前开启，见下条）。
+
+---
+
+2026-10-16 UNLOCK-TESTS（T4 授权锁修订窗口开启；授权依据=gate1 B1 人类裁决，逐字复引）：
+- 人类原话（2026-10-16 Gate#1 首次打回，AskUserQuestion 逐字）：问「B1 裁决：锁定断言 installers-yaml.test.sh T4 两条负断言（无 desktop 字面）的处置：」答「**授权锁修订（推荐）**」。
+- 裁决落点复引（同日 Gate#1 条目裁决落点 3，逐字）：「沿 T16 先例授权修订 installers-yaml.test.sh T4 两条负断言字面（「不含 desktop 字面」→ 精确化「daemon/cli 铺放组件除外」或等价形式）；修订时于 decisions.md 留痕授权依据（本条目），修订后重锁。」
+- 解锁窗口范围：`scripts/installers-yaml.test.sh` **仅 T4 两条负断言**（L259-264 一带，「无 desktop 字面」→ 精确化等价形式）；其余断言零触碰；修订后本文件重归零删改基线（TP-03 口径）。
+- 机制注记：该文件之锁属上 intent（installer-packages，phase=done）；本 intent（desktop-installers）为活跃 intent——override 记于本 intent state.json：`tddLockOverride={by:"human", at:"2026-10-16", reason:"gate1 B1 裁决授权的 T4 两条负断言字面收窄（首次打回逐字『授权锁修订（推荐）』；裁决落点 3 沿 T16 先例）」}`。修订完成后清除 override 并留 LOCK-TESTS 条目（义务：U3 核收时执行，不得拖延——长期不重锁等于契约裸奔）。
+- 附带说明：guard-gates 的 TDD 锁 deny 经查仅命中 `isTestFile()` 匹配的测试文件（.test.sh 不在其列）；本解锁属**流程纪律遵循**（授权→窗口→修订→重锁留痕），非 hook 强制——纪律不因机制宽松而免除。
+
+---

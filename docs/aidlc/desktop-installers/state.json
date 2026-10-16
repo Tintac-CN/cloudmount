@@ -8,7 +8,11 @@
   "tddLockPaths": [
     "scripts/desktop-installers-yaml.test.sh"
   ],
-  "tddLockOverride": null,
+  "tddLockOverride": {
+    "by": "human",
+    "at": "2026-10-16",
+    "reason": "gate1 B1 裁决授权的 T4 两条负断言字面收窄（首次打回逐字『授权锁修订（推荐）』；裁决落点 3 沿 T16 先例）——仅 scripts/installers-yaml.test.sh T4 两条负断言，修订后重锁"
+  },
   "testBaseline": {
     "recordedAt": "2026-10-16T09:29:20+08:00",
     "command": "cargo test --workspace",
@@ -47,12 +51,12 @@
   },
   "unitStatus": {
     "U1": "completed",
-    "U2": "pending",
+    "U2": "completed",
     "U3": "pending",
     "U4": "pending",
     "U5": "pending"
   },
-  "updatedAt": "2026-10-16T10:32:54+08:00",
+  "updatedAt": "2026-10-16T11:32:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -107,6 +111,12 @@
       "from": "construction",
       "to": "construction",
       "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-16 @ bbe706e）→ U1 红阶段完成并置锁：dev 交付 scripts/desktop-installers-yaml.test.sh @ 2a16a3a（TP-01..TP-24 静态面 111 断言；红态 58 passed/53 failed——53 红全为 desktop 面断言[被测对象缺失/零接线即 FAIL 防空真]，58 绿为护栏现状绿；TP-13..17 集成面归 U3、TP-19..23 E2E/人工面头注留痕；5 项契约歧义处置留痕[TP-04 Id 定界/红阶段钉死字面 installer-dmg-macos+cloudmount-desktop.dmg+--manifest-path+show/quit/TP-03 字面锚定集/TP-09 全文件计数/次序行号比较]；四锁定脚本回归全绿+基线 277/0 一致）；tddLock=true（tddLockPaths=[desktop-installers-yaml.test.sh]）；U1 完成判据（红提交+锁）达成 → completed；下一步 U2 应用层"
+    },
+    {
+      "at": "2026-10-16T11:32:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 应用层完成核收 → completed：提交 c8521cc（gen_icons 重写+图标四件套入仓）/3bbbec3（build.rs+winresource）/533e456（main.rs 托盘接线）；首日验证 4 项结论——①集成形态可行（初始化=首帧 update；MenuEvent 全局 receiver 轮询）②winres 定稿选 winresource（winres 停更，winresource 活跃继任；RT_GROUP_ICON id=1+RT_ICON×4 实证）③icns 定稿 stdlib 手写 PNG-in-ICNS 预生成入仓 ④CancelClose API 可行未降级，但 Visible(false) 真隐藏实测两缺陷（WM_PAINT 帧饥饿+ControlFlow::Poll 自旋）→ 改伪隐藏（离屏+WS_EX_TOOLWINDOW，帧流不断 CPU 0.016s/5s；语义与 AC2④/TP-21 一致，连锁锚修订未激活）——decisions.md 偏差留痕；核收证据（编排者复跑）：断言脚本 73/111（应用层 +15 全转绿，余 38 红全为 MSI/dmg 面）、基线 277/0、release 构建零警告 8.1MB exe、四锁定脚本回归全绿、gen_icons 幂等、src-tauri 引用清零；遗留观察：mac 无 TOOLWINDOW 等效步（Dock 图标留存）/raw-window-handle 直声明（原传递依赖）/OneDrive R 属性环境注记。同日开启 UNLOCK-TESTS 窗口（授权依据=gate1 B1 人类裁决逐字复引，tddLockOverride 置位）——U3 执行 T4 两条负断言字面收窄，核收后重锁；下一步 U3"
     }
   ]
 }
