@@ -228,3 +228,16 @@ GATE-APPROVED gate2 2026-10-16
 - 回填闭环：gate2 裁决的全部准出条件已闭合；phase=operations；下一步 /aidlc:ops（retro 保留或省略裁决随 ops 呈出）。
 
 ---
+
+2026-10-16 Operations 人类裁决（AskUserQuestion，逐字转写）：
+- 问：「发布前置：desktop 交付的打 tag 前置以什么为准？」
+  答：「**checklist 单载体（推荐）**」——发布动作完全由 release-checklist.md（TP-22 载体）承接：五项逐项过→push v* 纯数值 tag；单一载体与本 intent 断言面同步演进。
+- 问：「监控/告警面：desktop 交付的运维监控选哪档？（桌面应用无运行时服务面，监控对象=CI/发布链路+安装包面）」
+  答：「**轻量+四观察（推荐）**」——硬门+四观察项，零新增基建（沿上 intent 口径）。
+- 问：「retro 复盘（express 路线人类可选）：保留还是省略？」
+  答：「**保留 retro（推荐）**」——retro.md 为完结判据之一。
+- 问：「部署窗口：打 tag（=直接正式发布）的时间约束？」
+  答：「**无窗口约束（推荐）**」——tag 即发布无窗口约束（沿 A1 语义），checklist 过了随时可打。
+- 裁决落点（编排者执行）：ops-runbook.md 落盘（取代 installer-packages runbook 发布流程节）；retro.md 落盘→人类确认→phase=done。
+
+---
