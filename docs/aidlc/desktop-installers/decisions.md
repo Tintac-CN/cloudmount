@@ -167,3 +167,12 @@ PLAN-CONFIRMED 2026-10-16
 - **修订后字面纳入零删改基线（TP-03 口径）**：installers-yaml.test.sh 自本条目起重归零删改状态；后续任何改动（含 U5 终验）均须新的授权解锁。
 
 ---
+
+2026-10-16 U4 mac .app+.dmg+release body 完成核收（编排者）：
+- 提交 e7301ed（2 文件 +181/-2：scripts/package-dmg-macos.sh[新增 149 行] / .github/workflows/release.yml）。
+- **断言全绿里程碑**：desktop-installers-yaml.test.sh **111/111 exit 0**（U4 前余 24 红全部转绿）；四既有锁定脚本零回退（installers-yaml 72/72 / release-yaml 23/23 / check-macos-yaml 13/13 / package-macos 9/9——编排者独立复跑一致）。
+- 交付要点：package-dmg-macos.sh=staging cloudmount.app bundle（Contents/{MacOS/cloudmount-desktop, Resources/cloudmount.icns, Info.plist[CFBundleName/Identifier/Icon/Executable/LSMinimumSystemVersion 等]}）+前置硬校验 fail-fast（binary -x/icns 缺失 exit 1/非 dry-run 缺版本 exit 2）+dry-run 段（本地实测 exit 0：staging 三件在位+plist 键集+版本注入 9.9.9 实证）；hdiutil 装配段（含 ln -s /Applications）mac 独占置 dry-run 门后（R2-MAJOR-1 边界）；release.yml 新 job installer-dmg-macos（macos-15/aarch64 显式 target/调脚本注入 tag 版本/upload 精确路径 cloudmount-desktop.dmg+if-no-files-found: error+artifact cloudmount-desktop-dmg 前缀）；release needs 仅尾部追加（既有五元素零删改）；body 8 行（MSI 行三件套描述更新+.dmg 行含 Gatekeeper 绑定该行+其余 6 行零删改）。
+- 遗留观察：a) **mac CI 首次构建**——desktop 应用此前从未 mac 编译，本机交叉 check 受阻于 ring 需 darwin C 工具链（环境限制非代码问题），实际以 CI macos-15 为准（发布前首跑即知）；b) actionlint 本机不可用降级路径（yaml.safe_load 通过+诚实计数）。
+- unitStatus.U4=completed；下一步 U5 终验。
+
+---

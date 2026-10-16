@@ -49,10 +49,10 @@
     "U1": "completed",
     "U2": "completed",
     "U3": "completed",
-    "U4": "pending",
+    "U4": "completed",
     "U5": "pending"
   },
-  "updatedAt": "2026-10-16T11:58:30+08:00",
+  "updatedAt": "2026-10-16T12:05:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -119,6 +119,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U3 Windows MSI 扩展完成核收 → completed；T4 修订后重锁（override 清除）：提交 9384be4（main.wxs desktop 组件+两处 Shortcut[独立组件 HKCU KeyPath 过 ICE43/ICE57，全量 ICE 零抑制]+Icon/ARPPRODUCTICON；release.yml 追加 desktop 构建[--manifest-path]+归集[exe+icon.ico]步[次序在校验/candle 前]+校验扩三 exe；installers-yaml.test.sh T4 两条负断言授权收窄[单 hunk——MSI job daemon/cli 编译步+upload 步 desktop-free / wxs 三既有组件 desktop-free，空块防空真+非恒真注入验证]）。本地 WiX 冒烟全过：candle/light 全绿→msiexec /i /qn exit 0（MajorUpgrade 0.2→0.3.0）→三 exe+两处快捷方式[Target=desktop exe]/RT_GROUP_ICON id=1+RT_ICON×4/PATH/ARP 0.3.0/启动隐藏到托盘→msiexec /x /qn exit 0→卸载全清→TP-18 注入 light LGHT0103×2 exit 103 零产出；终态=本机无 CloudMount（预期）。核收证据（编排者独立复跑）：installers-yaml 72/72、release-yaml 23/23、check-macos-yaml 13/13、desktop-installers-yaml 87/111（余 24 红全为 dmg/body 面=U4）、基线 277/0、机器无残留；/build/ 入 .gitignore（本地冒烟 scratch）。LOCK-TESTS 条目落 decisions.md——installers-yaml.test.sh 重归零删改基线；下一步 U4（mac .app+.dmg+release body 8 行）"
+    },
+    {
+      "at": "2026-10-16T12:05:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U4 mac .app+.dmg+release body 完成核收 → completed：提交 e7301ed（scripts/package-dmg-macos.sh 新增 149 行 + release.yml 新 job installer-dmg-macos[macos-15/aarch64 显式 target/upload cloudmount-desktop.dmg error]/needs 仅尾部追加/body 8 行[MSI 行三件套+.dmg 行 Gatekeeper 绑定+其余 6 行零删改]）。**断言全绿里程碑：desktop-installers-yaml.test.sh 111/111 exit 0**；四既有脚本零回退（9/23/13/72——编排者独立复跑一致）；dry-run 本地实测 exit 0+staging 内容级核验+三条 fail-fast 负路径。遗留观察：mac CI 首次构建（desktop 首次 mac 编译，本机交叉 check 受 ring 阻以 CI macos-15 为准）/actionlint 降级路径。unitStatus.U4=completed；下一步 U5 终验（终验组合+TP-22 发布前核验清单附录固化→phase=gate2）"
     }
   ]
 }
