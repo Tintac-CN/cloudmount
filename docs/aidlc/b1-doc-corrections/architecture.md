@@ -9,10 +9,10 @@
 ### 回写面组件与边界
 
 - **回写面（intent 钉死 8 文件）**：根 `README.md`、`docs/ROADMAP.md`、`docs/ARCHITECTURE.md`、`web-ui/README.md`、`web-ui/src/api.ts`（头注）、根 `Cargo.toml`（注释+owner）、`.gitignore`、`crates/cloudmount-daemon/src/webdav.rs:29`（注释）。
-- **architect 实测扩展面（gate1 过目，见开放问题③）**：`crates/cloudmount-core/src/config.rs:3` + `webdav.rs:694/850/874/893`——5 处 Tauri 注释字面，审核 16 处清单未覆盖（审核 grep 方法只扫 apps/、web-ui/src、两份文档，未扫 crates/）。**不清这 5 处，intent 验收「全量 `grep -ri tauri`（排除历史 AIDLC 工件）清零」必挂**。全部为 `//`/`///`/`//!` 注释行，符合「零产品逻辑变更」约束类。
+- **全仓清零扩展面（对齐拍编排者裁决：范围扩至全仓 23 处 tauri 字面 = 审核 16 处清单 + crates 5［#20-24］+ `web-ui/package.json:6`［#27］+ `.gitignore:12` 节注［#28］；gate1 过目，见开放问题③）**：`crates/cloudmount-core/src/config.rs:3` + `webdav.rs:694/850/874/893`（5 处注释字面，审核 grep 方法只扫 apps/、web-ui/src、两份文档，未扫 crates/）+ `web-ui/package.json:6`（description 字面，本档实测）+ `.gitignore:12`（「# Tauri」节注）。**不清这 7 处，intent 验收「全量 `grep -ri tauri`（排除历史 AIDLC 工件）清零」必挂**。全部为注释/元数据字面，符合「零产品逻辑变更」约束类。
 - **不回写面（硬边界）**：`docs/aidlc/**` 历史工件（intent 约束：审计留痕）；五断言脚本与三 workflow（零改动，见断言面交叉）；`apps/desktop` 代码（无 tauri 字面，实测零命中）；`docs/ARCHITECTURE.md` 其余规划态内容（v0.3 整体刷新=另一批）；`platform.ts` 代码（已单宿主化，无需改）。
 
-### AS-IS 统一事实表述基准（回写后 16+ 处必须相互一致，dev 照此措辞族落笔）
+### AS-IS 统一事实表述基准（回写后全仓 23 处必须相互一致，dev 照此措辞族落笔）
 
 | # | 统一表述 | 事实锚（实测） |
 |---|---|---|
@@ -52,10 +52,10 @@
 | # | 定位 | 现状字面 | 回写后表述要点 |
 |---|---|---|---|
 | 17 | 根 `Cargo.toml:20` | `repository = "https://github.com/zhonghaoxi/cloudmount"` | 改 `https://github.com/Tintac-CN/cloudmount`（F6 四重依据）。**域注意**：:21 homepage、:22 authors 同含 zhonghaoxi——intent 约束钉「仅注释与 repository 字段」，是否扩展见开放问题④ |
-| 18 | `.gitignore:12-14` | 「# Tauri」＋`apps/desktop/src-tauri/gen/`＋`apps/desktop/src-tauri/target/` | **三行整删**（`apps/desktop` 无 src-tauri/ 目录=死路径，本档经审核 D2 确认；:12 注释头属该块，随行删） |
+| 18 | `.gitignore:12-14` | 「# Tauri」＋`apps/desktop/src-tauri/gen/`＋`apps/desktop/src-tauri/target/` | **三行整删（同一 diff）**：:13-14 = 死路径清理（intent 关联订正本体，`apps/desktop` 无 src-tauri/ 目录，经审核 D2 确认）；:12「# Tauri」节注的字面计数归 #28（全仓 23 处清零口径），随同块一并删除 |
 | 19 | `webdav.rs:29` | 「HTTP（无 TLS）——LAN 场景；TLS（rustls + 证书管理）见 M4 后续；」 | 按 F5 统一句改「默认 HTTP——LAN 场景；TLS 可选非默认（`--tls-cert/--tls-key`，rustls，见 daemon main.rs serve 装配）；」——仅注释行 |
 
-**C. architect 新增发现面（超出审核 16 处清单；gate1 过目——不清零则验收挂）**
+**C. 全仓清零扩展面（#20-24 = architect 实测新增，#27-28 = 对齐拍编排者裁决补列；gate1 过目——不清零则验收挂）**
 
 | # | 定位 | 现状字面（Grep 实测） | 回写后表述要点 |
 |---|---|---|---|
@@ -64,6 +64,8 @@
 | 22 | `webdav.rs:850` | 「// /api/*：web-ui 的 REST 面（与 Tauri 命令同名）」 | 改「（命令名与 web-ui api.ts 契约同名）」 |
 | 23 | `webdav.rs:874` | 「/// 与 Tauri 壳的 AppState 同构：…」 | 「与 Tauri 壳的」→「与桌面壳（egui）的」 |
 | 24 | `webdav.rs:893` | 「`/api/*` 处理（与 Tauri 命令同名同参；POST JSON）。」 | 「与 Tauri 命令」→「与 web-ui api.ts 契约命令」 |
+| 27 | `web-ui/package.json:6` | `"description": "CloudMount 共享前端：同一套代码跑在 Tauri 桌面壳与边缘网关浏览器"` | 按 F3 订正 description：「CloudMount 边缘网关管理页（cloudmountd `--serve` 托管的前端）」。**name（:2 `cloudmount-web-ui`）经实测无 tauri 字面且语义无漂移——不动**（对齐拍提及的「name 订正」不成立，如实记录，gate1 过目）；package.json 元数据行，零行为 |
+| 28 | `.gitignore:12` | 「# Tauri」（节注头） | 随 #18 同块删除（:12-14 三行整删，一次 diff 完成）；此处单列以满足全仓 23 处 tauri 字面计数 |
 
 **D. 联动候选（audit 建议同批、intent 字面未钉；gate1 逐项勾选，见开放问题⑤）**
 
@@ -79,20 +81,20 @@
 - `scripts/desktop-installers-yaml.test.sh:697-698`（TP-11 负断言：gen_icons.py 无 `src-tauri` 字面）——本批**不改 gen_icons.py**，断言不受影响、继续为绿。
 - 五断言脚本 **无任何** 对 README.md/ROADMAP.md/ARCHITECTURE.md 内容、根 Cargo.toml repository 值、.gitignore 行的断言（Grep 实测：脚本面 `tauri|README|ROADMAP|ARCHITECTURE|gitignore|zhonghaoxi|Tintac|gen_icons|src-tauri` 仅命中上条 gen_icons 负断言；`package-macos*.sh` 的 README.md 引用=打包 tar 占位**文件名**，非根 README 内容）。TP-18/24 面无文档字面断言需同步。
 - 完工门（intent 约束）：复跑 `cargo test --workspace`=**277/0**＋五脚本 **112/72/23/13/9**＋`cargo fmt --all -- --check`/`cargo clippy --workspace --all-targets -- -D warnings` 双面 clean（desktop 面单独跑：`cd apps/desktop && cargo fmt…/clippy…`——根级命令不触 exclude 成员）。webdav.rs/config.rs 仅注释行，理论上零影响，仍须复跑确认。
-- 验收命令（回写后）：`grep -rni tauri` 于产品面（README.md、docs/ROOT 两文档、web-ui/、crates/、apps/、packaging/、edge/、.github/、scripts/、根 Cargo.toml、.gitignore——**排除 docs/aidlc/**）应零命中。
+- 验收命令（回写后）：`grep -rni tauri` 于产品面（README.md、docs/ROOT 两文档、web-ui/［含 src 与 package.json］、crates/、apps/、packaging/、edge/、.github/、scripts/、根 Cargo.toml、.gitignore——**排除 docs/aidlc/**）应零命中；计数口径=全仓 23 处全部消化。
 
 ## 数据模型
 
 **N/A——零实体/键/索引/约束变更**。本批无任何持久化面触碰（SQLite schema、缓存索引、控制通道、凭据容器均不动）。
 
-唯一「数据」 touched = **发布元数据**（Cargo package metadata 的 repository 字段，#17）：非运行时数据、非密钥、无 schema。owner 取值 `Tintac-CN` 的来源依据见 F6（git remote＋release.yml 镜像变量＋desktop 侧同字段＋README 发布链接，四源一致）。
+唯一「数据」 touched = **发布元数据**（Cargo package metadata 的 repository 字段 #17＋web-ui/package.json description 字段 #27）：非运行时数据、非密钥、无 schema。owner 取值 `Tintac-CN` 的来源依据见 F6（git remote＋release.yml 镜像变量＋desktop 侧同字段＋README 发布链接，四源一致）。
 
 ## 与 PRD 的语义对齐表
 
 | PRD 动词 | 物理语义 | 说明 |
 |---|---|---|
-| 订正（stale Tauri→egui 事实表述） | 编辑定位表 #1-16+#20-24 的指定行：文档段落/代码注释字面替换，零行为行（Rust 侧仅 `//`/`///`/`//!` 与 js 头注） | 证据形态=回写后 `grep -rni tauri`（排除 docs/aidlc/**）产品面零命中；`git diff` 仅注释/文档/元数据行 |
-| 清理（.gitignore 死路径） | 删除 `.gitignore:12-14` 三行，无新增行 | 证据形态=回写后 `grep -n src-tauri .gitignore` 零命中 |
+| 订正（stale Tauri→egui 事实表述） | 编辑定位表 #1-16+#20-24+#27-28 的指定行：文档段落/代码注释/元数据字面替换，零行为行（Rust 侧仅 `//`/`///`/`//!`，前端侧仅头注与 package.json description） | 证据形态=回写后 `grep -rni tauri`（排除 docs/aidlc/**）产品面零命中（全仓 23 处清零）；`git diff` 仅注释/文档/元数据行 |
+| 清理（.gitignore 死路径） | 删除 `.gitignore:12-14` 三行（#18+#28 同一 diff），无新增行 | 证据形态=回写后 `grep -n src-tauri .gitignore` 与 `grep -ni tauri .gitignore` 均零命中 |
 | 统一（owner 元数据） | 根 `Cargo.toml:20` repository 字段值 `zhonghaoxi`→`Tintac-CN` | 证据形态=`grep -n zhonghaoxi Cargo.toml` 仅剩 :21/:22（若 gate1 维持最小域，见开放问题④）；与 F6 四源一致 |
 | 订正（TLS 注释过时） | `webdav.rs:29`（+#25 候选 ROADMAP:164）按 F5 统一句改写，仅注释行 | 证据形态=两处不再含「TLS 见后续/M4 后续」字面；全文 TLS 口径与 §4.2 边界 7 收敛句一致 |
 | 验证（基线不动） | 复跑双基线：workspace 277/0＋五脚本 112/72/23/13/9＋fmt/clippy 双面（含 desktop 单独面） | 证据形态=命令输出逐数一致；任何漂移即回归 |
@@ -108,8 +110,9 @@
 | D5 | gzip 字节数（README:89/ROADMAP:175）不动 | 审核 §1.7 判「构建时点值微差」非偏离；动它=范围蔓延且两处需联动改，反引入新矛盾 |
 | D6 | owner 修正最小域=repository（:20）；homepage（:21）/authors（:22）同值问题列开放问题④不擅扩 | intent 约束钉死「仅注释与 repository 字段」；扩域须人类过目——但需知会：不改则残留同值不一致 |
 | D7 | api.ts 头注块内「当前为骨架」句同块搭车订正 | 同一注释块（:1-6）一次改完；审核 §1.7 证 8/8 已实现——留着=回写后头注自我矛盾 |
-| D8 | crates/ 5 处注释字面（#20-24）纳入蓝图并标注为「超出审核清单的新增发现」 | intent 验收=「全量 grep tauri 清零」，不含则必挂；全部注释行、零行为，符合约束类；但超出 intent 8 文件钉死面——须 gate1 过目而非 dev 自行扩 |
+| D8 | 全仓清零扩展面 7 处纳入蓝图：crates 5 处（#20-24）=architect 实测新增；package.json:6（#27）与 .gitignore:12（#28）=对齐拍编排者裁决补列（范围=全仓 23 处 tauri 字面，意图「全仓清零」忠实落实） | intent 验收=「全量 grep tauri 清零」，不含则必挂；全部注释/元数据字面、零行为，符合约束类；超出 intent 8 文件钉死面——crates 5 处经 architect 发现、后 2 处经对齐拍裁决，均 gate1 过目追认，非 dev 自行扩 |
 | D9 | 断言脚本/三 workflow 零改动；完工门=双基线复跑＋产品面 grep 清零 | intent 约束；实测五脚本无文档字面断言（断言面交叉节），无需联动改 |
+| D10 | package.json 仅订正 description（:6），name（:2）不动 | 对齐拍提及「name/description 订正」——实测 name=`cloudmount-web-ui` 无 tauri 字面且语义仍准确（web-ui 确为独立前端包），改 name 无字面收益反增引用面风险；如实记录实测结论，gate1 过目 |
 
 ## 安全与权限
 
@@ -124,7 +127,7 @@
 
 - [ ] ① **ROADMAP 条目回写形态**：事实订正（intent/本蓝图默认，#5/#6/#7 按此设计）vs 删除条目。若 gate1 选删除需重出三处形态。细化子项：#6 的 bug①（custom-protocol，Tauri 特有机制）在订正形态下建议改历史注记「早期 Tauri 技术路线验证期记录，现 egui 载体不适用」——该措辞请 gate1 过目。
 - [ ] ② **web-ui 单宿主事实化边界**：本蓝图按「文档事实化」处理（#10-15 改表述；platform.ts 代码/宿主抽象不动）。「是否正式裁决未来双宿主恢复」不在本批（audit AS-IS 开放问题延续）——确认此边界即可。
-- [ ] ③ **crates/ 5 处注释字面是否纳入本批**（#20-24：config.rs:3＋webdav.rs:694/850/874/893）——超出 intent 8 文件钉死清单，但为「grep 清零」验收的必要面，全为注释行零行为。architect 建议纳入；gate1 勾选。
+- [ ] ③ **全仓清零扩展面 7 处的 gate1 追认**（#20-24 crates 注释 = config.rs:3＋webdav.rs:694/850/874/893［architect 实测新增］；#27 package.json:6 description＋#28 .gitignore:12 节注［对齐拍编排者裁决补列，范围=全仓 23 处=16 清单+7 扩展］）——超出 intent 8 文件钉死清单，全为注释/元数据字面零行为。附注：对齐拍提及的 package.json「name 订正」经实测不成立（:2 name 无 tauri 字面、无漂移，见 D10/#27）。
 - [ ] ④ **owner 修正域**：仅 `Cargo.toml:20` repository（intent 字面最小域），还是连同 :21 homepage/:22 authors 一并统一 `Tintac-CN`（否则残留同值 zhonghaoxi 不一致）。architect 建议三点一并（同为发布元数据、同一处 diff），但 intent 字面只钉 repository——须裁决。
 - [ ] ⑤ **搭车候选逐项勾选**（audit 建议同批、intent 字面未钉）：#25 ROADMAP:164 TLS 收敛（NEW-3，建议纳入——否则修 webdav.rs 后文档仍留过时 TLS 叙事）；#26 ROADMAP:91 脱水 API 命名注记（§5.1 B1 批次行点名）；api.ts 头注「当前为骨架」句（D7，建议随块）；README:143 测试计数 214/185→现值 277/0（审核未列偏离，architect 发现的额外 stale，可留后续批）。
 - [ ] ⑥ **docs/ARCHITECTURE.md v0.3 规划态整体刷新**是否另开批（本批只回写 #8-10 三处 Tauri 面；其余规划态内容如 §边缘设备 FUSE、§Windows「当前规划：M2」等未动）。

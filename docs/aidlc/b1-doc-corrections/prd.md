@@ -18,7 +18,7 @@
 > 3. **触碰面最小化**——webdav.rs 仅注释行（`//`/`///`/`//!`）；api.ts 仅 :2-4 头注；根 Cargo.toml 仅 :12 注释与 :20 repository 字段（依赖、代码、其余字段不动）；不触碰任何历史 AIDLC 工件（`docs/aidlc/**` 内 tauri 字面=审计留痕）；apps/desktop 代码零触碰。
 > 4. 整节自洽的最小邻接措辞调整允许（如 web-ui/README.md:3 表头语境），但不得扩出本 AC 清单的事实性新增声明。
 
-- **AC1**（U1，stale Tauri 16 处全量回写）：Given 审核报告 §2.1①+§2.2 NEW-1+§6/TP-18 钉死的 16 处字面（下表），事实基准=audit AS-IS（egui/eframe 0.31+wgpu+rfd+tray-icon 0.21；web-ui 单宿主=daemon `--serve` 托管；desktop=独立 cargo 项目，workspace exclude @ 根 Cargo.toml:13）；When 按下表逐处执行回写；Then 逐处满足「回写后形态」列，且 16 处所在文件的 `grep -in tauri` 零命中（证据形态：grep 输出+回写后行文本摘录，逐处落 plan/workbook）。
+- **AC1**（U1，stale Tauri 23 处全量回写＝16 钉死+7 对齐拍扩展）：Given 审核报告 §2.1①+§2.2 NEW-1+§6/TP-18 钉死的 16 处字面，**加对齐拍 qa/architect 实测发现的 7 处同根因清单外字面（编排者裁决并入 AC1——intent「全仓 grep 清零」的直接落实，AC6b 验收才可达成；待 gate1 人审过目）**，清单合计 **23 处**（下表），事实基准=audit AS-IS（egui/eframe 0.31+wgpu+rfd+tray-icon 0.21；web-ui 单宿主=daemon `--serve` 托管；desktop=独立 cargo 项目，workspace exclude @ 根 Cargo.toml:13）；When 按下表逐处执行回写；Then 逐处满足「回写后形态」列，且 23 处所在文件的 `grep -in tauri` 零命中（证据形态：grep 输出+回写后行文本摘录，逐处落 plan/workbook）。
 
   | # | 定位 | 现状字面（锚点） | 回写后形态要求 |
   |---|---|---|---|
@@ -38,6 +38,13 @@
   | 14 | README.md:133 | 仓库结构「apps/desktop　Tauri 2 桌面壳（托盘 + web-ui）」 | 改「apps/desktop　桌面壳（egui/eframe，托盘；独立 cargo 项目）」（"托盘 + web-ui" 订正——egui 壳无 web-ui 内嵌） |
   | 15 | README.md:151 | `cd apps/desktop && cargo tauri dev` | → **AC2** 单列 |
   | 16 | Cargo.toml:12 | 注释「# Tauri 桌面壳是独立 cargo 项目（依赖重、构建需前端产物），不进 workspace：」 | 注释改「桌面壳（egui/eframe）是独立 cargo 项目，不进 workspace：」；去除「构建需前端产物」（Tauri 专属旧事实，egui 无此前置）；:13 `exclude = ["apps/desktop"]` 行不动 |
+  | 17 | crates/cloudmount-core/src/config.rs:3 | 模块头注「三个二进制（cloudmountd / cloudmount / Tauri 壳）共用同一份配置」 | 注释行改 egui 事实表述（如「…cloudmount / 桌面壳（egui）…」）；仅注释行，代码不动 |
+  | 18 | crates/cloudmount-daemon/src/webdav.rs:694 | 注释「网关状态（/api/* 数据源；与 Tauri 壳的 StatusSnapshot 同构）」 | 「与 Tauri 壳的 StatusSnapshot 同构」改 egui 事实表述（如「与桌面壳（egui）的状态快照同构」）；仅注释行 |
+  | 19 | crates/cloudmount-daemon/src/webdav.rs:850 | 注释「/api/*：web-ui 的 REST 面（与 Tauri 命令同名）」 | 删/订正「与 Tauri 命令同名」——事实=daemon `/api/*` 为 api.ts 契约的唯一实现承载方（webdav.rs:925-963）；仅注释行 |
+  | 20 | crates/cloudmount-daemon/src/webdav.rs:874 | 注释「与 Tauri 壳的 AppState 同构：provider 直查（quota）、暂停标志、」 | 「与 Tauri 壳的 AppState 同构」改 egui 事实表述（如「与桌面壳（egui）的应用状态同构」），后半句事实保留；仅注释行 |
+  | 21 | crates/cloudmount-daemon/src/webdav.rs:893 | 注释「/api/* 处理（与 Tauri 命令同名同参；POST JSON）。」 | 改「（命令名与 web-ui api.ts 契约同名同参；POST JSON）」——契约命名保留、去 Tauri 实现方叙述；仅注释行 |
+  | 22 | web-ui/package.json:6 | `"description": "CloudMount 共享前端：同一套代码跑在 Tauri 桌面壳与边缘网关浏览器"` | description 字段订正为单宿主事实（如「CloudMount 边缘网关管理前端：由 cloudmountd `--serve` 托管」）——具体措辞由构造实测字段规范后定稿；仅 description 元数据字段，其余字段不动 |
+  | 23 | .gitignore:12 | 节注「# Tauri」 | 随 :13-14 两行死路径同块删除（=**AC4 同一动作**，此处仅登记清零计数）——只删 :13-14 而保留节注会使 grep 清零必败 |
 
 - **AC2**（U1，README:151 死命令改实际命令）：Given README.md「开发者」段 :151 现状为 `cd apps/desktop && cargo tauri dev`，而 apps/desktop 无 tauri 依赖与 tauri.conf.json（`ls apps/desktop` 无 src-tauri/，desktop Cargo.toml 零 tauri 命中）、为独立 cargo 项目（根 Cargo.toml:13 exclude）；When 回写该命令；Then 桌面壳命令为当前树可直接执行的实际命令：dev=`cd apps/desktop && cargo run`（审核 NEW-1 建议形态），如需发布构建注记用 `cargo build --release`；证据形态=回写后行文本+`apps/desktop/Cargo.toml` 在位（`[package]` 可解析）；命令行内不含 tauri 字面。
 
@@ -48,7 +55,7 @@
 - **AC5**（U3，TLS 表述收敛订正：webdav.rs:29 + ROADMAP:164，NEW-2+NEW-3）：Given (a) webdav.rs:29 注释现状「HTTP（无 TLS）——LAN 场景；TLS（rustls + 证书管理）见 M4 后续」，而 M4 已落地 rustls 可选 TLS（`--tls-cert/--tls-key` @ daemon main.rs:122-128,611）；(b) ROADMAP:164 同条目「v1 为 HTTP（TLS 见后续）。」与 :167「rustls TLS…已落地」未收敛；When 订正两处；Then (a) webdav.rs:29 改为与 M4 事实一致的表述（如「默认 HTTP（LAN 场景）；TLS 可选（rustls，`--tls-cert/--tls-key`，见 daemon main.rs serve 装配）」），收敛口径=审核 §4.2#7 一句话版本；(b) ROADMAP:164 括号改「（TLS 可选，见下条）」，`[x]` 与条目其余字面不动；(c) 两处均为注释/文档行，零行为变更；证据=回写后行文本+`cargo test -p cloudmount-daemon` mock 腿不受影响（AC6c 覆盖）。
 
 - **AC6**（U4，回写后验证）：
-  - **AC6a（钉死面清零）**：Given AC1-AC5 回写完成；When 对 intent 受影响文件清单 8 文件（根 README.md、docs/ROADMAP.md、docs/ARCHITECTURE.md、web-ui/README.md、web-ui/src/api.ts、根 Cargo.toml、.gitignore、webdav.rs）执行 `grep -in tauri`；Then 全部零命中（webdav.rs 含 :694/:850/:874/:893 的清单外注释残留与否由开放问题 Q3 裁决——Q3 未裁前 AC6a 仅要求钉死 16 处+关联面清零，webdav.rs 残留须在 workbook 显式留痕）。
+  - **AC6a（钉死面清零）**：Given AC1-AC5 回写完成；When 对 intent 受影响文件清单 8 文件（根 README.md、docs/ROADMAP.md、docs/ARCHITECTURE.md、web-ui/README.md、web-ui/src/api.ts、根 Cargo.toml、.gitignore、webdav.rs）**加 AC1 对齐拍扩展面 2 文件（crates/cloudmount-core/src/config.rs、web-ui/package.json）**执行 `grep -in tauri`；Then 全部零命中（AC1 清单 23 处+关联面全量清零——编排者裁决口径，待 gate1 过目）。
   - **AC6b（全仓清零，前提=Q3 裁决并入）**：When 执行 `grep -rwi tauri`（**词边界必须**——`datauri` 含子串 `tauri`，node_modules 的 DataURI 字面在无词边界模式下海量假阳性；或等价排除 `node_modules/`、`target/`、`web-ui/dist/`、`docs/aidlc/`）扫全仓；Then 命中仅剩历史 AIDLC 工件（docs/aidlc/**）与守护断言自身字面（scripts/desktop-installers-yaml.test.sh:697-698 的 `'src-tauri'` 查找参数）；产品/文档/注释面零残留。
   - **AC6c（守护断言与基线不变）**：When 复跑五断言脚本与工作区基线；Then (a) 五脚本全 exit 0：desktop-installers-yaml 112（actionlint 可用环境 113，环境相关注记照录）/installers 72/release-yaml 23/check-macos 13/package-macos 9——本批相关锚预判：TP-11 负断言（:697-698）守 gen_icons.py（本批不触碰），package-macos.test.sh T4 对 README.md 仅查 tar 清单存在性（内容变更不敏感）；若任一脚本断言引用本批目标文件字面而翻红，即构造范围缺陷须返工；(b) `cargo test --workspace` = 277 passed / 0 failed（基线 277/0 逐数一致）；(c) `cargo fmt --all -- --check` 与 `cargo clippy --workspace --all-targets -- -D warnings` exit 0（webdav.rs/config.rs 若触注释须过 fmt）；(d) 根 Cargo.toml 解析正常（277/0 复跑本身即证）。证据形态=命令输出末行计数留痕于 plan/workbook。
 
