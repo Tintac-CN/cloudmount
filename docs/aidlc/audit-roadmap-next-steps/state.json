@@ -1,7 +1,7 @@
 {
   "slug": "audit-roadmap-next-steps",
   "intent": "请对现在的开发计划和功能实现做一次审核，开始计划下一步的实现和推进",
-  "phase": "inception",
+  "phase": "gate1",
   "route": "classic",
   "gates": {
     "gate1": "rejected",
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-16T19:40:00+08:00",
+  "updatedAt": "2026-10-16T20:22:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -31,6 +31,12 @@
       "from": "gate1",
       "to": "inception",
       "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-16，第 1 轮/上限 3 轮）：互审 0 BLOCKER/12 MAJOR/20 MINOR（去重 10 MAJOR/16 MINOR，reviews/gate1-ai.md @ be5b021）；三裁决逐字——①「打回修订（推荐）」②交付范围确认=「审核+路线图（推荐）」（维持 A1 缺省，M4 零写入条款钉死）③证据标准升级=「全量验证」（覆盖 A1 缺省的抽样验证，沿 test-strategy 缺口节预铺方法学差异：TP 逐 [x] 条目+句内子声称）；修订点名 pm/architect/qa 三角色（10 MAJOR 分配：pm M2/M3/M4/M5+全量措辞、architect M6/M7、qa M1/M8/M9/M10+全量落实）；gate1 复位 pending 待修订后复审（只核收敛点，须新回执）"
+    },
+    {
+      "at": "2026-10-16T20:22:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "Gate#1 修订轮完成（第 1 轮）：prd r1 @ f13d80d（M2/M3/M4 零写入/M5 载体 audit-findings.md 骨架 §0–§6+新增 AC15/全量口径/m1–m5）+ architecture r1 @ 7eb70ba（M6 9 job/M7 CI-CD 权限面/m6–m10；D1 锚改区间式知会）+ test-strategy r1 @ ad264f0（M1 证伪重标定/M8 TP-27 AC13 七项/M9 testutil/M10 执行面声明/全量升级 43 条 [x] 分区承接 30 TP P0=24/MINOR 全消+顺手消 M2/M3）+ align2（AC15 锚位）；修订只重跑被点名三角色（dev 无工件）；gate1 复位 pending 待复审（只核收敛点：10 MAJOR 消解+全量升级落实），须新回执"
     }
   ]
 }
