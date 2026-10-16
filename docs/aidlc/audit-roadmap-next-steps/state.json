@@ -49,10 +49,10 @@
   "unitStatus": {
     "U1": "completed",
     "U2": "completed",
-    "U3": "pending",
+    "U3": "completed",
     "U4": "pending"
   },
-  "updatedAt": "2026-10-16T23:20:00+08:00",
+  "updatedAt": "2026-10-16T23:59:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -107,6 +107,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2 里程碑断言核验·下完成 → completed：TP-07..12+30 执行，21/21 判定齐（已证实 19/漂移 2[即 AC4 明文要求的「Tauri 壳」结论 L111/L124，§1.4 专节落字+回写建议]/不可证 0）；§1 全量覆盖 43 条声明（累计已证实 42/漂移 2）；两处真机声称升级本机复现（cldflt 金标准复跑 8/8、万级投影 693.8ms vs 声称 618ms 同量级）；新发现：CfDehydratePlaceholder API 命名偏差（实现刻意绕开未文档化导出，P2）、M4 mock 腿 12/12 解释 webdav 双目标 0 passed、512MB/48h=未验证（可独立开 intent）；audit-findings.md @ 980d216（§1.0–1.8 完整，§2–§5 待 U3/U4）"
+    },
+    {
+      "at": "2026-10-16T23:59:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 偏离扫描+质量与交付面体检完成 → completed：TP-13..20+24 全执行（五脚本 112/72/23/13/9 全绿/fmt-clippy 双面全绿/死链分项对账[.gitignore 残留为真+gen_icons 为假+ROADMAP 29 路径零死链]/CI 全命中/审核自检 3/3 可复现）；§2/§4 落盘+§6 证据索引覆盖全部 30 TP；AC13 七项三栏齐（#1/#7 已消解，#2–#6 刻意取舍或外部依赖）；新发现 5 条：NEW-1 P1=README.md 四处 stale Tauri 含 :151 不可执行死命令（超出 D 表锚面的首屏漂移）/NEW-2,3 P2=webdav.rs TLS 注释过时+ROADMAP L164/167 未收敛/NEW-4 P2=edge-packaging 分叉复证/NEW-5 P2=owner 元数据根 Cargo.toml 为错侧；audit-findings.md @ 9cf612c（§0 摘要矩阵/§3 归集表/§5 路线图待 U4）"
     }
   ]
 }
