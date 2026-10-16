@@ -90,3 +90,17 @@ GATE-REJECTED gate1 2026-10-16
 - **test-strategy.md**：M-R2-1（L13 前提节改四 job 零触碰口径+TP-01 改「Windows=installer-msi-windows 追加步+mac=新增 macos-15 job」+TP-02 改「追加步无 step 级 continue-on-error+新 mac job 无 continue-on-error」+分层策略同步+**AC6 锚双向一致**：TP-03 映射列改 AC3/AC6+L49 覆盖核对「AC6←TP-10/TP-03」同步）/M-R2-2（TP-01 补 body 断言锚——产物表 8 行口径：既有 7 行零删改+MSI 行含三件套描述+.dmg 行存在+Gatekeeper 引导文案存在）/M-R2-3（TP-03 注明 body 产物表按 AC5⑤ 为断言对象而非护栏对象）/M-R2-4（TP-11 补 icons.rs 存在性断言）/MINOR（TP-04 负断言边界化（子串问题，Id 定界或先滤 64Folder）、TP-09 init 区段按 fn 名/tray 初始化调用所在函数钉死+MenuEvent 全局 receiver 轮询形态入断言面、TP-21 注首日验证④连锁锚、TP-03 精确四 job 清单（无「等」）、TP-11 icns 子断言注首日验证③定稿豁免+尺寸口径改「≥1 帧（基线 32×32 单帧）+PNG 32/128」、四锁定脚本清单改精确文件名）；头部增 gate1 r2 裁决落点+缺口节新增 icons.rs 产物面条目；计数如实不变 P0=16/P1=6/P2=2。
 - 修订轮 r2 对齐拍：映射未变（TP-03 映射列扩 AC3/AC6 为锚注双向一致修复），prd 锚注与映射列双向一致。
 - 相位转移：修订轮 r2 两工件提交（@ d1294e3）→ gate1 复位 pending（重审以新一轮为准；GATE-REJECTED gate1 2026-10-16 第二次之后须新回执），phase → gate1。复审 r3 只核收敛点：M-R2-1/2/3/4。
+
+---
+
+2026-10-16 Gate#1 复审 r3 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate1-ai-r3.md` @ 70b635e（reviewer-pm 0/0/1 + architect 0/0/5 + qa 0/0/3 + dev 0/0/1；合并 0 BLOCKER / 0 MAJOR / 6 MINOR。上轮 4 MAJOR 全部消解实证——B2 口径扫荡+AC6 锚修复/8 行口径算术自洽/授权三面闭合/icons.rs 消费端自洽；四方一致建议通过）。
+- 问：「Gate#1 复审（r3，只核收敛点）：上轮 4 MAJOR 全部消解实证（B2 口径扫荡+AC6 锚修复/8 行口径算术自洽/授权三面闭合/icons.rs 消费端自洽）；新检出 0 BLOCKER / 0 MAJOR / 6 MINOR（括注枚举 off-by-one/子锚绑定/断言面措辞——均词级）。如何裁决？」
+  答：「通过（推荐）」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 中最新 GATE-APPROVED gate1，2026-10-16 两次 GATE-REJECTED gate1 的新鲜度要求均由本回执满足），phase → construction。
+  2. **6 MINOR 授权随 Construction 首日断言落笔顺带闭合**（gate1 r3 先例）：①AC5⑤/语义对齐括注「linux×2」改「1 行 glob 覆盖双 target」+AC5③「其余既有 7 行」改「其余 6 行」（off-by-one）②TP-01「Gatekeeper 引导文案存在」子锚绑定 .dmg 行（消朴素 grep 假绿）③TP-02 补追加步 step 级 `if:` 断言面（对齐 L56 策略层）④intent.md L22 约束行补 T4 例外注记（与 L13 改动面授权一致）⑤test-strategy L13「desktop job」改「desktop 面（追加步+新增 job）」⑥icon.ico CI 侧来源（入仓）随 Construction 首日落字。
+  3. 遗留观察备案：winres 供应链披露句/元数据 owner 不一致/MSI job 构建来源/UTF-8 description 风险——随 Construction 首日一并落。
+  4. 后续：phase = construction，`/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认表单在派发 dev 泳道前呈出）。
+
+GATE-APPROVED gate1 2026-10-16
