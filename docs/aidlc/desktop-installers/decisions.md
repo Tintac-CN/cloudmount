@@ -186,3 +186,33 @@ PLAN-CONFIRMED 2026-10-16
 - unitStatus.U5=completed（5/5）；**phase → gate2**（Construction 收口；提示人类运行 `/aidlc:gate` 进入互审——party-review 四视角+verifier 对照 plan.md 终验，随后人类审批）。
 
 ---
+
+2026-10-16 Gate#2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：`reviews/gate2-ai.md` @ f5459c1（reviewer-pm 0/0/7 + reviewer-architect 0/0/5 + reviewer-qa 0/1/4 + reviewer-dev 0/2/8 + verifier 0/0/2；合并 0 BLOCKER / 3 MAJOR / 26 MINOR。verifier 判定 5/5 units 兑现、验证声称全部独立复现属实[含 U1 红态在 bbe706e 档案树复现 58/53]、无计划外文件、四方对账无实质差异）。
+- 呈批三问（AskUserQuestion，逐字转写）：
+  问：「Gate#2 互审汇总：0 BLOCKER / 3 MAJOR / 26 MINOR（verifier 判定 5/5 units 兑现、验证声称全部独立复现属实、无计划外文件）。3 MAJOR：M1 伪隐藏状态机缺陷（隐藏态再收 WM_CLOSE 会毒化 restore_pos→「显示主窗口」永久失效，一行守卫可修）/M2 icns 断言未落位（icon.icns 已入仓但无存在性断言，双层运行时兜底在）/M3 终验 fmt 口径缺口（fmt --all 不触 apps/desktop，desktop 内 fmt 含本期新增行 dirty）。如何裁决？」
+  答：「通过+准出回填（推荐）」
+  问：「M2 icns 断言处置：icon.icns 已入仓（首日验证③定稿）但断言脚本已锁——补存在性断言需新开 UNLOCK-TESTS 授权窗口；或按豁免条款显式裁决留痕。选哪个？」
+  答：「补断言+解锁授权（推荐）」
+  问：「M3 fmt 口径：apps/desktop 为 workspace exclude，根 fmt/clippy 不触及；desktop 内 fmt dirty 394 行（含本期新增行，其中约 109 行为既有债）。如何处置？」
+  答：「全量 fmt apps/desktop」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate2），phase → operations。
+  2. **准出回填清单**（批准条件式小修，沿 audit-p0p1-fixes gate2 先例；编排者核收留痕后闭环，无需重开 gate2）：
+     - M1：main.rs hide 分支补「已隐藏」守卫（restore_pos 已有值时仅再次拦截、不得覆写 restore_pos）——消除毒化路径；回填后 desktop 构建冒烟复验（关闭→隐藏→再收 WM_CLOSE→托盘「显示主窗口」仍能复位）。
+     - M2：UNLOCK-TESTS 窗口（授权=本回执第 2 问逐字「补断言+解锁授权（推荐）」，见下条）→ desktop-installers-yaml.test.sh 补 icon.icns 存在性断言（含 icn 类型载荷校验可选）→ 重锁。窗口范围仅此。
+     - M3：`cd apps/desktop && cargo fmt`（全量 394 行含既有 ≈109 行债——用户裁决「全量 fmt apps/desktop」，纯格式无行为变更）；终验口径修正留痕（workspace fmt 与 desktop fmt 分开声明）。
+     - 词级 MINOR 随回填：release-checklist.md L21 证据指针笔误（「U3 应用层完成核收」→「U3 Windows MSI 扩展完成核收」）；release.yml:102-103 既有 job 头注失实同步（「只铺两 exe」→三件套+快捷方式叙述）。
+  3. **追认项打包（本回执一并追认）**：a) .gitignore /build/ 追加（decisions U3 施工注记留痕）b) apps/desktop/Cargo.lock 依赖锁跟随 c) raw-window-handle 0.6 直声明（原传递依赖转直，decisions U2 遗留观察 b）d) 伪隐藏物理形态偏差（语义与 Q1/AC2④/TP-21 一致，decisions U2 偏差条目；mac Dock 图标留存+Mission Control 可见性记录口径缺口随真机核验收敛）e) AC5④ 校验步两 exe→三 exe 就地改名（A3 批准的 units/3.md L16 契约）f) Info.plist 版本注入（安装器版本同源口径，decisions U4 披露）。
+  4. **备案项（不入本期回填，转 backlog/后续 intent）**：wxs Package Description/Comments 两件套描述欠准（AC3④ 既有字面守护，修复需新授权）；HKCU KeyPath 多用户卸载孤儿；dmg 脚本架构校验缺位；TP-23 显式承接；T4 断言①步骤名脆弱性；「111」环境相关口径注记；gen_icons 跨 zlib 幂等边界；TP-12 'winres' 子串宽松；FFI 32 位约束注释；units/2.md 契约偏差指针；.gitignore src-tauri 死路径残留。
+
+GATE-APPROVED gate2 2026-10-16
+
+---
+
+2026-10-16 UNLOCK-TESTS（gate2 准出回填 M2：icns 断言补落窗口；授权依据=gate2 人类裁决逐字复引）：
+- 人类原话（2026-10-16 Gate#2 审批，AskUserQuestion 逐字）：问「M2 icns 断言处置：icon.icns 已入仓（首日验证③定稿）但断言脚本已锁——补存在性断言需新开 UNLOCK-TESTS 授权窗口；或按豁免条款显式裁决留痕。选哪个？」答「**补断言+解锁授权（推荐）**」。
+- 解锁窗口范围：`scripts/desktop-installers-yaml.test.sh` **仅新增 icon.icns 产物断言**（存在性+结构校验），**零改动既有 111 断言**；补后本文件重锁（override 清除+LOCK-TESTS 条目）。
+- 机制注记：本 intent state.json `tddLockOverride={by:"human", at:"2026-10-16", reason:"gate2 准出回填 M2：icon.icns 存在性断言补落（第 2 问逐字『补断言+解锁授权（推荐）』）"}`；流程纪律遵循同前（授权→窗口→修订→重锁）。
+
+---
