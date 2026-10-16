@@ -241,3 +241,12 @@ GATE-APPROVED gate2 2026-10-16
 - 裁决落点（编排者执行）：ops-runbook.md 落盘（取代 installer-packages runbook 发布流程节）；retro.md 落盘→人类确认→phase=done。
 
 ---
+
+2026-10-16 完结确认（对话，用户原话逐字）：「确认完结，在github上发布v0.2.1结束」
+- 完结判据核验：retro.md 落盘（保留裁决在案）+ 人类确认（本条）→ **phase=done**；desktop-installers 退出活跃位（此后续跑/重开均拒，历史只读）。
+- **附带裁决**：完结同时发布 tag **v0.2.1**（GitHub）。v0.2.1 为纯数值形态（符合 WiX/pkg 版本校验）；本 tag 为**首个含 desktop 的 tag**（MSI 三件套+dmg 首次上线）——ops-runbook「首个含 desktop 的 tag 特别项」（mac CI 首跑观察/9 文件产物清单/dmg 真机 TP-19/托盘真机 TP-20/21）适用，tag 后核验。
+- 发布前置执行口径（诚实留痕）：用户直接裁决打 tag（本条逐字），编排者发布前即时执行 checklist 的 pre-tag 自动化子集（五脚本/workspace 基线/dmg dry-run）并留痕；MSI 冒烟沿用 U3 全过证据（其后 HEAD 未再触及 wxs/MSI 面——回填仅触 main.rs/断言脚本/注释）；checklist ④⑤（托盘真机/产物清单）为 tag 后核验项。本 tag 在 checklist 铁律（未逐项通过不打 tag）与用户直接指令之间**按用户直接指令执行**，未逐项状态如实留痕于此。
+- Cargo.toml 版本未 bump（0.1.0）——安装器版本取 tag 注入（0.2.1）；exe 元数据版本不一致为既有 backlog 项（installer-packages runbook P2），不入本 tag 处理。
+
+INTENT-DONE 2026-10-16
+---

@@ -1,7 +1,7 @@
 {
   "slug": "desktop-installers",
   "intent": "这个安装包不带前端界面不是搞笑吗，这是桌面端吗？无图标，无托盘，无界面，简直了",
-  "phase": "operations",
+  "phase": "done",
   "route": "express",
   "gates": {
     "gate1": "approved",
@@ -55,7 +55,7 @@
     "U4": "completed",
     "U5": "completed"
   },
-  "updatedAt": "2026-10-16T15:12:00+08:00",
+  "updatedAt": "2026-10-16T17:02:00+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -146,6 +146,12 @@
       "from": "operations",
       "to": "operations",
       "why": "准出回填闭环（内联代跑 [SKILL §8 降级记录]——dev 代理 5 小时限额 14:40 触发/18:07 重置，回填四项均 gate2 人类裁决逐字授权零裁量）：M1 已隐藏守卫@2a02050（restore_pos 毒化消除，冒烟(78,78)→(-32000)进程存活单关路径过）+M2 icns 断言@3bc308c（UNLOCK 窗口内新增 1 断言，112/112 全绿+注入即 FAIL 非恒真；豁免注记同步三处）+M3 desktop 全量 fmt@2a02050（394 行纯格式含既有债）+词级@218de5e（checklist 指针+release.yml 头注同步）。核收复跑：五脚本 112/72/23/13/9 全 exit 0、workspace 277/0 零回退、desktop build/clippy/fmt clean。重锁：override 清除置 null，tddLockPaths 不变。gate2 准出条件全部闭合；phase=operations，待 /aidlc:ops"
+    },
+    {
+      "at": "2026-10-16T17:02:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（对话逐字「确认完结，在github上发布v0.2.1结束」+ INTENT-DONE 回执）：retro.md 落盘（保留裁决）+ 人类确认 → phase=done，intent 退出活跃位；附带裁决=发布 tag v0.2.1（首个含 desktop 的 tag——MSI 三件套+dmg 首次上线，runbook「首个 tag 特别项」适用，tag 后按 release-checklist ④⑤ 核验；pre-tag 自动化子集发布前即时执行留痕）；四裁决（checklist 单载体/轻量+四观察/retro 保留/无窗口约束）随 ops-runbook 在案"
     }
   ]
 }
