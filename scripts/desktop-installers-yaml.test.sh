@@ -32,8 +32,8 @@
 #     本脚本仅承载 TP-13 的 wxs 字面子集（TP-04 段 desktop 组件断言）与 TP-18 的 needs/upload
 #     结构子集（TP-01/TP-02 段），msiexec/本地安装行为断言不落本文件。
 #   TP-19..TP-23：真机人工/集成回归——非本脚本静态面。
-#   TP-11 icns 子断言：按 prd 首日验证③（stdlib 手写 icns vs CI mac 生成二选一）定稿后启用——
-#     本阶段豁免不落（test-strategy 缺口条目授权；U2 首日验证③定稿后补启用）。
+#   TP-11 icns 子断言：首日验证③定稿（stdlib 手写 PNG-in-ICNS 预生成入仓，decisions.md U2 条目）
+#     后启用——原定「定稿后补启用」，gate2 M2 准出回填兑现（UNLOCK-TESTS 2026-10-16 人类授权）。
 #   TP-03「改动后快照对照」以字面锚定集承载（本脚本录基线字面；U5 终验另做全量基线比对）。
 #
 # 行尾注意：release.yml/main.wxs 等为 CRLF 检出；断言前统一剥 \r 至临时规范化副本，再行 grep/awk。
@@ -58,6 +58,7 @@ ICO_FILE="$ICONS_DIR/icon.ico"
 PNG32="$ICONS_DIR/32x32.png"
 PNG128="$ICONS_DIR/128x128.png"
 ICONS_RS="$ICONS_DIR/icons.rs"
+ICNS_FILE="$ICONS_DIR/icon.icns"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -686,7 +687,7 @@ ok=1
 grep -qF 'SKIP actionlint' "$SELF" && grep -qF 'WARN 降级告警' "$SELF" && grep -qF '降级分支计入总数' "$SELF" && ok=0
 report "TP-10 actionlint 降级计数诚实（SKIP+WARN 输出且降级断言计入总数）" "$ok"
 
-# ============ TP-11：gen_icons 产物存在+尺寸集（AC1；icns 子断言按首日验证③豁免） ============
+# ============ TP-11：gen_icons 产物存在+尺寸集（AC1；含 icns 断言——首日验证③定稿后启用，gate2 M2 补落） ============
 
 ok=1
 [ -s "$GENICONS_NORM" ] && ok=0
@@ -724,7 +725,24 @@ if [ -f "$ICONS_RS" ]; then
   tr -d '\r' <"$ICONS_RS" >"$rs_norm"
   [ -s "$rs_norm" ] && grep -qi 'rgba' "$rs_norm" && ok=0
 fi
-report "TP-11 icons.rs 存在且含 RGBA 常量源字面（gate1 r2 裁决，零 crate 依赖；icns 子断言按首日验证③豁免——见头注）" "$ok"
+report "TP-11 icons.rs 存在且含 RGBA 常量源字面（gate1 r2 裁决，零 crate 依赖）" "$ok"
+
+# icns 子断言（gate2 M2 补落，UNLOCK-TESTS 2026-10-16 授权=人类裁决逐字「补断言+解锁授权（推荐）」；
+# 首日验证③定稿=stdlib 手写 PNG-in-ICNS 预生成入仓——存在性+结构校验随定稿启用）
+ok=1
+if [ -f "$ICNS_FILE" ]; then
+  icns_hex="$(od -An -tx1 -N8 "$ICNS_FILE" 2>/dev/null | tr -d ' \n')"
+  icns_types="$(grep -aoE 'ic11|ic07|ic08' "$ICNS_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "${#icns_hex}" -eq 16 ] \
+     && [ "${icns_hex:0:8}" = "69636e73" ] \
+     && [ "${icns_hex:8:8}" != "00000000" ] \
+     && [ "${icns_types:-0}" -ge 2 ]; then
+    ok=0
+  else
+    note "TP-11: icon.icns 头部/载荷非预期（期望 icns magic+非零总长+≥2 个 ic11/ic07/ic08 类型码）：$icns_hex types=$icns_types"
+  fi
+fi
+report "TP-11 icon.icns 存在且有效（icns magic+长度+ic07/ic08/ic11 载荷——首日验证③定稿预生成入仓；gate2 M2 补落）" "$ok"
 
 # ============ TP-12：图标管线 fail-fast（AC1；wxs/winres 引用 .ico + dmg icns 硬校验） ============
 
