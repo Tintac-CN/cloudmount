@@ -50,3 +50,16 @@
 
 GATE-REJECTED gate1 2026-10-16
 ---
+
+2026-10-16 Gate#1 复审 r2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate1-ai-r2.md @ 0aa0048（reviewer-pm 0/1/2 + reviewer-architect 0/0/0 + reviewer-qa 0/0/2 + reviewer-dev 0/1/1；合并 0 BLOCKER/2 MAJOR/5 MINOR。上轮 10 MAJOR+16 MINOR 全部消解实证：43 条 [x] 清点与 ROADMAP 实读精确一致[grep -c=43]/AC1..AC15 覆盖机械终检通过/architect 侧全清/D1 区间锚处置判定正确[上轮建议 :48→:47 本身有误——:47 为代码围栏]）。
+- 问：「Gate#1 复审（r2，只核收敛点）：上轮 10 MAJOR+16 MINOR 全部消解实证（含 43 条 [x] 清点与 ROADMAP 实读精确一致/AC1..AC15 覆盖机械终检通过/architect 侧 0/0/0 全清/D1 区间锚处置判定正确）；新发现 0 BLOCKER/2 MAJOR/5 MINOR（均字面级）。如何裁决？」
+  答：「**通过+准出回填（推荐）**」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate1，满足 GATE-REJECTED gate1 2026-10-16 之后的新鲜度要求），phase → construction。
+  2. **准出回填清单**（批准条件式一行级订正，编排者执行并核收留痕，不重走复审）：M-R2-1 architecture.md 对齐表「本期默认抽样」残留→全量验证口径；M-R2-2 test-strategy TP-28 路径清单 {db,watcher,probe,queue,cache,executor}→实存模块 {store,state,engine,exec,queue,cache,watcher}；m1 architecture 只读面措辞补文档与 .gitignore；m2 「AC1..AC14」陈旧陈述→AC1..AC15（architecture+test-strategy 头注/分层节）；m3 test-strategy 头注 M2 分区枚举补 TP-18（2/12）；m4 TP-25/26 映射列补 AC15（联合承载回写）；m5 TP-27⑥ 行号区间订正（main.rs:48-51→:50-53）。
+  3. 追认项打包（SKILL §8 降级代行记录，随本轮回执一并追认）：对齐拍 qa 回填（内联代行——代理停滞停单）+修订轮三工件与各轮编排者代提交（inception 角色工具集无 Bash）——全部产出已经 r2 四方独立复审实证，追认其效力。
+  4. 后续：phase=construction，`/aidlc:construct` 进入 Sprint Planning（本 intent 经命令体 A1 式分级确认接入——A3 拆分确认在派发 dev 泳道前呈出）。
+
+GATE-APPROVED gate1 2026-10-16
+---
