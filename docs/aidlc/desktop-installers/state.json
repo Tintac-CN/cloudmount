@@ -7,9 +7,50 @@
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
-  "testBaseline": null,
-  "unitStatus": {},
-  "updatedAt": "2026-10-16T09:19:17+08:00",
+  "testBaseline": {
+    "recordedAt": "2026-10-16T09:29:20+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "pending",
+    "U2": "pending",
+    "U3": "pending",
+    "U4": "pending",
+    "U5": "pending"
+  },
+  "updatedAt": "2026-10-16T09:29:20+08:00",
   "history": [
     {
       "at": "2026-10-16T01:02:28+08:00",
@@ -52,6 +93,12 @@
       "from": "gate1",
       "to": "construction",
       "why": "Gate#1 复审 r3 人类通过（decisions.md GATE-APPROVED gate1 2026-10-16）：收敛点复审确认上轮 4 MAJOR 全部消解实证（reviews/gate1-ai-r3.md @ 70b635e，四方一致建议通过）；6 MINOR 授权随 Construction 首日断言落笔顺带闭合（括注 off-by-one/子锚绑定/断言面措辞/例外注记/CI 来源）；遗留观察（winres 披露/owner/构建来源/UTF-8）随首日一并落；phase → construction"
+    },
+    {
+      "at": "2026-10-16T09:29:20+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Construction 首日：gate1 r3 授权 6 MINOR 回填执行（@ 8e21992：括注 off-by-one/Gatekeeper 子锚绑定/TP-02 if: 断言面/intent L22 例外注记/desktop 面措辞/图标入仓声明）+ Sprint Planning 落盘（plan.md + units/1-5 @ e621ef6；5 units——U1 断言脚本红/U2 应用层[图标管线+托盘接线]/U3 MSI 扩展含 T4 授权锁修订+本地 WiX 冒烟/U4 mac dmg+body/U5 终验；影响面 low×2/med×3）+ 第 0 步基线记录（cargo test --workspace 26 目标 277 passed 0 failed exit 0）；unitStatus 初始化 pending；A3 拆分确认呈出（A1 接入 intent）"
     }
   ]
 }
