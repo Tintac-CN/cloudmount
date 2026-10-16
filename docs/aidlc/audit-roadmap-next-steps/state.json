@@ -1,7 +1,7 @@
 {
   "slug": "audit-roadmap-next-steps",
   "intent": "请对现在的开发计划和功能实现做一次审核，开始计划下一步的实现和推进",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -50,9 +50,9 @@
     "U1": "completed",
     "U2": "completed",
     "U3": "completed",
-    "U4": "pending"
+    "U4": "completed"
   },
-  "updatedAt": "2026-10-16T23:59:00+08:00",
+  "updatedAt": "2026-10-17T00:40:00+08:00",
   "history": [
     {
       "at": "2026-10-16T18:11:25+08:00",
@@ -113,6 +113,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U3 偏离扫描+质量与交付面体检完成 → completed：TP-13..20+24 全执行（五脚本 112/72/23/13/9 全绿/fmt-clippy 双面全绿/死链分项对账[.gitignore 残留为真+gen_icons 为假+ROADMAP 29 路径零死链]/CI 全命中/审核自检 3/3 可复现）；§2/§4 落盘+§6 证据索引覆盖全部 30 TP；AC13 七项三栏齐（#1/#7 已消解，#2–#6 刻意取舍或外部依赖）；新发现 5 条：NEW-1 P1=README.md 四处 stale Tauri 含 :151 不可执行死命令（超出 D 表锚面的首屏漂移）/NEW-2,3 P2=webdav.rs TLS 注释过时+ROADMAP L164/167 未收敛/NEW-4 P2=edge-packaging 分叉复证/NEW-5 P2=owner 元数据根 Cargo.toml 为错侧；audit-findings.md @ 9cf612c（§0 摘要矩阵/§3 归集表/§5 路线图待 U4）"
+    },
+    {
+      "at": "2026-10-17T00:40:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U4 归集+路线图+报告集成完成 → completed（4/4），Construction 收口 → gate2：audit-findings.md @ 242bbbd（报告全部七章+§7 自检节；§3 归集=开放项 12+四 intent backlog 37 条[去重 28+观察项 5 组+retro 候选 4]/§5 路线图=8 批次+长期轨道[头号建议=B1 文档纠偏与 B2 资质申请双线并行]/§0 摘要=43 条 41 证实+2 漂移[均 Tauri 命名]+P0=0/P1=3/P2=9）；AC15 五项机械自检全过（报告完成判据达成）；回归对比（F2）：cargo test --workspace 277/0+五脚本 112/72/23/13/9 与基线逐数一致=审核零影响证明；零写入约束全程保持（唯一写入物=audit-findings.md）；phase → gate2，提示 /aidlc:gate"
     }
   ]
 }
