@@ -1,7 +1,7 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -47,9 +47,9 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending"
+    "U1": "completed"
   },
-  "updatedAt": "2026-10-17T09:07:00+08:00",
+  "updatedAt": "2026-10-17T10:20:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -98,6 +98,12 @@
       "from": "construction",
       "to": "construction",
       "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-17）→ 派发 U1（单 unit：蓝图 28+2 项回写执行+TP-01..07 验证一体，dev 泳道）"
+    },
+    {
+      "at": "2026-10-17T10:20:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U1 回写执行完成 → completed（1/1），Construction 收口 → gate2：蓝图 28+2 项全落字 @ c6dbcb8（10 文件+56/−47：A 16 处+B 3+C 5+D 1+E 邻接 README:135+关联 owner/.gitignore/webdav.rs:29；一处蓝图措辞适配报备=#6 历史注记去 Tauri 字面[清零口径要求，语义保留]）；TP-01..07 全 PASS（TP-02 双口径产品面 0 命中/TP-03 build 56.3s+run 20s 超时冒烟可拉起/TP-04 三方 Tintac-CN 一致/TP-05 五脚本 112/72/23/13/9+277/0+fmt-clippy 双面/TP-06 diff 仅注释头注字段五类/TP-07 动态清点 33 文件 186 行时点值）；编排者核收复验：10 目标文件 tauri 残留=0（python 精确计数）+回归对比全绿=零影响证明；phase → gate2，提示 /aidlc:gate"
     }
   ]
 }
