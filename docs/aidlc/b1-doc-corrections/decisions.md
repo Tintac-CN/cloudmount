@@ -16,3 +16,19 @@
 - 后续：建 intent 骨架 → 按 classic 扇出 pm/architect/qa 三工件 → 对齐拍 → phase=gate1。
 
 ---
+
+2026-10-17 Gate#1 人类审批（AskUserQuestion 表单未获选择；对话逐字裁决）：
+- 互审输入：reviews/gate1-ai.md @ 792caef（reviewer-pm 0/3/4 + reviewer-architect 0/1/6 + reviewer-qa 0/3/3 + reviewer-dev 0/1/4；合并 0 BLOCKER/8 MAJOR/17 MINOR，去重 6 MAJOR/10 MINOR。正面确认：蓝图 28 项行锚实测零实质漂移、23 处清单独立全仓扫描完备、AC↔TP 机械核对通过、断言面零联动复核成立）。
+- 问：「B1 文档纠偏批 Gate#1 互审：0 BLOCKER / 8 MAJOR（去重 6）/ 17 MINOR。……6 MAJOR 全为工件间口径不一致（api.ts 触碰面/TP-07 计数锚/fmt-clippy 门口径/TP-01 锚 carve-out/ROADMAP:164 分类/命令主形态）。附带：M3 口径建议=要求 desktop fmt/clippy 单独跑；M6 主形态建议=build --release 为判据——是否随修订采纳？」
+  答：「**打回修订，两项附带建议采纳**」
+- 裁决落点（编排者执行）：
+  1. gate1 打回（gate1=rejected，phase 回 inception；第 1 轮/上限 3 轮）：修订点名 pm/architect/qa 三角色（dev 无 inception 工件——其发现 M1 归 pm/arch/qa 口径收敛面、行锚正面确认无需动作）。
+  2. **附带建议①采纳（M3 口径）**：desktop fmt/clippy **单独跑为必达**（TP-05 豁免删除；沿 audit-roadmap-next-steps 终验修正口径）。
+  3. **附带建议②采纳（M6 主形态）**：README:151 替换验证以 **`cargo build --release` 确定性可达为判据**；`cargo run` 仅「可拉起」超时冒烟语义（GUI 阻塞不适用退出 0 判据）。
+  4. **M1 口径收敛（编排者按证据裁决，gate1 r2 过目）**：api.ts 触碰面收敛为「**:1-6 头注块**」，D7 搭车订正采纳（:5「当前为骨架」实测失实——八命令已全部实现）；prd 约束③/AC1 #11/TP-06 边界同步放宽至 ：1-6。
+  5. 修订点名清单——**pm**：M1（约束③/AC1 #11 放宽 ：1-6+AC1 补 ：5 骨架句搭车项）/M2 关联（AC6b 排除清单补 .git/）/M4 关联（AC1 #5 示例改「M5+ 技术未定」与蓝图 #9 对齐）/M5（AC5(b) 维持必达+措辞域按现文「:164 括号改…其余字面不动」钉死，蓝图侧对齐）/m4（非目标补 README:143 测试计数 stale 点名）。**architect**：M5（蓝图 #25 自「联动候选」移入 B 段必达+措辞按 prd AC5(b) 域）/m1（E 节补 README:135 共享前端残留登记）/m3（三处证据引用精度订正）/M4 关联（蓝图 #9 维持 carve-out 形态——与 qa 侧 TP-01 修订联动）/M1 关联（蓝图 #15 维持 :1-6）。**qa**：M1（TP-06 diff 边界改 api.ts :1-6 头注块）/M2（TP-07 计数锚改 docs/aidlc/** 动态清点口径）/M3（TP-05 删豁免——desktop fmt/clippy 单独跑必达）/M4（TP-01 判据补 #9 carve-out+取值正确性核验[qa-m2]）/M6（TP-03 判据改 build --release 确定性 exit 0+cargo run 可拉起超时冒烟）/m1（AC6b 并列子串口径——__TAURI_INTERNALS__ 下划线邻接漏检）/m3（TP-06 与 TP-05 构造收尾同批执行序注记）。
+  6. **decisions 补录（编排者，随本条）**：对齐拍范围扩裁记录（16→23 处，编排者 2026-10-16 裁决=意图「全仓 grep 清零」忠实落实——散落于 test-strategy 头注/prd Q3/architecture 开放问题③/state history，本条目为统一台账锚）。
+  7. GATE-REJECTED 标记在后；修订完成后 gate1 复位 pending 复审（只核收敛点：6 MAJOR 消解+两项附带建议落实），须新回执。
+
+GATE-REJECTED gate1 2026-10-17
+---

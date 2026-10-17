@@ -1,10 +1,10 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "gate1",
+  "phase": "inception",
   "route": "classic",
   "gates": {
-    "gate1": "pending",
+    "gate1": "rejected",
     "gate2": "pending"
   },
   "tddLock": false,
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-17T02:40:00+08:00",
+  "updatedAt": "2026-10-17T02:58:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -25,6 +25,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "classic 三工件齐且对齐拍完成：prd（AC1..AC6，AC1 清单经对齐拍扩至 23 处[16 清单+7 实测新发现——编排者裁决意图忠实，gate1 过目]）/architecture（回写蓝图 28 项全行锚实测+AS-IS 基准 F1-F7+断言面零联动结论）/test-strategy（7 TP P0=4/P1=2/P2=1，词边界+排除清单五项[含守护断言自身字面]+基线保护）；qa 引用 AC↔prd 实际编号一致、AC1..AC6 全覆盖无空锚；architect 知会 package.json name 无字面不改（D10）；phase → gate1"
+    },
+    {
+      "at": "2026-10-17T02:58:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-17，第 1 轮/上限 3 轮）：互审 0 BLOCKER/8 MAJOR/17 MINOR（去重 6 MAJOR/10 MINOR，reviews/gate1-ai.md @ 792caef；正面确认：蓝图行锚实测零实质漂移/23 处清单完备/AC↔TP 机械核对通过）；裁决=「打回修订，两项附带建议采纳」（①desktop fmt/clippy 单独跑必达 ②build --release 为 README:151 验证判据）；6 MAJOR 分配：M1 api.ts :1-6 收敛[D7 采纳]/M2 TP-07 动态清点/M3 fmt-clippy 必达/M4 TP-01 carve-out/M5 ROADMAP:164 必达+措辞域/M6 build 主形态——pm/architect/qa 三角色修订；decisions 补录对齐拍范围扩裁；gate1 复位 pending 待复审（只核收敛点），须新回执"
     }
   ]
 }
