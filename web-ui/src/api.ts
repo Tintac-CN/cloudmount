@@ -3,7 +3,7 @@
  *
  * 唯一实现方为边缘 cloudmountd（POST /api/{cmd}，见 daemon webdav.rs /api/*）；
  * 桌面端已切换为纯 Rust egui 壳（apps/desktop），不经本契约。
- * 命名与参数保持一致。8 命令已全部实现。
+ * 命名与参数保持一致。8 命令契约已定形；其中 4 命令在边缘模式为文档化 501 边界。
  */
 
 import { call } from "./platform";

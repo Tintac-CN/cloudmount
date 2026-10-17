@@ -17,7 +17,7 @@ UI 代码只调用 `call(cmd, args)`。
 ```bash
 npm install
 npm run dev        # http://localhost:5173，/api 代理到本机 cloudmountd:8384
-npm run build      # 产物 dist/（由 cloudmountd --serve 托管：CLOUDMOUNT_WEB_UI / Docker COPY）
+npm run build      # 产物 dist/（由 cloudmountd --web-ui-dir 指向静态托管：Docker 镜像 COPY 至 /web-ui）
 ```
 
 ## 约定
