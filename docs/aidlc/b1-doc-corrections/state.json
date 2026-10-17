@@ -1,7 +1,7 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "operations",
+  "phase": "done",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -49,7 +49,7 @@
   "unitStatus": {
     "U1": "completed"
   },
-  "updatedAt": "2026-10-18T11:15:00+08:00",
+  "updatedAt": "2026-10-18T11:30:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -134,6 +134,12 @@
       "from": "operations",
       "to": "operations",
       "why": "ops-runbook.md（回写消费/台账维护/回流/观察项四节——文档批无部署监控面，按运维实质适配）+retro.md（classic 硬性）落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-18T11:30:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（AskUserQuestion 逐字「确认完结（推荐）」+ INTENT-DONE 2026-10-18）：classic 完结判据全达成（retro 硬性+ops-runbook+人类确认）→ phase=done，intent 退出活跃位。生命周期总览：23 处 stale Tauri 回写+owner/死路径/TLS 订正（c6dbcb8+8f8200d）经 gate1 两轮（8M 打回收敛）+gate2 两轮（2M 打回收敛）四方互审+verifier 独立终检；下一批批号待人类指定（台账待命）"
     }
   ]
 }

@@ -99,3 +99,12 @@ GATE-APPROVED gate2 2026-10-18
 - 裁决落点（编排者执行）：ops-runbook.md 落盘（审核报告消费/台账维护/回流/观察项——文档批无运行时/部署面，按运维实质适配）+retro.md 落盘（classic 硬性）→ 完结确认呈出。
 
 ---
+
+2026-10-18 完结确认（AskUserQuestion，逐字转写）：
+- 问：「完结确认（b1-doc-corrections）：ops-runbook+retro 落盘（23 处回写全落字+gate2 两轮闭环）；是否确认完结（phase=done）？若选「确认完结」，请顺带回复下一批批号。」
+  答：「**确认完结（推荐）**」（批号未随附）
+- 完结判据核验（classic 全达成）：retro.md 落盘（硬性）+ ops-runbook.md 落盘 + 人类确认（本条）→ **phase=done**；b1-doc-corrections 退出活跃位（resume/续跑均拒，历史只读）。
+- **下一批衔接状态**：ops 裁决③「直接开下一批」+本条完结确认=启动指令成立，但**批号尚未指定**（B2 资质申请/B3 Cookie 独有能力/台账条目 23 CI fmt-clippy/条目 31 真机核验批等均在台账待命）——待人类指定批号后按 /aidlc:inception 接入（backlog.md 台账对应行即范围来源）。
+
+INTENT-DONE 2026-10-18
+---
