@@ -45,7 +45,7 @@
 | 12 | `web-ui/README.md:10-11`（字面 @:10） | 「切换逻辑在 platform.ts：运行时探测 `__TAURI_INTERNALS__`」 | 改「platform.ts 为服务端/边缘专用 fetch 单路径（已移除宿主探测，`hostKind()` 恒 `"web"`）」 |
 | 13 | `web-ui/README.md:18` | 「产物 dist/（Tauri 与 cloudmountd 共用）」 | 改「产物 dist/（由 cloudmountd `--serve` 托管：CLOUDMOUNT_WEB_UI / Docker COPY）」 |
 | 14 | `web-ui/README.md:23-24`（字面 @:23） | 「Tauri 侧实现为 `#[tauri::command]`，cloudmountd 侧实现为 POST /api/{cmd}，命名与参数必须一致」 | 改「命令契约由 cloudmountd `POST /api/{cmd}` 单方实现（daemon webdav.rs `/api/*`），命名与参数以 api.ts 为准」 |
-| 15 | `web-ui/src/api.ts:1-6`（字面 @:4） | 头注「桌面 Tauri 壳与边缘 cloudmountd 都要实现这些命令，命名与参数保持一致。当前为骨架；随里程碑逐步填充。」 | 头注重写：「唯一实现方为边缘 cloudmountd（`POST /api/{cmd}`，见 daemon webdav.rs `/api/*`）；桌面端为 egui 原生 UI，不经本契约。命名与参数保持一致。」；同块「当前为骨架」已失实（8/8 命令已实现，审核 §1.7 api.ts:44-80）——同块搭车订正为「8 命令已全部实现」（D7）。**（gate1 r1 M1 收敛：触碰面=:1-6 头注块单一口径，prd 侧并行放宽对齐中——本项维持不变）** |
+| 15 | `web-ui/src/api.ts:1-6`（字面 @:4） | 头注「桌面 Tauri 壳与边缘 cloudmountd 都要实现这些命令，命名与参数保持一致。当前为骨架；随里程碑逐步填充。」 | 头注重写：「唯一实现方为边缘 cloudmountd（`POST /api/{cmd}`，见 daemon webdav.rs `/api/*`）；桌面端为 egui 原生 UI，不经本契约。命名与参数保持一致。」；同块「当前为骨架」已失实（8/8 命令已实现，审核 §1.7 api.ts:44-81）——同块搭车订正为「8 命令已全部实现」（D7）。**（gate1 r1 M1 收敛：触碰面=:1-6 头注块单一口径，prd 侧已放宽对齐（r1 完成）中——本项维持不变）** |
 | 16 | 根 `Cargo.toml:12` | 注释「# Tauri 桌面壳是独立 cargo 项目（依赖重、构建需前端产物），不进 workspace：」 | 改「# 桌面壳（egui/eframe）是独立 cargo 项目（GUI 依赖重，与 workspace 依赖图隔离），不进 workspace：」——「构建需前端产物」为 Tauri frontendDist 语义，删除（egui 无此需求，F2） |
 
 **B. 关联订正必达（#17-19 = intent 钉死 3 项；#25 = gate1 r1 M5 裁决自 D 节移入，prd AC5(b) 必达）**
@@ -55,7 +55,7 @@
 | 17 | 根 `Cargo.toml:20` | `repository = "https://github.com/zhonghaoxi/cloudmount"` | 改 `https://github.com/Tintac-CN/cloudmount`（F6 四重依据）。**域注意**：:21 homepage、:22 authors 同含 zhonghaoxi——intent 约束钉「仅注释与 repository 字段」，是否扩展见开放问题④ |
 | 18 | `.gitignore:12-14` | 「# Tauri」＋`apps/desktop/src-tauri/gen/`＋`apps/desktop/src-tauri/target/` | **三行整删（同一 diff）**：:13-14 = 死路径清理（intent 关联订正本体，`apps/desktop` 无 src-tauri/ 目录，经审核 D2 确认）；:12「# Tauri」节注的字面计数归 #28（全仓 23 处清零口径），随同块一并删除 |
 | 19 | `webdav.rs:29` | 「HTTP（无 TLS）——LAN 场景；TLS（rustls + 证书管理）见 M4 后续；」 | 按 F5 统一句改「默认 HTTP——LAN 场景；TLS 可选非默认（`--tls-cert/--tls-key`，rustls，见 daemon main.rs serve 装配）；」——仅注释行 |
-| 25 | `docs/ROADMAP.md:164`（NEW-3；**gate1 r1 M5：原 D 节联动候选移入 B 段必达**） | 「v1 为 HTTP（TLS 见后续）。」与同里程碑 :167「rustls TLS 已落地」未收敛 | **仅改 :164 括号内字面**：「TLS 见后续」→「TLS 可选已落地——--tls-cert/--tls-key（见下条）」；**「v1 为 HTTP」原文与 `[x]` 条目其余字面一律不动**（prd AC5(b) 措辞域，gate1 r1 裁决）——不得改写为「v1 默认 HTTP」类越域形态；口径基准仍为 F5 统一句，落点=括号内最小收敛 |
+| 25 | `docs/ROADMAP.md:164`（NEW-3；**gate1 r1 M5：原 D 节联动候选移入 B 段必达**） | 「v1 为 HTTP（TLS 见后续）。」与同里程碑 :167「rustls TLS 已落地」未收敛 | **仅改 :164 括号内字面**：「TLS 见后续」→「（TLS 可选——`--tls-cert/--tls-key`，见下条）」（三工件统一形态，gate2 准出回填 M-R2-1；原「TLS 可选已落地——…（见下条）」含嵌套全角括号弃用）；**「v1 为 HTTP」原文与 `[x]` 条目其余字面一律不动**（prd AC5(b) 措辞域，gate1 r1 裁决）——不得改写为「v1 默认 HTTP」类越域形态；口径基准仍为 F5 统一句，落点=括号内最小收敛 |
 
 **C. 全仓清零扩展面（#20-24 = architect 实测新增，#27-28 = 对齐拍编排者裁决补列；gate1 过目——不清零则验收挂）**
 
@@ -112,7 +112,7 @@
 | D4 | 桌面侧「8 命令/命令面/api.ts 契约对齐」类措辞一律改写为「UI 直连引擎（Arc<Mutex<SyncEngine>>）＋契约承载方=daemon `/api/*`」 | egui 壳无 IPC 命令层（审核 §1.7 grep 零命中）；直接改「桌面壳 8 命令」=换名不换实的伪订正 |
 | D5 | gzip 字节数（README:89/ROADMAP:176）不动 | 审核 §1.7 判「构建时点值微差」非偏离；动它=范围蔓延且两处需联动改，反引入新矛盾（行锚 r1 订正为 :176——m3） |
 | D6 | owner 修正最小域=repository（:20）；homepage（:21）/authors（:22）同值问题列开放问题④不擅扩 | intent 约束钉死「仅注释与 repository 字段」；扩域须人类过目——但需知会：不改则残留同值不一致 |
-| D7 | api.ts 头注块内「当前为骨架」句同块搭车订正（触碰面=:1-6 头注块单一口径） | 同一注释块（:1-6）一次改完；审核 §1.7 证 8/8 已实现——留着=回写后头注自我矛盾（gate1 r1 M1 收敛：prd 侧放宽至 :1-6 对齐本口径，pm 并行修订中） |
+| D7 | api.ts 头注块内「当前为骨架」句同块搭车订正（触碰面=:1-6 头注块单一口径） | 同一注释块（:1-6）一次改完；审核 §1.7 证 8/8 已实现——留着=回写后头注自我矛盾（gate1 r1 M1 收敛：prd 侧放宽至 :1-6 对齐本口径，pm 已并行落盘（r1 完成）） |
 | D8 | 全仓清零扩展面 7 处纳入蓝图：crates 5 处（#20-24）=architect 实测新增；package.json:6（#27）与 .gitignore:12（#28）=对齐拍编排者裁决补列（范围=全仓 23 处 tauri 字面，意图「全仓清零」忠实落实） | intent 验收=「全量 grep tauri 清零」，不含则必挂；全部注释/元数据字面、零行为，符合约束类；超出 intent 8 文件钉死面——crates 5 处经 architect 发现、后 2 处经对齐拍裁决，均 gate1 过目追认，非 dev 自行扩 |
 | D9 | 断言脚本/三 workflow 零改动；完工门=双基线复跑＋产品面 grep 清零 | intent 约束；实测五脚本无文档字面断言（断言面交叉节，含 check-macos-yaml.test.sh:99 `repository_dispatch` 同模式引证），无需联动改 |
 | D10 | package.json 仅订正 description（:6），name（:2）不动 | 对齐拍提及「name/description 订正」——实测 name=`cloudmount-web-ui` 无 tauri 字面且语义仍准确（web-ui 确为独立前端包），改 name 无字面收益反增引用面风险；如实记录实测结论，gate1 过目 |
