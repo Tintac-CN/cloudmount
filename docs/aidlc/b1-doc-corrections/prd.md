@@ -65,7 +65,7 @@
 - **不裁决 web-ui 未来双宿主**：本批仅做「单宿主=daemon serve」的文档事实化；是否恢复双宿主属 architecture.md 开放问题，不在本批。
 - **不更新 ROADMAP checkbox 完成语义**：`[x]` 全保留、不新增不删除条目；仅事实表述订正。
 - **不做 edge/ vs packaging/ 部署面收敛**（审核 NEW-4）：独立裁决项，未纳入 intent。
-- **不做脱水 API 命名注记**（小发现⑤ CfDehydratePlaceholder）：§5.1 B1 行虽提及，intent 未纳入，不入本批。
+- **不做脱水 API 命名注记**（小发现⑤ CfDehydratePlaceholder）：§5.1 B1 行虽提及，intent 未纳入，不入本批。〔gate2 r1 裁决注记：#26 脱水命名注记经 A3 批准的 plan 分区纳入本批并已交付——本行口径以 PLAN-CONFIRMED 2026-10-17 为准〕
 - **不订正 README 性能时点数值**（2.5KB gzip 实测≈2.29KB、618ms 基准等）：记录性口径，不在本批。
 - **不动 homepage/authors 相邻字段**（Cargo.toml:21-22）：intent 约束钉死「仅注释+repository 字段」（边界见 Q4）。
 - **README:143 测试计数 stale（214/185 vs 实际 277）不在本批回写面**（gate1 m4：防最小邻接调整下顺手改）。
