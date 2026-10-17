@@ -10,9 +10,46 @@
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
-  "testBaseline": null,
-  "unitStatus": {},
-  "updatedAt": "2026-10-17T09:12:00+08:00",
+  "testBaseline": {
+    "recordedAt": "2026-10-17T08:59:45+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "pending"
+  },
+  "updatedAt": "2026-10-17T09:05:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -49,6 +86,12 @@
       "from": "construction",
       "to": "construction",
       "why": "Gate#1 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式订正）：M-R2-1 替换字面三工件统一[蓝图弃嵌套括号形态]/M-R2-2 TP-03 辅判据改写/MINOR 5 项（:44-81 统一/时态/TP-02 10 文件/TP-06 执行序/:11-32）——7 处全落位复验零残留；gate1 裁决全部准出条件闭合；下一步 /aidlc:construct"
+    },
+    {
+      "at": "2026-10-17T09:05:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Sprint Planning：plan.md（单 unit U1——23 处回写+3 项关联订正=蓝图 28+2 项照做；影响面 low[纯文档/元数据/注释回写零产品逻辑]；TDD 锁 N/A 如实记录[零测试文件产出]）+ units/1.md 落盘；第 0 步基线：cargo test --workspace 277 passed/0 failed（26 目标）+ 五断言脚本 112/72/23/13/9 全 exit 0 @ 08:59:45；回归语义特化=277/0 保持+五脚本计数不变+webdav.rs 仅注释行改动[任何测试失败=越界=BLOCKER]；A3 拆分确认呈出（凭据=decisions.md A1 记录）"
     }
   ]
 }
