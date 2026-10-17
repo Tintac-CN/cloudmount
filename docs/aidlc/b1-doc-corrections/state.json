@@ -49,7 +49,7 @@
   "unitStatus": {
     "U1": "completed"
   },
-  "updatedAt": "2026-10-18T10:05:00+08:00",
+  "updatedAt": "2026-10-18T11:15:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -122,6 +122,18 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 复审 r2 人类通过（decisions.md GATE-APPROVED gate2 2026-10-18）：复审只核收敛点确认 M-1/M-2 均按建议措辞族消解（reviews/gate2-ai-r2.md @ c5d7c76，四方 0B/0M/1m——事实锚独立复验+回归保护机械复跑全绿）；MINOR-1（prd/蓝图失实措辞保留为历史工件面）登记 backlog 条目 39；phase → operations（/aidlc:ops——route=classic retro 硬性）"
+    },
+    {
+      "at": "2026-10-18T10:20:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Operations 三裁决到齐（AskUserQuestion 逐字）：①回写效果维护=时点归档（产品面常态维护，工件随 intent 归档）②backlog 台账为唯一队列（后续 inception 前先查）③直接开下一批（批号待收口时由人类指定）；ops-runbook+retro 落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-18T11:15:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "ops-runbook.md（回写消费/台账维护/回流/观察项四节——文档批无部署监控面，按运维实质适配）+retro.md（classic 硬性）落盘；完结确认呈出"
     }
   ]
 }

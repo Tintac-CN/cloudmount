@@ -88,3 +88,14 @@ GATE-REJECTED gate2 2026-10-18
 
 GATE-APPROVED gate2 2026-10-18
 ---
+
+2026-10-18 Operations 人类裁决（AskUserQuestion，逐字转写）：
+- 问：「①回写效果维护口径：文档回写完成后如何防回流？」
+  答：「**时点归档（推荐）**」——回写后的文档（README/ROADMAP/ARCHITECTURE/web-ui）即产品面常态维护，无特殊防回流机制；prd/蓝图/TP 等工件随 intent 归档为时点记录。
+- 问：「②backlog 台账（条目 39 项）的后续消费方式？」
+  答：「**台账为准（推荐）**」——docs/aidlc/backlog.md 统一台账为唯一队列，后续 /aidlc:inception 前先查台账；新搁置项追加于此。
+- 问：「③下一步衔接：B1 收口后是否直接开下一批？」
+  答：「**直接开下一批**」——批号未指定（B2 资质申请/B3 Cookie 独有能力/条目 23 CI fmt-clippy 等均在台账待命）；收口时由人类指定具体批次后按 /aidlc:inception 接入。
+- 裁决落点（编排者执行）：ops-runbook.md 落盘（审核报告消费/台账维护/回流/观察项——文档批无运行时/部署面，按运维实质适配）+retro.md 落盘（classic 硬性）→ 完结确认呈出。
+
+---
