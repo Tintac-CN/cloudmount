@@ -1,11 +1,11 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "gate2",
+  "phase": "construction",
   "route": "classic",
   "gates": {
     "gate1": "approved",
-    "gate2": "pending"
+    "gate2": "rejected"
   },
   "tddLock": false,
   "tddLockPaths": [],
@@ -49,7 +49,7 @@
   "unitStatus": {
     "U1": "completed"
   },
-  "updatedAt": "2026-10-17T10:20:00+08:00",
+  "updatedAt": "2026-10-18T08:40:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -104,6 +104,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "U1 回写执行完成 → completed（1/1），Construction 收口 → gate2：蓝图 28+2 项全落字 @ c6dbcb8（10 文件+56/−47：A 16 处+B 3+C 5+D 1+E 邻接 README:135+关联 owner/.gitignore/webdav.rs:29；一处蓝图措辞适配报备=#6 历史注记去 Tauri 字面[清零口径要求，语义保留]）；TP-01..07 全 PASS（TP-02 双口径产品面 0 命中/TP-03 build 56.3s+run 20s 超时冒烟可拉起/TP-04 三方 Tintac-CN 一致/TP-05 五脚本 112/72/23/13/9+277/0+fmt-clippy 双面/TP-06 diff 仅注释头注字段五类/TP-07 动态清点 33 文件 186 行时点值）；编排者核收复验：10 目标文件 tauri 残留=0（python 精确计数）+回归对比全绿=零影响证明；phase → gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-18T08:40:00+08:00",
+      "from": "gate2",
+      "to": "construction",
+      "why": "Gate#2 人类审批打回（decisions.md GATE-REJECTED gate2 2026-10-18，第 1 轮/上限 3 轮）：互审 0 BLOCKER/3 MAJOR 主题[去重 2]/13 MINOR（reviews/gate2-ai.md @ 0bf20ab；verifier 独立终检 30/30 落字+零计划外+零逻辑变更+验证全复现）；裁决=「打回修订+反馈」——反馈=互审清单 M-1（api.ts 8 命令 overstated，4/8 边缘 501 占位）/M-2（CLOUDMOUNT_WEB_UI 死机制引用）+MINOR 处置指令（prd 非目标注记归 pm/flaky 登记归台账/卫生项入 backlog）；修订点名 dev（M-1/M-2 一行级×2）+pm（prd 注记）；gate2 复位 pending 待复审（只核 M-1/M-2 消解），须新回执"
     }
   ]
 }

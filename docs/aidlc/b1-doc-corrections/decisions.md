@@ -60,3 +60,19 @@ GATE-APPROVED gate1 2026-10-17
 
 PLAN-CONFIRMED 2026-10-17
 ---
+
+2026-10-18 Gate#2 人类审批（AskUserQuestion 表单未获选择；对话逐字裁决）：
+- 互审输入：reviews/gate2-ai.md @ 0bf20ab（reviewer-pm 0/0/3 + reviewer-architect 0/2/3 + reviewer-qa 0/0/2 + reviewer-dev 0/1/7 + verifier 0/1/3；合并 0 BLOCKER/3 MAJOR 主题[去重 2]/13 MINOR。verifier 独立终检：蓝图 30/30 全落字、计划外文件=无、零逻辑变更成立、验证声称全部真实复现）。
+- 问：「B1 Gate#2 交付门互审：0 BLOCKER / 3 MAJOR 主题（去重 2）/ 13 MINOR。……2 MAJOR 均为本批新写入文本的失实表述：M-1 api.ts「8 命令已全部实现」实为 4/8 命令 501 占位/M-2 web-ui README 引用不存在的 CLOUDMOUNT_WEB_UI 机制。如何裁决？（另：qa 报告既有 flaky 观察……建议登记跟踪）」
+  答：「**打回修订+反馈**」
+- 反馈内容（=互审发现清单，逐字锚定）：
+  1. **M-1**：api.ts:6「8 命令已全部实现」为失实表述——唯一实现方 daemon 边缘模式 4/8 命令 501 占位（webdav.rs:938-942/:958-962）+get_status 硬编码占位，违反 prd 措辞约束②。收敛形态采 architect 建议措辞族。
+  2. **M-2**：web-ui/README:20 引用不存在的 `CLOUDMOUNT_WEB_UI` 托管机制（daemon 实际 `--web-ui-dir` main.rs:116-118 无 env=；config 仅 APP_ID/SYNC_ROOT/CHANNEL；edge Dockerfile ENV 为死变量）——改可验证表述。
+  3. **MINOR 处置指令**：prd 非目标「不做脱水 API 命名注记」vs #26 已按 A3 批准交付的矛盾→pm 修订 prd 注记；既有 flaky 观察（engine_works_with_native_watcher）→登记 backlog 跟踪；其余卫生 MINOR（双空行/微措辞簇）→入 backlog 不阻塞。
+- 裁决落点（编排者执行）：
+  1. gate2 打回（gate2=rejected，phase 回 construction；第 1 轮/上限 3 轮）：修订点名 dev（M-1/M-2 一行级×2）+pm（prd 非目标注记）。
+  2. 编排者随手项：flaky 观察登记 backlog.md（台账新观察行）。
+  3. GATE-REJECTED 标记在后；修订完成后 gate2 复位 pending 复审（只核收敛点：M-1/M-2 消解），须新回执。
+
+GATE-REJECTED gate2 2026-10-18
+---
