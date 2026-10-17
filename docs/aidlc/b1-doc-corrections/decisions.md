@@ -51,3 +51,12 @@ GATE-APPROVED gate1 2026-10-17
 - gate1 裁决的全部准出条件闭合；phase=construction；下一步 `/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认在派发执行泳道前呈出）。
 
 ---
+
+2026-10-17 A3 拆分确认（AskUserQuestion 表单未获选择；对话逐字裁决——凭据=decisions.md A1 记录）：
+- 呈批对象：plan.md @ d903b00（单 unit U1——蓝图 28+2 项照做：23 处 stale Tauri 回写+owner 元数据+.gitignore 死路径+TLS 注释+README:135 邻接；验证=TP-01..07 全套[双口径清零/build --release 主判据/fmt-clippy 双面含 desktop 单独跑/diff 边界零逻辑变更/动态清点]；影响面 low；TDD 锁 N/A[零测试文件]；基线 277/0+112/72/23/13/9 @ 08:59:45 已录）。
+- 问：「A3 拆分确认（intent b1-doc-corrections，单 unit U1 只读转回写执行）：是否批准执行？」
+  答：「**批准执行**」
+- 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；派发 U1（dev 泳道——回写执行+TP-01..07 验证一体）。
+
+PLAN-CONFIRMED 2026-10-17
+---
