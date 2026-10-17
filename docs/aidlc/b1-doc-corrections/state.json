@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-17T09:20:00+08:00",
+  "updatedAt": "2026-10-17T09:12:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -43,6 +43,12 @@
       "from": "gate1",
       "to": "construction",
       "why": "Gate#1 复审 r2 人类通过（decisions.md GATE-APPROVED gate1 2026-10-17）：复审只核收敛点确认上轮 6 MAJOR+10 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 5dc93f5，四方 0B/2M/7m——行锚 15+ 处抽验零漂移）；新发现 2 MAJOR（#25 替换字面三工件两套/TP-03 辅判据引注失实）+7 MINOR 均一行级→随准出回填闭合（单一形态「TLS 可选——--tls-cert/--tls-key，见下条」三处统一/TP-03 辅判据改写/5 项注记）；phase → construction"
+    },
+    {
+      "at": "2026-10-17T09:12:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Gate#1 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式订正）：M-R2-1 替换字面三工件统一[蓝图弃嵌套括号形态]/M-R2-2 TP-03 辅判据改写/MINOR 5 项（:44-81 统一/时态/TP-02 10 文件/TP-06 执行序/:11-32）——7 处全落位复验零残留；gate1 裁决全部准出条件闭合；下一步 /aidlc:construct"
     }
   ]
 }

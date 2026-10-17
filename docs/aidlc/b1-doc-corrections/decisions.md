@@ -45,3 +45,9 @@ GATE-REJECTED gate1 2026-10-17
 
 GATE-APPROVED gate1 2026-10-17
 ---
+
+2026-10-17 Gate#1 准出回填核收（编排者内联执行——人类裁决「通过+准出回填」的条件式一行级订正）：
+- **7 处全部落位**（机械 patch+复验零残留）：M-R2-1 #25 替换字面三工件统一扁平含锚形态「（TLS 可选——`--tls-cert/--tls-key`，见下条）」（蓝图 #25[弃嵌套括号长形态]/prd AC5(b)/TP-06 引用判据三处同步）；M-R2-2 TP-03 辅判据改写（cargo run=独立冒烟指令非回写行文本；回写行文本按蓝图 #4=build --release 形态）；MINOR：architecture :44-80→:44-81（#15 处）+「并行中」时态三处改完成时+TP-01 :11-31→:11-32+test-strategy TP-02 AC6a 标注 8→10 文件（补 config.rs/package.json）+TP-06 执行序双列收敛（①初核⑤为准）。
+- gate1 裁决的全部准出条件闭合；phase=construction；下一步 `/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认在派发执行泳道前呈出）。
+
+---
