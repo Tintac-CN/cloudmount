@@ -56,6 +56,7 @@
 | 2026-10-16 | 31 | 安装包/dmg/托盘真机核验触发（首个含安装包 tag 后人工清单+伪隐藏 mac 形态裁决） | 三源〔D:3源〕 | 观察（v0.2.1 已发布——条件已触发，待排） |
 | 2026-10-16 | 32 | 间歇 flaky CI 现身时按失败测试名定位（条目 24 伴生） | audit-p0p1-fixes runbook | 观察 |
 | 2026-10-16 | 38 | 【B1 gate2 报告】engine_works_with_native_watcher 满载并行下原生 watcher 时序 flake 1 例（隔离复跑 5/5；277/0 基线不受影响）——重试加固或隔离标注 | b1-doc-corrections gate2-ai MINOR | 观察 |
+| 2026-10-16 | 39 | 【B1 gate2 r2】prd AC1 #11/蓝图 #15 失实措辞（「8 命令已全部实现」）保留为历史工件面——补就地裁决注记或维持豁免（先例=desktop-installers 条目 21） | b1-doc-corrections gate2-ai-r2 MINOR-1 | 记录 |
 
 ### 记录性（不入工程队列）
 

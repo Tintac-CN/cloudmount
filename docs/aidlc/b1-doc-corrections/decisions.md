@@ -76,3 +76,15 @@ PLAN-CONFIRMED 2026-10-17
 
 GATE-REJECTED gate2 2026-10-18
 ---
+
+2026-10-18 Gate#2 复审 r2 人类审批（AskUserQuestion 表单未获选择；对话逐字裁决）：
+- 互审输入：reviews/gate2-ai-r2.md @ c5d7c76（reviewer-architect 0/0/0 + reviewer-qa 0/0/1；合并 0 BLOCKER/0 MAJOR/1 MINOR。M-1/M-2 均按建议措辞族消解+事实锚独立复验通过+回归保护机械复跑全绿[TP-02 双口径产品面零命中/TP-05 五脚本+277/0 一致/TP-06 两处一行订正均在注释文档类内]）。
+- 问：「B1 Gate#2 复审（r2，只核收敛点）：M-1/M-2 均按建议措辞族消解+事实锚独立复验通过+回归保护机械复跑全绿；0 BLOCKER/0 MAJOR/1 MINOR（prd/蓝图失实措辞保留为历史工件面——登记台账或补注记）。如何裁决？」
+  答：「**通过**」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate2，满足 GATE-REJECTED gate2 2026-10-18 之后的新鲜度要求），phase → operations。
+  2. **MINOR-1 处置**：prd AC1 #11/蓝图 #15 失实措辞保留为历史工件面注记项——登记 backlog.md 台账（记录类），不做就地修订（「不触碰历史 AIDLC 工件」约束与 desktop-installers 条目 21 先例一致）。
+  3. 后续：phase=operations，`/aidlc:ops`（route=classic——retro 硬性要求）。
+
+GATE-APPROVED gate2 2026-10-18
+---

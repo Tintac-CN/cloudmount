@@ -1,11 +1,11 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "gate2",
+  "phase": "operations",
   "route": "classic",
   "gates": {
     "gate1": "approved",
-    "gate2": "rejected"
+    "gate2": "approved"
   },
   "tddLock": false,
   "tddLockPaths": [],
@@ -49,7 +49,7 @@
   "unitStatus": {
     "U1": "completed"
   },
-  "updatedAt": "2026-10-18T09:00:00+08:00",
+  "updatedAt": "2026-10-18T10:05:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -116,6 +116,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "Gate#2 修订轮完成（第 1 轮）：dev @ 8f8200d（M-1 api.ts:6 限定表述「8 命令契约已定形；其中 4 命令在边缘模式为文档化 501 边界」/M-2 web-ui README:20 机制名订正「--web-ui-dir 指向静态托管」——各恰好一行，落笔前实测锚确认）+ pm prd 非目标 gate2 裁决注记；gate2 复位 pending 待复审（只核 M-1/M-2 消解），须新回执"
+    },
+    {
+      "at": "2026-10-18T10:05:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 复审 r2 人类通过（decisions.md GATE-APPROVED gate2 2026-10-18）：复审只核收敛点确认 M-1/M-2 均按建议措辞族消解（reviews/gate2-ai-r2.md @ c5d7c76，四方 0B/0M/1m——事实锚独立复验+回归保护机械复跑全绿）；MINOR-1（prd/蓝图失实措辞保留为历史工件面）登记 backlog 条目 39；phase → operations（/aidlc:ops——route=classic retro 硬性）"
     }
   ]
 }
