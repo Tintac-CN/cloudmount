@@ -32,3 +32,16 @@
 
 GATE-REJECTED gate1 2026-10-17
 ---
+
+2026-10-17 Gate#1 复审 r2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate1-ai-r2.md @ 5dc93f5（reviewer-pm 0/0/2 + reviewer-architect 0/1/2 + reviewer-qa 0/1/2 + reviewer-dev 0/0/2；合并 0 BLOCKER/2 MAJOR/7 MINOR。上轮 6 MAJOR+10 MINOR 全部消解实证：行锚 15+ 处抽验零漂移[dev/pr/arch 三方独立实测]/43 条清点不适用本批[23 处清单完备]/AC1..AC6 机械终检通过）。
+- 问：「B1 Gate#1 复审（r2，只核收敛点）：上轮 6 MAJOR+10 MINOR 全部消解实证（行锚 15+ 处抽验零漂移）；新发现 0 BLOCKER/2 MAJOR/7 MINOR（#25 替换字面三工件两套/TP-03 辅判据引注失实——均一行级收敛）。如何裁决？」
+  答：「**通过+准出回填（推荐）**」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate1，满足 GATE-REJECTED gate1 2026-10-17 之后的新鲜度要求），phase → construction。
+  2. **准出回填清单**（批准条件式一行级订正，编排者执行并核收留痕，不重走复审）：M-R2-1 #25 括号内替换字面三工件统一为单一形态（采 dev 建议扁平含锚「（TLS 可选——`--tls-cert/--tls-key`，见下条）」，同步蓝图 #25/prd AC5(b)/TP-06 引用判据）；M-R2-2 TP-03 辅判据改写（cargo run 冒烟=独立冒烟指令非回写行文本；回写行文本按蓝图 #4=build --release 形态）；MINOR：api.ts 证据区间 :44-80→:44-81 统一（architecture 两处）/TP-02 AC6a 标注补 config.rs+package.json（8→10 文件）/TP-06 执行序双列收敛（①初核⑤为准）/architecture「并行中」时态改完成时（三处）/TP-01 引 :11-31→:11-32。
+  3. 追认项打包：本轮无新 §8 事件（三角色修订+四方复审全代理执行）；历次编排者代提交（inception 角色无 Bash）沿 GATE-APPROVED gate1（audit-roadmap-next-steps）回执先例追认。
+  4. 后续：phase=construction，`/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认在派发执行泳道前呈出）。
+
+GATE-APPROVED gate1 2026-10-17
+---

@@ -1,10 +1,10 @@
 {
   "slug": "b1-doc-corrections",
   "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
-  "phase": "gate1",
+  "phase": "construction",
   "route": "classic",
   "gates": {
-    "gate1": "rejected",
+    "gate1": "approved",
     "gate2": "pending"
   },
   "tddLock": false,
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-17T09:05:00+08:00",
+  "updatedAt": "2026-10-17T09:20:00+08:00",
   "history": [
     {
       "at": "2026-10-16T23:36:31+08:00",
@@ -37,6 +37,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "Gate#1 修订轮完成（第 1 轮）：prd r1 @ 1d651a6（M1 :1-6 收敛+M2 .git 排除+M4 #5 对齐+M5 措辞域钉死+附带①② prd 侧落点[AC6c(c)/AC2]+m4）+ test-strategy r1 @ ee8466d（M1-M4/M6+双口径+执行序）+ architecture r1（M5 #25 移 B 段+D11/m1 E+ 段/m3 精度+附带①②加注）；修订只重跑被点名三角色；gate1 复位 pending 待复审（只核收敛点：6 MAJOR 消解+两项附带建议落实），须新回执"
+    },
+    {
+      "at": "2026-10-17T09:20:00+08:00",
+      "from": "gate1",
+      "to": "construction",
+      "why": "Gate#1 复审 r2 人类通过（decisions.md GATE-APPROVED gate1 2026-10-17）：复审只核收敛点确认上轮 6 MAJOR+10 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 5dc93f5，四方 0B/2M/7m——行锚 15+ 处抽验零漂移）；新发现 2 MAJOR（#25 替换字面三工件两套/TP-03 辅判据引注失实）+7 MINOR 均一行级→随准出回填闭合（单一形态「TLS 可选——--tls-cert/--tls-key，见下条」三处统一/TP-03 辅判据改写/5 项注记）；phase → construction"
     }
   ]
 }
