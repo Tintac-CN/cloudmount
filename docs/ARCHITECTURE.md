@@ -19,7 +19,7 @@
 ### Windows（当前规划：M2）
 
 ```
-[CloudMount.exe]  Tauri 2 桌面壳（web-ui + 托盘 + 平台集成）
+[CloudMount.exe]  桌面壳（egui/eframe 纯 Rust：原生 UI + 托盘 + 平台集成）
       │ 链接
       ▼
 [cloudmount-core 等 crates]  同步引擎/驱动/缓存（同进程库）
@@ -45,7 +45,7 @@
 ### macOS（M5+）
 
 ```
-[宿主 App（Tauri）] ←→ [NSFileProviderReplicatedExtension（Swift 薄桥）]
+[宿主 App（M5+，技术未定）] ←→ [NSFileProviderReplicatedExtension（Swift 薄桥）]
                                    │ C ABI / staticlib
                               [cloudmount-core（Rust）]
 ```
@@ -81,13 +81,13 @@ Cookie 只读探测失败（my.115.com/?ct=guide&ac=status，不踢下线）
 凭据隔离：官方 token 与 Cookie 分开存放（`SecretKind`），Cookie 通道
 独立 UA/独立限速（0.5 r/s）。
 
-## 前端复用（一套 SPA，两种宿主）
+## web-ui 管理页（边缘单宿主）
 
-`web-ui/src/platform.ts` 运行时探测 Tauri：
-- 桌面壳内 → `invoke()` 直调 Rust 命令；
-- 边缘浏览器 → `POST /api/{cmd}` 打到 cloudmountd。
-两端后端命令**同名同参**（契约在 `web-ui/src/api.ts`）。前端零框架
-（vanilla TS），复杂文件列表出现后再评估 Svelte。
+唯一宿主 = `cloudmountd --serve`（浏览器 → `POST /api/{cmd}`）。契约在
+`web-ui/src/api.ts`，daemon 实现于 `/api/*`，两端**同名同参**。桌面端为
+egui 原生 UI（apps/desktop），不使用 web-ui——`platform.ts` 已单宿主化
+（`hostKind()` 恒 `"web"`）。前端零框架（vanilla TS），复杂文件列表出现
+后再评估 Svelte。
 
 ## 自研 Windows minifilter（长期，drivers/win）
 

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "CloudMount 共享前端：同一套代码跑在 Tauri 桌面壳与边缘网关浏览器",
+  "description": "CloudMount 边缘网关管理页（cloudmountd --serve 托管的前端）",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

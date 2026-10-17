@@ -26,7 +26,7 @@
 //!
 //! ## v1 边界
 //!
-//! - HTTP（无 TLS）——LAN 场景；TLS（rustls + 证书管理）见 M4 后续；
+//! - 默认 HTTP——LAN 场景；TLS 可选非默认（`--tls-cert/--tls-key`，rustls，见 daemon main.rs serve 装配）；
 //! - PUT 经临时文件中转（spool）再上传——WebDAV PUT 无流式语义；
 //! - 锁系统用 FakeLs（Windows/macOS 挂载兼容所需的最小 LOCK 支持）。
 
@@ -691,7 +691,7 @@ pub async fn serve(
     web_ui_dir: Option<PathBuf>,
     tls: Option<TlsConfig>,
 ) -> anyhow::Result<()> {
-    // 网关状态（/api/* 数据源；与 Tauri 壳的 StatusSnapshot 同构）
+    // 网关状态（/api/* 数据源；与 egui 桌面壳的 StatusSnapshot 同构）
     let gateway = Arc::new(GatewayState::new(provider.clone()));
     let addr: std::net::SocketAddr = listen
         .parse()
@@ -847,7 +847,7 @@ async fn handle_request(
     }
 
     let path = req.uri().path().to_string();
-    // /api/*：web-ui 的 REST 面（与 Tauri 命令同名）
+    // /api/*：web-ui 的 REST 面（命令名与 web-ui api.ts 契约同名）
     if path == "/api" || path.starts_with("/api/") {
         return handle_api(req, gateway).await;
     }
@@ -871,7 +871,7 @@ async fn handle_request(
 
 /// 网关状态（/api/* 数据源）。
 ///
-/// 与 Tauri 壳的 AppState 同构：provider 直查（quota）、暂停标志、
+/// 与桌面壳（egui）的 AppState 同构：provider 直查（quota）、暂停标志、
 /// 日志环形缓冲。边缘模式无本地引擎（WebDAV 直通 Provider），
 /// 缓存统计返回"不可用"占位（v2 接入边缘缓存后填充）。
 struct GatewayState {
@@ -890,7 +890,7 @@ impl GatewayState {
     }
 }
 
-/// `/api/*` 处理（与 Tauri 命令同名同参；POST JSON）。
+/// `/api/*` 处理（与 web-ui api.ts 契约命令同名同参；POST JSON）。
 async fn handle_api(
     req: hyper::Request<hyper::Body>,
     gateway: Arc<GatewayState>,

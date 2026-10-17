@@ -88,7 +88,10 @@
   - 内容变化：`CfUpdatePlaceholder` + `DEHYDRATE`（新元数据生效、陈旧本地数据
     丢弃、下次读取水合新内容）；**冲突保护**：本地 mtime ≠ 旧远端 mtime
     （用户修改未上传）→ 跳过计冲突，绝不覆盖用户数据
-  - dehydrate 释放空间：`CfDehydratePlaceholder` 整文件脱水（共享冲突明确报错）
+  - dehydrate 释放空间：`CfDehydratePlaceholder` 整文件脱水（共享冲突明确报错）。
+    命名注记：实现在 cfapi.rs 刻意绕开未文档化的 `CfDehydratePlaceholder`
+    导出，用文档化两步路径（CfSetPinState(UNPINNED) + CfUpdatePlaceholder +
+    DEHYDRATE）实现，能力语义等价
   - 新本地目录上传：`ensure_remote_dir` 逐级创建远端目录链（视图/投影集合同步）
   - e2e（真机 cldflt）：重投影后读到新内容；本地已修改→用户数据保留；
     嵌套新目录+文件全部上传
@@ -108,11 +111,12 @@
       **冲突保护**：本地 mtime ≠ 旧远端 mtime（用户修改未上传）→ 跳过重投影
       计入冲突（绝不覆盖用户数据）。e2e：远端变→重投影→读到新内容；
       本地已修改→用户数据保留。
-- [x] **Tauri 壳（2026-10-13）**：托盘（状态菜单：打开/暂停恢复/打开目录/退出，
+- [x] **桌面壳（egui/eframe，2026-10-13）**：托盘（状态菜单：打开/暂停恢复/打开目录/退出，
       Linux 菜单文本更新兼容）+ 关窗隐藏到托盘 + 引擎线程（SyncEngine 循环，
-      暂停 AtomicBool + 状态快照共享）+ 命令面（get_status/set_sync_root/
-      toggle_pause/open_sync_folder，与 web-ui api.ts 契约对齐）+ 应用图标
-      （scripts/gen_icons.py 纯 stdlib 生成）。cargo check 通过。
+      暂停 AtomicBool + 状态快照共享）+ UI 直连引擎（状态快照/暂停/打开
+      目录，`Arc<Mutex<SyncEngine>>` 共享）——api.ts 同名命令契约
+      由 daemon `/api/*` 承载 + 应用图标（scripts/gen_icons.py 纯
+      stdlib 生成）。cargo check 通过。
 - [x] **应用一致性目录防护（2026-10-13）**：默认排除 `.git`/`.hg`/`.svn`/
       `@eaDir`/`#recycle` 目录与 `.DS_Store`/`Thumbs.db`/`~$*`/`.tmp` 等垃圾
       文件（`exclude.rs`，四处过滤：本地扫描/RDC 事件/inotify 事件/远端拉取）。
@@ -121,11 +125,14 @@
       扫描不可见 / 引擎不传不拉 / 占位符不投影 / .git 写入零上传。
       强制同步排除项的规则（静默期门控+.git 内禁冲突副本）设计存档于
       exclude.rs 模块文档（M2.5）
-- [x] **Tauri 壳（2026-10-13 真机 GUI 手测通过）**：托盘（菜单/关窗隐藏/
-      暂停恢复文本切换）+ web-ui 集成（内嵌 frontendDist，内存 23.8MB）。
-      手测修复两个 bug：① custom-protocol feature 缺失（裸 cargo build
-      的 exe 加载 devUrl 白窗）；② StatusSnapshot 序列化 camelCase 契约
-      （队列 ↑undefined / lastMessage 丢失）。
+- [x] **桌面壳（egui/eframe，2026-10-13 真机 GUI 手测通过）**：托盘（菜单/
+      关窗隐藏/暂停恢复文本切换）+ 桌面 UI 为 egui 原生（无 WebView、
+      无 frontendDist；web-ui 由 daemon `--serve` 单独托管），内存 23.8MB
+      （真机手测）。手测修复两个 bug：① custom-protocol feature 缺失
+      （裸 cargo build 的 exe 加载 devUrl 白窗）——早期技术路线验证期
+      历史记录，现 egui 载体不适用；② StatusSnapshot 序列化 camelCase
+      契约（daemon 侧 `/api/*` 序列化契约：队列 ↑undefined /
+      lastMessage 丢失）。
 - [x] **资源管理器状态图标与右键动词（2026-10-13 真机验证）**：导航栏
       'CloudMount 云挂'（与 OneDrive 并排）；状态列'在此设备上可用'/
       '联机时可用'；右键原生动词'释放空间'+'始终保留在此设备上'，
@@ -161,7 +168,7 @@
       缓存、PUT spool 上传、MKCOL/DELETE/MOVE/COPY）；Basic 认证；
       web-ui 静态托管（穿越防护）；--mock 自检。4 项集成测试 +
       curl 实测（OPTIONS/GET/PUT/回读/PROPFIND）双平台通过。
-      v1 为 HTTP（TLS 见后续）。
+      v1 为 HTTP（TLS 可选——`--tls-cert/--tls-key`，见下条）。
 - [x] **musl 静态交叉 + TLS + 打包（2026-10-13）**：CI 双目标
       （aarch64/x86_64 musl，含 daemon+CLI+冒烟）；**rustls TLS**
       （--tls-cert/--tls-key，自签证书 curl 实测 HTTPS）；systemd
@@ -173,8 +180,9 @@
 
 - [x] **缓存可视化/设置页/日志导出（2026-10-13，42ab2c9）**：web-ui
       完整化（标签页 + 占用/命中率进度条 + 一键清理 + 日志 Blob 导出，
-      零框架 2.48KB gzip）；Tauri 壳 8 命令（引擎 Arc 共享 + 日志环形
-      缓冲）；daemon serve /api/* REST 同名同参（同一 UI 双宿主）。
+      零框架 2.48KB gzip）；桌面壳（egui）UI 直连引擎（引擎 Arc 共享 +
+      日志环形缓冲）；daemon serve /api/* REST 同名同参（web-ui 单宿主 =
+      daemon `--serve` 托管）。
 - [x] **万级投影基准（2026-10-13 真机）**：10,100 条目 **618ms
       （16,330 条/秒）**——CfCreatePlaceholders 每父目录一次内核批量
       调用已足够，无需优化。
