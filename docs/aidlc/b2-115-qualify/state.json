@@ -1,10 +1,10 @@
 {
   "slug": "b2-115-qualify",
   "intent": "M0 外部阻塞链启动：申请 115 开放平台个人开发者资质+创建 PKCE 应用（材料提交+受理跟进；人类操作为主，工程侧配套=申请材料技术清单整理+AppID 到位后的 TODO(verify) 闭环预备）——路线图批次表 B2",
-  "phase": "gate1",
+  "phase": "inception",
   "route": "classic",
   "gates": {
-    "gate1": "pending",
+    "gate1": "rejected",
     "gate2": "pending"
   },
   "tddLock": false,
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-18T10:10:00+08:00",
+  "updatedAt": "2026-10-18T10:35:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -25,6 +25,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "classic 三工件齐且对齐拍完成（decisions.md 对齐拍记录）：prd AC1..AC4（申请材料清单/提交留痕/受理跟踪/AppID 预备）+ architecture（申请材料技术规格 11 项+15 端点面+AppID 接入预备+受理状态机六态；勘误 TODO 锚=driver115/open.rs）+ test-strategy（5 TP P0=3/P1=2，TP→AC 回填 AC1..AC4 全覆盖无缺口）；qa 映射回填=qa 角色执行（跨 intent 重派新 agent——B1 qa 会话过期）；phase → gate1"
+    },
+    {
+      "at": "2026-10-18T10:35:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-18，第 1 轮/上限 3 轮）：互审 0 BLOCKER/8 MAJOR 报告条目[去重 2 主题]/19 MINOR（reviews/gate1-ai.md @ 7cf99dc；正面确认：规格锚 40+ 处零虚构/勘误锚定复核正确/受理状态机自洽）；两裁决逐字——①「打回修订（推荐）」②载体=「tracking.md（推荐）」（采纳即补 check_method 键+TP-03 第⑤字段）；修订点名 pm（M1 定指/M2 分面/MINOR 4 项）/architect（M1 蓝图规格/M2 分面/MINOR 4 项）/qa（M1 TP-03 第⑤字段/MINOR 6 项含 TP-07 动态清点 b1 先例）；gate1 复位 pending 待复审（只核收敛点），须新回执"
     }
   ]
 }

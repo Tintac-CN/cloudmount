@@ -25,3 +25,20 @@
 - 相位转移：phase → gate1（gate1=pending），提示 `/aidlc:gate`。
 
 ---
+
+2026-10-18 Gate#1 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate1-ai.md @ 7cf99dc（reviewer-pm 0/1/3 + reviewer-architect 0/1/5 + reviewer-qa 0/1/5 + reviewer-dev 0/2/6；合并 0 BLOCKER/8 MAJOR 报告条目[去重 2 主题]/19 MINOR[去重 ~14]。正面确认：规格 11 项+15 端点面代码锚抽验 40+ 处全部属实[含 RFC 7636 官方向量逐字]/勘误锚定复核正确/「零写入」TP-05 机械判据成立/受理状态机六态+7+7 口径三方自洽）。
+- 呈批两问（AskUserQuestion，逐字）：
+  问：「B2 资质申请 Gate#1 互审：0 BLOCKER / 8 MAJOR 报告条目（去重 2 主题）/ 19 MINOR。2 主题：M1 受理跟踪簇（载体未钉+数据模型缺「查看方式」键+TP-03 判据未单列——三工件连环缺口，一个裁决链闭环）/M2 AC4⑤ AppID 到位动作对 CLI login 不成立（config.toml 路线仅 daemon/desktop 生效——分面表述一行修）。如何裁决？」
+  答：「**打回修订（推荐）**」
+  问：「M1 载体裁决（gate1 当场可决）：受理跟踪载体采纳哪种？（采纳即同时补数据模型 check_method 键+TP-03 第⑤字段，三工件联动闭环）」
+  答：「**tracking.md（推荐）**」
+- 裁决落点（编排者执行）：
+  1. gate1 打回（gate1=rejected，phase 回 inception；第 1 轮/上限 3 轮）：修订点名 pm/architect/qa 三角色（dev 无 inception 工件）。
+  2. **M1 载体裁决=tracking.md**：受理跟踪载体=独立 tracking.md（可变键值文档，含 check_method 键承载「查看方式」；status 多次更新不改审计历史）——architect 蓝图补 tracking.md 规格（路径/键集/check_method/六态映射）+数据模型补 check_method 键+draft 态注记（draft=尚不建记录）；pm AC2①/AC3② 定指 tracking.md；qa TP-03 补第⑤字段（查看方式在案+证伪）判据并更新载体引用。
+  3. **M2**：AC4⑤/蓝图下游输入清单① 改分面表述「CLI login 须 `--app-id` 或 `CLOUDMOUNT_APP_ID`；config.toml 路线仅 daemon/desktop 生效」。
+  4. 修订点名清单——**pm**：M1（AC2①/AC3② 定指 tracking.md）/M2（AC4⑤ 分面表述）/MINOR（AC1 #5 示例对齐蓝图 #9[MacOS M5+ 技术未定不预写]/AC1⑧ usertime→user_utime 代码事实/AC1⑧ copy/delete 出处收窄[仅 copy]/preid 128K 补锚 hash.rs:14）。**architect**：M1 关联（数据模型补 check_method 键+draft 态「尚不建记录」注记+tracking.md 规格节落蓝图）/M2（下游输入清单① 分面表述）/MINOR（client.rs/envelope.rs 补 crate 前缀/scope 表述改「零 OAuth scope 请求参数」/multipart 表格锚改 client.rs:137+收录 open.rs:5-17 表格漂移为收录项）。**qa**：M1 关联（TP-03 补第⑤字段「查看方式在案」+判据+载体引用更新）/MINOR（TP-07 计数锚改动态清点——b1 先例/TP-05 基点钉 14a7eb4/TP-02 自命中排除规则/TP-05 白名单措辞收敛/TP-05 P1 定级注记/7+7 锚 :8→:3-4）。**decisions 补录（编排者随本条）**：🚀 emoji 错位（backlog A 节首行无 🚀、实为 B1 行——引用措辞失真勘误）。
+  5. GATE-REJECTED 标记在后；修订完成后 gate1 复位 pending 复审（只核收敛点：2 主题 MAJOR 消解+载体裁决落实+MINOR 批量），须新回执。
+
+GATE-REJECTED gate1 2026-10-18
+---
