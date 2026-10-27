@@ -120,3 +120,5 @@ jobs:
         run: cargo check -p cmflt-driver
       - name: Clippy driver (lib only)
         run: cargo clippy -p cmflt-driver --lib -- -D warnings
+      - name: Build user-mode handshake client
+        run: cargo build -p cmflt-client

@@ -1,6 +1,6 @@
 [package]
 name = "cmflt-driver"
-description = "CloudMount native-Rust minifilter kernel image (KM-0)"
+description = "CloudMount native-Rust minifilter kernel image (KM-1)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,4 +13,5 @@ test = false
 doctest = false
 
 [dependencies]
+cmflt-core = { workspace = true }
 cmflt-flt = { workspace = true }

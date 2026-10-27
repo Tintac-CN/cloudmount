@@ -12,6 +12,7 @@ members = [
     "cmflt-flt",
     "cmflt-driver",
     "cmflt-sim",
+    "cmflt-client",
 ]
 # `cargo test` / `cargo build` from this directory must not attempt to link the
 # kernel image; the driver is built explicitly by scripts/build-driver.ps1.
@@ -19,6 +20,7 @@ default-members = [
     "cmflt-core",
     "cmflt-flt",
     "cmflt-sim",
+    "cmflt-client",
 ]
 
 [workspace.package]

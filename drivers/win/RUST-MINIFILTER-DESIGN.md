@@ -24,6 +24,20 @@
 >   `FLTMGR.SYS`、无 RWX 段、反汇编无 `xmm/ymm/zmm`；宿主侧 41 项测试通过。
 > - 未完成：testsigning 加载/卸载循环与 Driver Verifier（本机 testsigning 关闭）。
 
+> **v1.2 KM-1 实施（2026-10-27）**
+>
+> - 通信端口 `\CloudMountCmfltPort`：`FltCreateCommunicationPort` +
+>   `FltBuildDefaultSecurityDescriptor(FLT_PORT_ALL_ACCESS)`（系统/管理员可连），
+>   connect/disconnect/message 回调；unload 按 client → server → unregister 逆序关闭。
+> - 握手：`Hello` → `HelloAck`（status/proto/caps/kernel_version）；`Health` 仅在
+>   Hello 成功后接受；版本不匹配返回 `STATUS_REVISION_MISMATCH`。新增用户态
+>   `cmflt-client` 冒烟工具。
+> - 连接状态在 `SpinLock<EngineState>` 内；版本/健康字段用原子标量 + 两个 `u64`
+>   版本字，避免 LLVM 生成 16 字节 SSE 拷贝/清零。
+> - 实测：宿主 52 项测试通过；`cloudmount.sys` 6,144 字节，Native，导入
+>   `FLTMGR.SYS` + `NTOSKRNL.EXE`，无 RWX 段，反汇编无 FP/SSE。
+> - 未完成：testsigning 下 `fltmc load/unload`、`cmflt-client` 真机握手、G1。
+
 ---
 
 ## 0. 结论摘要
@@ -372,7 +386,8 @@ pub fn flush_buffers(irql: Irql<Passive>, ...) -> Result<()>;
 | K→U | `Invalidate{file_id}` | 远端变更 |
 | U→K | `HydrateReply{tx_id, status, bytes_written, sha1?}` | **只回报结果，不回传数据**（数据由引擎直接写文件流，避免大块内存穿越内核） |
 | U→K | `Hello{proto_ver, caps, engine_ver}` | 握手与版本协商 |
-| U→K | `Health{stats}` | 心跳/统计 |
+| K→U | `HelloAck{status, proto_ver, caps, kernel_ver}` | 握手响应（KM-1 已实现） |
+| U→K | `Health{stats}` | 心跳/统计（仅握手成功后） |
 
 ### 8.3 协议硬化
 - 消息上限（如 64 KiB；路径压缩为 file_id 引用，路径仅在必要消息中出现且长度受限）。
@@ -400,7 +415,8 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 - `[lib] crate-type = ["cdylib"]`（驱动器 crate）；`cmflt-core` 为 `rlib`（同时给 std 仿真器）。
 - `cmflt-driver/build.rs` 探测 WDK 的 `Lib/<ver>/km/x64`，链接 `fltMgr`、`ntoskrnl`、`hal`、`bufferoverflowfastfailk`、`wmilib`；传 `/DRIVER /SUBSYSTEM:NATIVE /ENTRY:DriverEntry /NODEFAULTLIB /IGNORE:4257,4216 /MACHINE:X64 /NXCOMPAT /DYNAMICBASE`。
 - 使用 rustc 默认的 MSVC `link.exe`，不启用 rust-lld；`/CETCOMPAT` 暂未加入（VS2019 link 兼容性优先，KM-1 再评估）。
-- 当前产物实测：4.5 KB，`Native` 子系统，仅导入 `FLTMGR.SYS`，无 RWX 段，反汇编无 FP/SSE。
+- KM-0 产物实测：4.5 KB，`Native` 子系统，仅导入 `FLTMGR.SYS`；KM-1 产物实测：
+  6,144 字节，导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`（自旋锁），无 RWX 段，反汇编无 FP/SSE。
 
 ### 9.2 自有分配器（补上游缺口）
 - 实现 `GlobalAlloc`：`ExAllocatePool2(POOL_FLAG_NON_PAGED, size, TAG)`，其中 `TAG = 'CmfL'`。
@@ -474,7 +490,7 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 | 阶段 | 内容 | 退出判据 | 估算 |
 |---|---|---|---|
 | **KM-0** 骨架与构建 | cdylib 直出 `.sys`；`.inf`；段布局与链接参数；空 filter（无回调）可加载卸载 | 构建/PE 门禁绿（**2026-10-27 已达成**）；`sc start/stop` 与 `fltmc` 可见（**待 testsigning/VM**） | 3–4 周 |
-| **KM-1** 绑定与骨架回调 | `cmflt-flt` safe 层（§5.5 清单）；通信端口 + SDDL；握手/版本协商；`Hello/Health` | 引擎可连；**G1 首版**（100 次加载卸载零泄漏）；绑定层无 C/C++ 组件 | 4–6 周 |
+| **KM-1** 绑定与骨架回调 | `cmflt-flt` safe 层（§5.5 清单）；通信端口 + 默认安全描述符；握手/版本协商；`Hello/HelloAck/Health` | **实现完成（2026-10-27）**：端口/握手/客户端 + 52 宿主测试；引擎真机连接与 **G1 首版**待 testsigning/VM；绑定层无 C/C++ 组件 | 4–6 周 |
 | **KM-2** 只读视图 | 自有 tag 占位符创建；目录枚举投影（元数据）；**属性-only open 零 I/O**；扫描抑制 | L2 中"备份/搜索/去重"三项零水合；无死锁 | 4–6 周 |
 | **KM-3** 按需水合 | 状态机全量（§6）+ Cbdq 取消安全 + 超时/降级/熔断 + `FsRtlChangeBackingFileObject` 切换 + `FltFlushBuffers` | **G2**（取消×水合×卸载矩阵）；**G4**（引擎 kill/挂起）；大文件吞吐达标 | 6–8 周 |
 | **KM-4** mmap 与写路径 | section 同步钩子（读/写/ModWrite）+ fast I/O disallow + oplock/共享冲突降级 + 写回与去水合 | mmap 压测零错读；无 `ERROR_SHARING_VIOLATION` 误报 | 4–6 周 |

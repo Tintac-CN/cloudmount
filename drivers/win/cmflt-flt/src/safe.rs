@@ -4,13 +4,21 @@
 //! turns NTSTATUS into `Result`. It does not hide IRQL or locking rules for
 //! I/O callbacks yet; those wrappers arrive with the callbacks that need them.
 
+use core::cell::UnsafeCell;
 use core::ptr::{null, null_mut};
+use core::sync::atomic::AtomicUsize;
 
 use crate::raw::{
-    FilterUnloadCallback, FltRegisterFilter, FltRegistration, FltStartFiltering,
-    FltUnregisterFilter, NtStatus, PdriverObject, PfltFilter, FLT_REGISTRATION_VERSION,
-    STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
+    ConnectNotifyCallback, DisconnectNotifyCallback, FilterUnloadCallback,
+    FltBuildDefaultSecurityDescriptor, FltCloseClientPort, FltCloseCommunicationPort,
+    FltCreateCommunicationPort, FltFreeSecurityDescriptor, FltRegisterFilter, FltRegistration,
+    FltStartFiltering, FltUnregisterFilter, MessageNotifyCallback, NtStatus, ObjectAttributes,
+    PdriverObject, PfltFilter, PfltPort, SecurityDescriptor, UnicodeString,
+    FLT_REGISTRATION_VERSION, KSPIN_LOCK, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
+    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
 };
+
+use crate::raw::{KeAcquireSpinLockRaiseToDpc, KeInitializeSpinLock, KeReleaseSpinLock};
 
 /// NT_SUCCESS: non-negative NTSTATUS values are success.
 pub const fn nt_success(status: NtStatus) -> bool {
@@ -122,6 +130,146 @@ pub unsafe fn unregister_raw(filter: PfltFilter) {
     }
 }
 
+/// A kernel spinlock-protected value.
+///
+/// `init` must be called exactly once before the first [`SpinLock::with`].
+/// The critical section runs at DISPATCH_LEVEL, so the closure must be short
+/// and must not block, allocate, or call any PASSIVE-only API.
+pub struct SpinLock<T> {
+    lock: AtomicUsize,
+    value: UnsafeCell<T>,
+}
+
+unsafe impl<T: Send> Sync for SpinLock<T> {}
+
+impl<T> SpinLock<T> {
+    pub const fn new(value: T) -> Self {
+        Self {
+            lock: AtomicUsize::new(0),
+            value: UnsafeCell::new(value),
+        }
+    }
+
+    /// # Safety
+    /// Must be called exactly once before any `with` call.
+    pub unsafe fn init(&self) {
+        unsafe { KeInitializeSpinLock(self.lock.as_ptr().cast::<KSPIN_LOCK>()) };
+    }
+
+    pub fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        let irql = unsafe { KeAcquireSpinLockRaiseToDpc(self.lock.as_ptr().cast::<KSPIN_LOCK>()) };
+        let result = f(unsafe { &mut *self.value.get() });
+        unsafe { KeReleaseSpinLock(self.lock.as_ptr().cast::<KSPIN_LOCK>(), irql) };
+        result
+    }
+}
+
+impl UnicodeString {
+    /// Borrow a static UTF-16 slice for a FltMgr call. The slice must not
+    /// include a terminating NUL; `Length` is the exact byte length.
+    fn from_wide(name: &'static [u16]) -> Self {
+        let chars = name.len().min((u16::MAX as usize) / 2);
+        let bytes = (chars * 2) as u16;
+        Self {
+            length: bytes,
+            maximum_length: bytes,
+            buffer: name.as_ptr() as *mut u16,
+        }
+    }
+}
+
+/// Server side of a Filter Manager communication port.
+///
+/// No `Drop`: closing is an explicit lifecycle step so unload can close the
+/// client port first, then the server port, then unregister the filter.
+pub struct CommunicationPort {
+    raw: PfltPort,
+}
+
+impl CommunicationPort {
+    /// # Safety
+    /// `filter` must be a registered filter; callbacks must be valid for the
+    /// lifetime of the port and must follow the FltMgr IRQL rules.
+    pub unsafe fn create(
+        filter: PfltFilter,
+        name: &'static [u16],
+        desired_access: u32,
+        connect_notify: ConnectNotifyCallback,
+        disconnect_notify: DisconnectNotifyCallback,
+        message_notify: MessageNotifyCallback,
+        max_connections: i32,
+    ) -> Result<Self, NtStatus> {
+        let mut security: SecurityDescriptor = null_mut();
+        let status = unsafe { FltBuildDefaultSecurityDescriptor(&mut security, desired_access) };
+        if !nt_success(status) {
+            return Err(status);
+        }
+        if security.is_null() {
+            return Err(STATUS_INSUFFICIENT_RESOURCES);
+        }
+
+        let mut unicode = UnicodeString::from_wide(name);
+        let mut object_attributes = ObjectAttributes {
+            length: core::mem::size_of::<ObjectAttributes>() as u32,
+            root_directory: null_mut(),
+            object_name: &mut unicode,
+            attributes: OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+            security_descriptor: security,
+            security_quality_of_service: null_mut(),
+        };
+        let mut server: PfltPort = null_mut();
+        let status = unsafe {
+            FltCreateCommunicationPort(
+                filter,
+                &mut server,
+                &mut object_attributes,
+                null_mut(),
+                Some(connect_notify),
+                Some(disconnect_notify),
+                Some(message_notify),
+                max_connections,
+            )
+        };
+        unsafe { FltFreeSecurityDescriptor(security) };
+
+        if nt_success(status) && !server.is_null() {
+            Ok(Self { raw: server })
+        } else if nt_success(status) {
+            Err(STATUS_UNSUCCESSFUL)
+        } else {
+            Err(status)
+        }
+    }
+
+    pub fn raw(&self) -> PfltPort {
+        self.raw
+    }
+
+    pub fn into_raw(self) -> PfltPort {
+        self.raw
+    }
+
+    /// # Safety
+    /// Must be called at IRQL <= PASSIVE_LEVEL, after the client port has
+    /// been closed, and exactly once.
+    pub unsafe fn close(self) {
+        if !self.raw.is_null() {
+            unsafe { FltCloseCommunicationPort(self.raw) };
+        }
+    }
+}
+
+/// Close a client port in the Filter Manager disconnect callback or unload.
+///
+/// # Safety
+/// `filter` must still be registered; `client_port` must point to a live
+/// client port variable. FltMgr clears the variable on success.
+pub unsafe fn close_client_port(filter: PfltFilter, client_port: &mut PfltPort) {
+    if !filter.is_null() && !client_port.is_null() {
+        unsafe { FltCloseClientPort(filter, client_port) };
+    }
+}
+
 const _: () = assert!(STATUS_SUCCESS == 0);
 
 #[cfg(test)]
@@ -162,5 +310,26 @@ mod tests {
         assert!(nt_success(1));
         assert!(!nt_success(-1));
         assert!(!nt_success(STATUS_UNSUCCESSFUL));
+    }
+
+    #[test]
+    fn unicode_string_and_object_attributes_layout() {
+        #[cfg(target_pointer_width = "64")]
+        {
+            assert_eq!(size_of::<UnicodeString>(), 16);
+            assert_eq!(size_of::<ObjectAttributes>(), 48);
+        }
+
+        let name: &'static [u16] = &[b'\\' as u16, b'C' as u16, b'm' as u16];
+        let unicode = UnicodeString::from_wide(name);
+        assert_eq!(unicode.length, 6);
+        assert_eq!(unicode.maximum_length, 6);
+        assert_eq!(unicode.buffer, name.as_ptr() as *mut u16);
+    }
+
+    #[test]
+    fn spin_lock_is_constructible_without_kernel_calls() {
+        let lock = SpinLock::new(0u32);
+        assert_eq!(lock.lock.load(core::sync::atomic::Ordering::Relaxed), 0);
     }
 }

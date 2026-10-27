@@ -1,6 +1,6 @@
 # CloudMount Windows 存储内核（自研 minifilter · 原生 Rust）
 
-> 状态：**KM-0 原生 Rust 骨架已落地**（分支 `feat/cmflt-native-rust`，2026-10-27）。
+> 状态：**KM-0 已合入；KM-1 通信端口 + 握手已实现**（分支 `feat/cmflt-km1-port`，2026-10-27）。
 > M2 仍用 CfAPI 发布产品；`cmflt` 是长期自研后端，通过
 > `cloudmount-vfs::MountBackend` 平滑替换，不阻塞任何产品里程碑。
 >
@@ -28,10 +28,11 @@
 ```
 drivers/win/
 ├── Cargo.toml                 # 独立 workspace（与主产品 workspace 隔离）
-├── cmflt-core/                # #![no_std] 纯逻辑：状态机 / 协议 / 范围记账
-├── cmflt-flt/                 # 手写 FltMgr ABI + 最小 safe 生命周期封装
-├── cmflt-driver/              # #![no_std] cdylib：DriverEntry / unload / panic 策略
+├── cmflt-core/                # #![no_std] 纯逻辑：状态机 / 协议 / 范围记账 / 握手
+├── cmflt-flt/                 # 手写 FltMgr ABI + safe 生命周期/端口/自旋锁封装
+├── cmflt-driver/              # #![no_std] cdylib：DriverEntry / 端口回调 / unload
 ├── cmflt-sim/                 # std 用户态仿真器与属性测试（无 WDK 可跑）
+├── cmflt-client/              # std 用户态握手冒烟客户端（FltLib）
 ├── scripts/                   # host 测试 / 构建 / PE 验证 / test-sign
 ├── cloudmount.inf             # HSM 组安装信息（Class=HSM / Group=FSFilter HSM）
 └── RUST-MINIFILTER-DESIGN.md  # 完整设计与里程碑
@@ -49,12 +50,29 @@ drivers/win/
 - PE 静态门禁：x64 / Native / `DriverEntry` / 仅导入 `FLTMGR.SYS` / 无 RWX 段 /
   反汇编无 `xmm|ymm|zmm`。
 
-## KM-0 未完成（需要下一环境）
+## KM-1 已交付
+
+- **通信端口**：`\CloudMountCmfltPort`，`FltCreateCommunicationPort` +
+  `FltBuildDefaultSecurityDescriptor(FLT_PORT_ALL_ACCESS)`（系统/管理员可连）；
+  connect/disconnect/message 三个回调；unload 按 client → server → unregister
+  逆序关闭。
+- **握手**：用户态 `Hello{proto,caps,engine_version}` → 内核 `HelloAck{status,
+  proto,caps,kernel_version}`；`Health` 心跳仅在握手成功后接受；版本不匹配
+  返回 `STATUS_REVISION_MISMATCH`，未握手 Health 返回 `STATUS_INVALID_PARAMETER`。
+- **并发**：`SpinLock<EngineState>` 保护连接状态；协议解析与 ack 编码在锁内完成，
+  临界区不含阻塞/分配。
+- **版本/健康字段用原子标量 + 两个 `u64` 版本字**：避免 LLVM 把 16 字节
+  拷贝/清零降成 SSE，驱动镜像继续通过 `xmm/ymm/zmm` 零命中门禁。
+- **用户态冒烟工具**：`cmflt-client.exe` 连接端口、发 Hello/Health、
+  校验 HelloAck。
+- 宿主测试 52 项（core 35 + flt 5 + sim 5 + 集成 7）。
+
+## 未完成（需要测试机）
 
 - **测试签名加载/卸载循环**：本机 `testsigning` 关闭；启用需
   `bcdedit /set testsigning on` + 重启，或在 VM/专用测试机执行。
 - Driver Verifier、File System Filter Verification、200 次加载卸载循环（G1）。
-- 真实通信端口、上下文、operation 回调（KM-1/KM-2）。
+- 真实引擎连接 `cmflt-client`（需 driver 已加载）；上下文与 operation 回调（KM-2）。
 
 ## 构建前置
 
@@ -86,6 +104,10 @@ powershell -ExecutionPolicy Bypass -File scripts/test-host.ps1
 # 构建 cloudmount.sys 并执行 PE 静态门禁
 powershell -ExecutionPolicy Bypass -File scripts/build-driver.ps1
 # 产物：drivers/win/out/cloudmount.sys
+
+# 用户态握手客户端
+cargo build -p cmflt-client
+# 产物：drivers/win/target/debug/cmflt-client.exe
 ```
 
 Git Bash 可直接 `bash scripts/test-host.sh`。
@@ -104,33 +126,41 @@ Restart-Computer
 InfDefaultInstall.exe .\cloudmount.inf
 fltmc load cloudmount
 fltmc filters          # 应看到 cloudmount，Altitude=189900，Group=FSFilter HSM
+
+# 4. 握手/心跳冒烟（需要管理员权限以连接端口）
+.\target\debug\cmflt-client.exe
+# 期望：handshake ok / health ok
+
 fltmc unload cloudmount
 ```
 
 生产使用前必须申请正式 altitude 并过 HLK/WHCP；attestation 签名仅限测试用途。
 
-## 验证记录（2026-10-27）
+## 验证记录（2026-10-27，KM-1）
 
 ```text
-cargo test --workspace            41 passed / 0 failed
-cargo check -p cmflt-driver       OK
+cargo test --workspace            52 passed / 0 failed
+cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
-cloudmount.sys                    4,608 bytes
+cargo build -p cmflt-client       OK
+cloudmount.sys                    6,144 bytes
 entry point                       DriverEntry
 subsystem                         Native (1)
-imports                           FLTMGR.SYS only
+imports                           FLTMGR.SYS + NTOSKRNL.EXE
 FP/SSE/AVX in disassembly         none
 writable+executable sections      none
+cmflt-client（driver 未加载）      0x80070002（预期：端口不存在）
 ```
 
-详细证据与复现命令见本文件"构建与测试"节；加载/卸载仍待 testsigning 或 VM 执行。
+详细证据与复现命令见本文件"构建与测试"节；加载/卸载与真实握手仍待
+testsigning 或 VM 执行。
 
 ## 里程碑
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
-| KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **骨架完成，加载待验** |
-| KM-1 | 扩展 FltMgr safe 层（端口/上下文/回调）+ 握手/版本协商 | 待开始 |
+| KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
+| KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **实现完成，真机连接待验** |
 | KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | 待开始 |
 | KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | 待开始 |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
