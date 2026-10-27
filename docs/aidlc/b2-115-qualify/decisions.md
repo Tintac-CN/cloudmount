@@ -80,3 +80,12 @@ GATE-APPROVED gate1 2026-10-18
 - gate1 裁决的全部准出条件闭合；phase=construction；下一步 `/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认在派发前呈出；Construction 核心=工程侧材料清单+tracking.md 建文件+人类执行 115 提交）。
 
 ---
+
+2026-10-18 A3 拆分确认（AskUserQuestion 表单未获选择；对话逐字裁决——凭据=decisions.md A1 记录）：
+- 呈批对象：plan.md @ 39acb5d（3 units 串行——U1 工程侧材料清单+tracking 骨架+操作指引/U2 人类执行 115 提交+留痕[人类执行段]/U3 AppID 预备清单；影响面全 low；TDD 锁 N/A[零测试文件]；基线 277/0+112/72/23/13/9 @ 23:27:30 已录）。
+- 问：「A3 拆分确认（intent b2-115-qualify，3 units 串行：U2 含人类执行段——115 平台提交由你亲自执行）：是否批准执行？」
+  答：「**批准执行**」
+- 裁决落点（编排者执行）：PLAN-CONFIRMED 回执在后；串行派发 U1→U2→U3（U2 为人类执行段——工程侧呈操作指引后暂停待人类提交回报）。
+
+PLAN-CONFIRMED 2026-10-18
+---
