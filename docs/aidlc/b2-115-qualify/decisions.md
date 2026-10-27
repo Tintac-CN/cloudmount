@@ -16,3 +16,12 @@
 - 后续：建 intent 骨架 → 按 classic 扇出 pm/architect/qa 三工件 → 对齐拍 → phase=gate1。
 
 ---
+
+2026-10-18 Inception 对齐拍记录（编排者；qa 映射回填由 qa 角色执行、跨 intent 重派新 agent）：
+- 三工件：prd @ 本轮（AC1..AC4：申请材料清单定稿/提交凭据留痕/受理跟踪口径/AppID 预备清单）/ architecture（申请材料技术规格 11 项[PKCE 构造/method/verifier/刷新机制/15 端点面]+AppID 接入预备[config 注入点+两处 TODO 闭环条件]+受理跟踪状态机六态）/ test-strategy（5 TP P0=3/P1=2）。
+- **勘误锚定**：open.rs:274,371 两处 TODO(verify) 实际位于 `crates/cloudmount-driver115/src/open.rs`（编排者派发消息误写 auth/open.rs——architect 落笔前实测纠正并锁定，供下游「AppID 实测」intent 使用）。
+- **qa 对齐回填**（跨 intent 重派新 qa agent，B1 qa 会话已过期）：映射列 TP-01→AC1/TP-02→AC1+AC2/TP-03→AC2+AC3/TP-04→AC4/TP-05→全 AC 约束；AC1..AC4 每条 ≥1 TP 机械核无缺口；prd 三条新增开放问题（tracking.md 载体/平台强制字段现场裁决/应用展示信息）经核均有 TP 判据联动或归记录类，无需新增 TP；「四拆/三拆」措辞差实为 AC 四条与三拆预映射的计数差，回填后已消解。
+- 对齐拍结论：**工件齐且对齐**（classic 三件全落盘并提交；qa 引用 AC↔prd 实际编号一致[AC1..AC4 全覆盖]）。
+- 相位转移：phase → gate1（gate1=pending），提示 `/aidlc:gate`。
+
+---
