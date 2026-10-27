@@ -186,8 +186,12 @@
 ## 长期 · 自研 Windows minifilter（drivers/win）
 
 **实现方案已定稿**：[RUST-MINIFILTER-DESIGN.md](../drivers/win/RUST-MINIFILTER-DESIGN.md)
-—— 用 Rust 从零实现（cdylib 直出 `.sys`，自建 FltMgr 绑定层 + 薄 C 壳回退路径），
+—— 用 Rust 从零实现（cdylib 直出 `.sys`，手写 FltMgr 绑定层，无 C/C++ 桩），
 含 14 项稳定机制与 S1–S6 门禁、KM-0…KM-7 里程碑（18–30 人月，验证占半）。
+
+**2026-10-27 进展（特性分支 `feat/cmflt-native-rust`）**：KM-0 原生 Rust 骨架落地——
+空 filter `.sys` 已实际链接（Native 子系统、入口 `DriverEntry`、仅导入 `FLTMGR.SYS`），
+宿主侧 41 项测试通过；加载/卸载循环待 testsigning 或 VM 验证。
 
 关键结论：不再走"C 内核 + Rust 用户态"；官方两条红线（HSM 组内不得对 recall 文件
 做 targeted 缓存读写、必须处理 section 同步钩子）已写入设计；零售分发需过

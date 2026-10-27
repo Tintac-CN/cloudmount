@@ -9,6 +9,23 @@
 
 ---
 
+> **v1.1 原生 Rust 实施修订（2026-10-27）**
+>
+> - 目标改为"原生 RUST"：驱动镜像不含任何 C/C++ 源文件、C 启动桩、bindgen/libclang
+>   产物或 C++ 运行时。旧 `src/filter.c` 与 `include/cloudmount_proto.h` 已从工作树移除
+>   （git 历史可查）；协议由 `cmflt-core::protocol` 的显式小端编码定义。
+> - §3 D1 的"薄 C 壳回退路径"不再作为仓库内维护组件。若未来绑定层出现无法隔离的 UB，
+>   回退方案重新立项评估，不把 C 组件放回主路径。
+> - FltMgr ABI 手写于 `cmflt-flt/src/raw.rs`：`FLT_REGISTRATION_VERSION = 0x0203`，
+>   x64 `FLT_REGISTRATION` 112 字节由 `const assert` 锁定；不使用 `cargo-wdk` 或 bindgen。
+> - 工具链：stable Rust + VS2019 BuildTools + WDK 10.0.19041；`cargo check` 不需要 WDK，
+>   链接 `.sys` 需要 WDK 的 km 导入库。
+> - KM-0 已实际产出空 filter 镜像：Native 子系统、入口 `DriverEntry`、仅导入
+>   `FLTMGR.SYS`、无 RWX 段、反汇编无 `xmm/ymm/zmm`；宿主侧 41 项测试通过。
+> - 未完成：testsigning 加载/卸载循环与 Driver Verifier（本机 testsigning 关闭）。
+
+---
+
 ## 0. 结论摘要
 
 | 维度 | 结论 |
@@ -52,7 +69,7 @@
 
 | 事项 | 结论 |
 |---|---|
-| 产物形态 | `crate-type = ["cdylib"]`，rustc 调 MSVC `link.exe` 直接产出 DLL，由 `cargo-wdk` 改名 `.sys`。**无需 C 桩、无需 staticlib**。 |
+| 产物形态 | `crate-type = ["cdylib"]`，rustc 调 MSVC `link.exe` 直接产出 DLL，由构建脚本改名为 `.sys`。**无需 C 桩、无需 staticlib**。 |
 | 必须链接 | `FltMgr.lib`（自加）、`BufferOverflowFastFailK.lib`（提供 `memcpy/memset`）、`ntoskrnl.lib`、`hal.lib`、`wmilib.lib` |
 | 链接参数 | `/DRIVER /NODEFAULTLIB /SUBSYSTEM:NATIVE /KERNEL /ENTRY:DriverEntry /IGNORE:4257,4216` |
 | 硬性编译要求 | `-C target-feature=+crt-static`；`panic = "abort"`；**必须禁用 rust-lld**（否则 `sc start` 报 998） |
@@ -88,11 +105,11 @@
 
 ## 3. 关键架构决策（ADR）
 
-### D1 · 语言边界：纯 Rust minifilter，但保留"薄 C 壳"回退路径
-**决定**：内核驱动 100% Rust，FltMgr 绑定自建（`flt` crate）。
-**理由**：无 C 桩的直出路径已被 apriorit 项目验证；单语言消除 FFI 语义漂移。
+### D1 · 语言边界：原生 RUST，无 C/C++ 组件
+**决定**：内核驱动 100% Rust；FltMgr ABI 手写在 `cmflt-flt`，不使用 bindgen/libclang，不编译任何仓库内 C/C++ 源；仓库内不维护 C 薄壳回退路径。
+**理由**：无 C 桩的直出路径已被 apriorit 项目验证；单语言消除 FFI 语义漂移。2026-10-27 的 KM-0 产物已实际链接为 Native PE（仅导入 `FLTMGR.SYS`），验证了该边界。
 **被否方案**：C 驱动 + Rust 逻辑库（稳妥但失去"编译期消灭缺陷类"的主要收益）。
-**回退触发条件**：若在 KM-1 结束时仍无法实现"卸载零泄漏"（S1）或绑定层出现无法用 safe 封装隔离的 UB，则切到回退路径：内核侧保留 <800 行 C（仅 DriverEntry + 回调转调），逻辑仍全在 Rust。**回退路径必须在 KM-1 前保持可切**（见 §9.4）。
+**回退备案**：若 KM-1 后绑定层出现无法用 safe 封装隔离的 UB，回退方案重新立项（可在独立分支评估），不把 C 组件放回本仓库主路径（见文首 v1.1 修订、§9.4）。
 
 ### D2 · 薄内核原则（最重要的稳定性决策）
 **内核只拥有三件事**：① 水合状态机；② 后备对象切换（调 `FsRtlChangeBackingFileObject`）；③ 与用户态引擎的协议。
@@ -132,19 +149,22 @@
 ```
 drivers/win/
 ├── Cargo.toml                    # workspace: cmflt-* crates（独立于主 workspace）
-├── build.rs                      # 链接 FltMgr.lib 等 + 生成绑定 + 段布局检查
-├── cmflt-flt/                    # 【unsafe 边界】FltMgr/WDK 绑定与安全封装
-│   ├── src/raw/                  # bindgen 产物（仅生成，不手改）
-│   ├── src/safe/                 # RAII 类型、IRQL 类型、锁序、句柄
+├── .cargo/config.toml            # +crt-static（x64 MSVC）
+├── cmflt-flt/                    # 【unsafe 边界】手写 FltMgr ABI + 最小 safe 封装
+│   ├── src/raw.rs                # 手写 ABI（const 布局断言；无 bindgen 产物）
+│   ├── src/safe.rs               # 注册生命周期、NTSTATUS -> Result
 │   └── src/lib.rs
-├── cmflt-core/                   # 【no_std 纯逻辑】状态机、协议编解码、策略
-│   ├── src/hydration/            # 水合状态机（用户态可测）
-│   ├── src/protocol/             # 消息 schema + 编解码 + 版本协商
-│   ├── src/journal/              # 崩溃一致性对账
-│   └── src/lib.rs                # #![no_std]，std feature 用于用户态模拟
-├── cmflt-sim/                    # 【std】用户态仿真器：mock FltMgr 驱动 cmflt-core
-├── cmflt-driver/                 # 【cdylib】驱动器：DriverEntry/回调/端口
-└── tests/                        # 仿真测试 + 场景脚本 + 门禁脚本
+├── cmflt-core/                   # 【no_std 纯逻辑】状态机、协议编解码、范围记账
+│   ├── src/hydration.rs          # 水合状态机（用户态可测）
+│   ├── src/protocol.rs           # 显式小端 schema + 编解码 + 版本/长度校验
+│   ├── src/range.rs              # 固定容量 hydrated-range 记账
+│   └── src/lib.rs                # #![no_std]；测试时启用 std
+├── cmflt-sim/                    # 【std】用户态仿真器 + 属性/负路径测试
+├── cmflt-driver/                 # 【cdylib】DriverEntry / unload / panic 策略
+│   └── build.rs                  # WDK 导入库探测 + Native 链接参数
+├── scripts/                      # host 测试 / 构建 / PE 验证 / test-sign
+├── cloudmount.inf                # HSM 组安装信息
+└── RUST-MINIFILTER-DESIGN.md
 ```
 
 **关键点**：`cmflt-core` 是 `#![no_std]` 但无内核依赖，配 `std` feature 后可在用户态编译运行 → **同一份状态机代码，既跑在内核，也在 CI 里被 fuzz/模型检查/并发压测**（§10 L0）。这是"更稳定"最有力的来源。
@@ -153,10 +173,11 @@ drivers/win/
 
 ## 5. FltMgr 安全绑定层（`cmflt-flt`）
 
-### 5.1 绑定生成策略
-- 用 `bindgen` 处理 `fltkernel.h` + `fltuserstructures.h`（+ 必需的 `ntifs.h` 片段），固定 libclang 版本，产物签入仓库并**在 CI 里 diff**（防止无意识漂移）。
-- **不直接暴露 bindgen 输出**：`raw` 模块 `pub(crate)`，所有调用必须经 `safe` 层。`safe` 层禁止出现 `unsafe` 之外的类型（无裸指针外泄）。
-- 只绑定**实际使用**的符号（约 70 个，见 §5.5），其余用 `#[cfg(any())]` 或裁剪，减少审计面。
+### 5.1 绑定策略：手写 ABI，禁止 bindgen
+- 依据 WDK 10.0.19041 `fltkernel.h` 与 Microsoft Learn DDI 页手写 `cmflt-flt/src/raw.rs`；**不引入 bindgen/libclang/头文件扫描**，也不依赖 `cargo-wdk`。
+- 只声明当前里程碑实际使用的符号；`FLT_REGISTRATION` x64 大小 112 字节、`FLT_REGISTRATION_VERSION = 0x0203` 由 `const assert` 锁定。
+- `raw` 模块公开但仅限驱动 crate 使用；注册生命周期必须经 `safe` 层的 `FilterRegistration`/`RegisteredFilter`，避免裸指针外泄。
+- 新增 ABI 必须同时提供：① 文档链接；② x64 布局断言；③ 至少一个宿主测试或真机验证记录。
 
 ### 5.2 引用类型：RAII 化（消灭 D2）
 ```rust
@@ -363,10 +384,10 @@ pub fn flush_buffers(irql: Irql<Passive>, ...) -> Result<()>;
 
 ## 9. 构建与工具链
 
-### 9.1 编译配置
+### 9.1 编译配置（KM-0 实际值）
 ```toml
 # drivers/win/Cargo.toml（独立 workspace）
-[profile.dev]    opt-level = 1
+[profile.dev]    opt-level = 1, panic = "abort"
 [profile.release]
 opt-level = "z"        # 体积优先（也降低指令缓存压力）
 lto = "fat"
@@ -375,9 +396,11 @@ panic = "abort"
 overflow-checks = false
 strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 ```
+- `.cargo/config.toml` 设置 `-C target-feature=+crt-static`（x64 MSVC）。
 - `[lib] crate-type = ["cdylib"]`（驱动器 crate）；`cmflt-core` 为 `rlib`（同时给 std 仿真器）。
-- `build.rs`：`cargo:rustc-link-lib=static=fltMgr`（**上游不生成此指令，必须自加**）、`BufferOverflowFastFailK`、`ntoskrnl`、`hal`、`wmilib`；传 `/DRIVER /SUBSYSTEM:NATIVE /KERNEL /ENTRY:DriverEntry /IGNORE:4257,4216 /CETCOMPAT`。
-- **禁用 rust-lld**（上游 issue #182：产物会导致 `sc start` 报 998）。
+- `cmflt-driver/build.rs` 探测 WDK 的 `Lib/<ver>/km/x64`，链接 `fltMgr`、`ntoskrnl`、`hal`、`bufferoverflowfastfailk`、`wmilib`；传 `/DRIVER /SUBSYSTEM:NATIVE /ENTRY:DriverEntry /NODEFAULTLIB /IGNORE:4257,4216 /MACHINE:X64 /NXCOMPAT /DYNAMICBASE`。
+- 使用 rustc 默认的 MSVC `link.exe`，不启用 rust-lld；`/CETCOMPAT` 暂未加入（VS2019 link 兼容性优先，KM-1 再评估）。
+- 当前产物实测：4.5 KB，`Native` 子系统，仅导入 `FLTMGR.SYS`，无 RWX 段，反汇编无 FP/SSE。
 
 ### 9.2 自有分配器（补上游缺口）
 - 实现 `GlobalAlloc`：`ExAllocatePool2(POOL_FLAG_NON_PAGED, size, TAG)`，其中 `TAG = 'CmfL'`。
@@ -391,7 +414,7 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 | B1 | `cargo clippy -- -D warnings` + 自定义 lint（禁 `unwrap/expect/f32/f64/索引/`as` 截断） | ✅ |
 | B2 | 段布局校验：PAGE 段函数清单与"非泛型 + `#[inline(never)]`"规则一致（解析 `dumpbin /headers`） | ✅ |
 | B3 | 反汇编审计：无 FP/SSE/AVX 指令（§7.2）；无 RWX 段（HVCI 前提） | ✅ |
-| B4 | 绑定 diff：`bindgen` 产物与仓库签入版本一致 | ✅ |
+| B4 | ABI 审查：`cmflt-flt/src/raw.rs` 与 WDK 头文件逐项核对；`FLT_REGISTRATION` 布局 `const assert` | ✅ |
 | B5 | 仿真器测试套件（§10 L0）全绿，含随机游走无僵局 | ✅ |
 | B6 | 协议编解码 fuzz 语料回归 | ✅ |
 | B7 | 结构体布局静态断言（协议） | ✅ |
@@ -400,7 +423,7 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 - **开发期**：`bcdedit /set testsigning on` + 自签证书；VM 快照回滚脚本化。
 - **内测分发**：**attestation 签名**（注意 2026 政策：**仅测试用途**，不可零售发布；Windows Server 2016+ 不接受 filter 驱动的 attestation）。
 - **零售分发**：必须走 **HLK/WHCP**（提交 CAB → Partner Center → 重建 `.cat`）。需采购 EV 证书。**排期上应把 HLK 认证当作一个独立里程碑（KM-7）**。
-- 回退路径可切性（D1）：内核回调层与 `cmflt-core` 之间的接口保持"纯数据 + 纯状态"，这样薄 C 壳可以调用同一 `cmflt-core`（通过 `extern "C"` 导出少量函数）。
+- 回退备案（D1 v1.1）：内核回调层与 `cmflt-core` 之间保持"纯数据 + 纯状态"接口，便于未来独立评估替代实现；**仓库内不保留 C 薄壳组件**，也不为其提供构建路径。
 
 ---
 
@@ -450,8 +473,8 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 
 | 阶段 | 内容 | 退出判据 | 估算 |
 |---|---|---|---|
-| **KM-0** 骨架与构建 | cdylib 直出 `.sys`；testsigning 加载；`.inf`；段布局与链接参数（含 `fltMgr.lib`/`/CETCOMPAT`）；空 filter（无回调）可加载卸载 | `sc start/stop` 干净；`fltmc` 可见；B1–B4 门禁绿 | 3–4 周 |
-| **KM-1** 绑定与骨架回调 | `cmflt-flt` safe 层（§5.5 清单）；通信端口 + SDDL；握手/版本协商；`Hello/Health` | 引擎可连；**G1 首版**（100 次加载卸载零泄漏）→ 决定是否走 C 回退 | 4–6 周 |
+| **KM-0** 骨架与构建 | cdylib 直出 `.sys`；`.inf`；段布局与链接参数；空 filter（无回调）可加载卸载 | 构建/PE 门禁绿（**2026-10-27 已达成**）；`sc start/stop` 与 `fltmc` 可见（**待 testsigning/VM**） | 3–4 周 |
+| **KM-1** 绑定与骨架回调 | `cmflt-flt` safe 层（§5.5 清单）；通信端口 + SDDL；握手/版本协商；`Hello/Health` | 引擎可连；**G1 首版**（100 次加载卸载零泄漏）；绑定层无 C/C++ 组件 | 4–6 周 |
 | **KM-2** 只读视图 | 自有 tag 占位符创建；目录枚举投影（元数据）；**属性-only open 零 I/O**；扫描抑制 | L2 中"备份/搜索/去重"三项零水合；无死锁 | 4–6 周 |
 | **KM-3** 按需水合 | 状态机全量（§6）+ Cbdq 取消安全 + 超时/降级/熔断 + `FsRtlChangeBackingFileObject` 切换 + `FltFlushBuffers` | **G2**（取消×水合×卸载矩阵）；**G4**（引擎 kill/挂起）；大文件吞吐达标 | 6–8 周 |
 | **KM-4** mmap 与写路径 | section 同步钩子（读/写/ModWrite）+ fast I/O disallow + oplock/共享冲突降级 + 写回与去水合 | mmap 压测零错读；无 `ERROR_SHARING_VIOLATION` 误报 | 4–6 周 |
@@ -467,7 +490,7 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 
 | # | 风险 | 影响 | 缓解 | 触发回退 |
 |---|---|---|---|---|
-| R1 | FltMgr 绑定层出现无法用 safe 隔离的 UB | 内存安全 | 审计 + fuzz + Kani；回退 C 薄壳（D1） | KM-1 结束仍不达标 |
+| R1 | FltMgr 绑定层出现无法用 safe 隔离的 UB | 内存安全 | 审计 + fuzz + Kani；回退方案重新立项（不引入树内 C 组件，D1 v1.1） | KM-1 结束仍不达标 |
 | R2 | 上游（windows-drivers-rs/wdk-*) 行为变更 | 构建断裂 | 锁定版本；绑定与构建参数自持；B4 diff 门禁 | — |
 | R3 | `panic=abort` 导致 BSOD（业界争议点） | 可用性 | §7.4 全量 panic 源消除 + 分级处理 + 黑匣子 | 若实测 BSOD 率不可接受 → 扩大"用户态处理"范围（D2 更薄） |
 | R4 | HLK/WHCP 认证周期与要求（2026 政策收紧） | 发布延后 | KM-7 独立排期；开发期 testsigning；提前读 HLK 要求 | 认证不通过 → 内部/企业分发（attestation 不适用于零售） |

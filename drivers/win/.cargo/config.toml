@@ -1,0 +1,6 @@
+# Kernel and host code in this workspace both use the static MSVC CRT.
+# The driver itself is `#![no_std]`; this flag makes the kernel image's
+# compiler/runtime assumptions match the WDK link line. Host tests are linked
+# as user-mode PE images and support static CRT as well.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

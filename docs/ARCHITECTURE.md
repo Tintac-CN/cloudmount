@@ -95,10 +95,11 @@ Cookie 只读探测失败（my.115.com/?ct=guide&ac=status，不踢下线）
 - **minifilter 而非 FSD**：占位符本质是"NTFS 上的云视图"，Filter Manager
   挂 NTFS 卷 + 自定义 reparse point（GUID tag 需向微软申请）+ 拦截
   CREATE/READ 触发水合，ACL/CC/Mm/oplock 由 NTFS 承担。
-- **内核也用 Rust（v1.0 方案更新）**：`windows-drivers-rs` 至今不支持 minifilter，
+- **内核也用 Rust（原生 RUST 目标）**：`windows-drivers-rs` 至今不支持 minifilter，
   但 Rust 可用 `crate-type=["cdylib"]` **直出 `.sys`（无需 C 桩）**，已有真实
-  minifilter 先例（apriorit）。缺口在 **FltMgr 绑定**（`wdk-sys` 为零）→ 自建绑定层，
-  并保留"薄 C 壳"回退路径。**完整方案见 [../drivers/win/RUST-MINIFILTER-DESIGN.md](../drivers/win/RUST-MINIFILTER-DESIGN.md)。**
+  minifilter 先例（apriorit）。缺口在 **FltMgr 绑定**（`wdk-sys` 为零）→ 手写
+  ABI 绑定层（无 bindgen/libclang），驱动镜像不含 C/C++ 桩或运行时。
+  **完整方案见 [../drivers/win/RUST-MINIFILTER-DESIGN.md](../drivers/win/RUST-MINIFILTER-DESIGN.md)。**
 - **"更稳定"的四条抓手**：编译期消灭缺陷类（RAII 引用/IRQL 类型/锁序/panic 源穷举）、
   内核逻辑在用户态确定性仿真测试、引擎故障走超时+熔断+明确降级（绝不静默返回 0）、
   崩溃后可对账恢复 + 黑匣子 triage。
