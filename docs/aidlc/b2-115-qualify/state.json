@@ -47,11 +47,11 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending",
+    "U1": "completed",
     "U2": "pending",
     "U3": "pending"
   },
-  "updatedAt": "2026-10-18T23:40:00+08:00",
+  "updatedAt": "2026-10-18T23:55:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -112,6 +112,12 @@
       "from": "construction",
       "to": "construction",
       "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-18）→ 串行派发 U1（材料清单+tracking 骨架+操作指引——dev 泳道产出后 U2 呈人类执行 115 提交）"
+    },
+    {
+      "at": "2026-10-18T23:55:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 申请材料技术清单定稿+tracking 骨架完成 → completed：dev 交付 @ 90f5b0c（application-checklist.md 80 行[11 项表单参数+15 端点清单+操作指引 5 步+开放问题现场裁决项+锚实测附录]+tracking.md 34 行[追加式日志语义+7 键说明+空记录区]）；代码锚 81 处落笔前实读复验（含 grep 证据 3 组复验）；TP-01 自验过/TP-02 敏感面零命中（3 处字面命中经人工判别均为否定性技术陈述）；零代码变更（2 新文档 114 insertions）；基线 277/0 复验一致=零影响证明；蓝图勘误回报 2 处一行偏移（pkce.rs:58→:57/ARCHITECTURE.md:48→:47——清单按实测落锚，契约冻结未动）；下一步 U2 人类执行段（呈操作指引→人类提交 115→落 tracking 首条）"
     }
   ]
 }
