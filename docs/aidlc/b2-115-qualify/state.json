@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-18T11:50:00+08:00",
+  "updatedAt": "2026-10-18T12:05:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -43,6 +43,12 @@
       "from": "inception",
       "to": "inception",
       "why": "Gate#1 复审 r2 人类裁决「打回+反馈」（decisions.md GATE-REJECTED gate1 2026-10-18 第二次标记；第 2 轮/上限 3 轮）：r2 确认上轮 2 主题 MAJOR+14 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 49bd976，四方 0B/0M/~7m），反馈=7 MINOR 清单（四步五步口径调和/TP-04 子锚一位差/AC2③ 白名单标签/蓝图 usertime 残留/thread::scope 计数差/AC3③ 承载键注记）——修订点名 pm（①③）/architect（④⑤⑥）/qa（①②）；修订务必一次闭合（再打回即达 3 轮上限）"
+    },
+    {
+      "at": "2026-10-18T12:05:00+08:00",
+      "from": "inception",
+      "to": "inception",
+      "why": "Gate#1 r2 反馈修订完成（第 2 轮）：6 处一行修全落字 @ a0ae666（①四步五步双侧重合/②TP-04 子锚 :158/③AC2③ 白名单/④usertime/⑤scope 4 处/⑥notes 承载 AC3③）——编排者内联代跑[三 agent 会话过期，SKILL §8 留痕；反馈=r2 复审清单零裁量]；gate1 复位 pending 待复审 r3（只核 6 处消解；2/3 轮已用——r3 修订前置=复审仅余注记级时建议通过+准出回填）"
     }
   ]
 }
