@@ -22,14 +22,14 @@
   - ② `code_challenge_method="sha256"`（即 S256）——锚 `pkce.rs:4,49`；
   - ③ `code_challenge=BASE64URL-NOPAD(SHA256(code_verifier))`，挑战固定 43 字符——锚 `pkce.rs:62-65`、`pkce.rs:89-94`（含 RFC 7636 附录 B 官方测试向量 `pkce.rs:73-80`）；
   - ④ verifier=64 位 CSPRNG 随机串（115 要求 43–128）、RFC 3986 unreserved 字符集——锚 `pkce.rs:15,18,31-51`；
-  - ⑤ 授权模式=设备码扫码四步（`authDeviceCode`→115 App 扫码→长轮询→`deviceCodeToToken`），请求表单字段仅 `client_id`/`code_challenge`/`code_challenge_method`，**无 redirect_uri/回调地址**；表单申报应用宿主的示例措辞=「宿主 App（M5+，技术未定）」——macOS 宿主不预写技术栈（与蓝图 #9 carve-out 对齐，`docs/ARCHITECTURE.md:48` 同口径；不猜测未证实条款 intent.md:18）——锚 `crates/cloudmount-auth/src/open.rs:5-18,300-312,332-409`；
+  - ⑤ 授权模式=设备码扫码四步（`authDeviceCode`→115 App 扫码→长轮询→`deviceCodeToToken`；登录四步，token 刷新为流程第 5 步——与 TP-01 口径调和），请求表单字段仅 `client_id`/`code_challenge`/`code_challenge_method`，**无 redirect_uri/回调地址**；表单申报应用宿主的示例措辞=「宿主 App（M5+，技术未定）」——macOS 宿主不预写技术栈（与蓝图 #9 carve-out 对齐，`docs/ARCHITECTURE.md:48` 同口径；不猜测未证实条款 intent.md:18）——锚 `crates/cloudmount-auth/src/open.rs:5-18,300-312,332-409`；
   - ⑥ token 刷新机制=`refreshToken` 换发新 refresh_token+提前 300 秒刷新+单飞合并防 `40140117`（刷新过频）——锚 `open.rs:16-18,23,40,203-245`；
   - ⑦ 域名三件套=`passportapi.115.com`（认证）/`qrcodeapi.115.com`（扫码轮询）/`proapi.115.com`（资源）——锚 `open.rs:33-37`；
   - ⑧ 所需接口面（对应平台 scope 申请范围）：`ls`（分页+`user_utime` 排序——锚 `crates/cloudmount-driver115/src/open.rs:225,430`）、`quota`（rt_space_info）、`download`（downurl 直链+Range）、`upload`（upload/init 秒传/二次认证/OSS 直传，preid 前 128K=`PREID_CHUNK` @ `crates/cloudmount-driver115/src/hash.rs:14`）、写操作（folder/add、ufile/update、ufile/move；copy 的响应字段按 ROADMAP.md:16 属待实测确认项——ROADMAP.md:16 仅列 copy/新建目录；delete 响应现状丢弃不解析（锚 `crates/cloudmount-driver115/src/open.rs:406-410`），非 ROADMAP.md:16 待实测项）——锚 audit-findings §1.1 L12-L14 行+`crates/cloudmount-driver115/src/open.rs:264,276,324,373,385`；
   - ⑨ 平台侧未知字段（scope 官方名单、资质材料格式、表单强制项等）逐项标注「**提交时按平台页面核对**」，零猜测条款——约束 intent.md:18。
   - **And** 清单不含任何密钥/凭证明文（敏感边界 intent.md:19）。
 
-- **AC2**（U2）**提交执行与凭据留痕**：Given AC1 清单已定稿，When 项目所有者在 115 开放平台完成个人开发者资质申请与 PKCE 应用创建的提交，Then ①提交凭据在案：提交日期、平台单号/应用标识（如平台返回）、回执关键信息，记录于 `docs/aidlc/b2-115-qualify/tracking.md`（gate1 裁决钉定的受理跟踪载体）；②个人实名信息**只留占位不落明文**（开放问题①——人类线下持有，intent.md:23）；③产品代码零变更（`git diff` 无 `crates/`、`apps/` 及产品配置改动——约束 intent.md:17）。
+- **AC2**（U2）**提交执行与凭据留痕**：Given AC1 清单已定稿，When 项目所有者在 115 开放平台完成个人开发者资质申请与 PKCE 应用创建的提交，Then ①提交凭据在案：提交日期、平台单号/应用标识（如平台返回）、回执关键信息，记录于 `docs/aidlc/b2-115-qualify/tracking.md`（gate1 裁决钉定的受理跟踪载体）；②个人实名信息**只留占位不落明文**（开放问题①——人类线下持有，intent.md:23）；③产品代码零变更（`git diff` 无 `crates/`、`apps/` 及产品配置改动——约束 intent.md:17；回写面与验证判据以 TP-05 排除清单为准，覆盖 crates/web-ui/apps/drivers 等产品目录）。
 
 - **AC3**（U3）**受理跟踪口径在案**：Given AC2 提交已发生（提交日=起算日），When 工程侧记录受理跟踪口径，Then 在案内容含三项：①预期时点=初审+复审约 **7+7 工作日**（来源 intent.md:6、audit-findings §3.1 首行）及各检查时点；②受理状态的查看方式在案——落 `docs/aidlc/b2-115-qualify/tracking.md`（与 AC2① 同载体；数据模型 `check_method` 键与建文件规格由 architect 蓝图数据模型节承载），明细要求=页面入口（在哪个页面看）+查看凭据（=`receipt_no` 平台受理号/工单号）；③**超期升级路径**栏位在案——人类裁决前留占位并显式标注「待人类裁决（开放问题②）」，裁决后回填（intent.md:24）。
 

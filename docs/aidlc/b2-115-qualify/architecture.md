@@ -38,7 +38,7 @@
 | 4 | code_challenge_method | 代码字面值 **`"sha256"`**（小写）。注：RFC 7636 官方方法名为 "S256"，两者指同一算法（SHA-256 + BASE64URL-NOPAD），**语义等价已由测试向量证实**——若平台表单要求字面 "S256"，人类提交时按平台口径填写，工程侧实现无需改 | `pkce.rs:4,26,49,58`；审计小发现①（P2，`audit-findings.md` §1.0 命名微差口径） |
 | 5 | verifier 长度与字符集 | 官方要求 43–128 字符；本项目固定 **64** 字符；字符集 RFC 3986 unreserved（`A-Z a-z 0-9 - . _ ~`）；OS CSPRNG 随机生成 + 拒绝采样消除模偏置（拒绝边界 198=66×3）；**明确拒绝 p115client 的 `"0"*64` 固定 verifier 偷懒默认值** | `pkce.rs:4,14-18,31-46`；`pkce.rs:7-8` |
 | 6 | token 刷新机制 | ①**单飞**（single-flight）：同一把锁合并并发刷新，网络往返持锁、双检命中共享他人结果 ②**5 分钟提前量**（`REFRESH_MARGIN_SECS=300`，剩余不足即刷）③refresh_token **单次轮换**（每次刷新返回新 rt 覆盖旧值）④**40140117（刷新过频）退避不重试** ⑤**40140123–26（token 失效）强刷后重试一次** | `open.rs:39-40,54-56`（提前量）、`open.rs:178-200,218-245`（单飞）、`open.rs:23`（40140117）、`driver115/src/client.rs:216-250` + `core/src/envelope.rs:71`（失效重试，审计 L11 行证据） |
-| 7 | scope | **零 OAuth scope 请求参数**（全库 grep 仅 std::thread::scope 标准库命中 5 处，非 OAuth）——认证请求只发 client_id/challenge/method。若平台表单有 scope/权限范围字段：**提交时按平台页面核对**，勾选范围以本表 #9 接口面为界 | grep 证据（std::thread::scope 5 处标准库命中）；`open.rs:306-310` |
+| 7 | scope | **零 OAuth scope 请求参数**（全库 grep 仅 std::thread::scope 标准库命中 4 处，非 OAuth）——认证请求只发 client_id/challenge/method。若平台表单有 scope/权限范围字段：**提交时按平台页面核对**，勾选范围以本表 #9 接口面为界 | grep 证据（std::thread::scope 标准库命中 4 处）；`open.rs:306-310` |
 | 8 | redirect_uri / 回调地址 | **设备码流程无回调**——代码中无 redirect_uri 参数（grep 全 crates 零命中），扫码确认后经 `deviceCodeToToken` 直接换 token。若平台表单强制要求填回调地址：**提交时按平台口径现场裁决**（开放问题） | `auth/open.rs:5-18`（流程图无回调环节）；grep 证据 |
 | 9 | 所需接口面清单 | 见下方 15 端点枚举（认证域 3 + 二维码域 1 + 资源域 11）——申请时如需申报 API 权限面，以此为准 | 本节下表 |
 | 10 | 请求编码 | 认证域统一 `application/x-www-form-urlencoded`；资源域列表/详情 GET、写操作 POST 实况亦为 **urlencoded**（`send_form`） | `open.rs:24,148-166`；`driver115/src/client.rs:137`（urlencoded 实况）。⚠`driver115/open.rs:5-17` 文件内表格标「multipart」与实现矛盾——收录为**未在案文档漂移候选**（供 B 系文档批修订，非本批范围） |
@@ -52,7 +52,7 @@
 | 认证 | POST | `/open/deviceCodeToToken` | 扫码确认后换 token（uid+verifier） | `auth/open.rs:377` |
 | 认证 | POST | `/open/refreshToken` | 刷新 token（单飞+轮换） | `auth/open.rs:204` |
 | 二维码（qrcodeapi.115.com） | GET | `/get/status/` | 长轮询扫码状态（1=已扫待确认/2=已确认/0=失效） | `auth/open.rs:341,356,372` |
-| 资源（proapi.115.com） | GET | `/open/ufile/files` | 列表（分页 1000/页+usertime 排序）+ 变更探测 | `driver115/open.rs:219,424` |
+| 资源（proapi.115.com） | GET | `/open/ufile/files` | 列表（分页 1000/页+user_utime 排序）+ 变更探测 | `driver115/open.rs:219,424` |
 | 资源 | GET | `/open/folder/get_info` | 目录详情 | `driver115/open.rs:251` |
 | 资源 | POST | `/open/ufile/downurl` | 下载直链（pick_code） | `driver115/open.rs:264` |
 | 资源 | POST | `/open/folder/add` | 新建目录 ⚠TODO(verify) | `driver115/open.rs:276` |
@@ -111,7 +111,7 @@
 | `status` | 枚举 submitted/accepted/approved/rejected/escalated | **六态映射：`draft`=尚不建记录，首条记录自 submitted 起**（draft 态无提交日期，与 submit_date 不可空不冲突 [dev-m6]）；状态迁移按状态机节 |
 | `expect_date` / `escalate_date` | 日期 | 由 submit_date 推导（+7/+14 工作日），非平台承诺 |
 | `check_method` | 自由文本 | 受理状态**查看方式**（gate1 裁决新增键，承载 prd AC3②）：平台页面入口（在哪个页面看）+ 查看凭据（以什么账号/入口查看）；不可空 |
-| `notes` | 自由文本 | **禁止记录**密钥/凭证明文/实名证件信息（安全节约束） |
+| `notes` | 自由文本 | **禁止记录**密钥/凭证明文/实名证件信息（安全节约束）；**显式承载** prd AC3③「超期升级路径」栏位（gate2 r2 反馈⑥——升级裁决/催办记录落此键） |
 
 - **多次更新语义**：status 每次变更**追加新行**（新行含变更后 status 与日期），不改写旧行——追加式日志保留完整审计历史。
 - AppID 本身在下游才落 `config.toml`（AppID 接入预备节）；跟踪记录中可记 AppID 值（非密钥），但不与任何 secret 同处记录。
