@@ -62,3 +62,15 @@ GATE-REJECTED gate1 2026-10-18
 - gate1 复位 pending 待复审 r3（只核 6 处消解——注意：本批已用 2/3 轮，r3 若再打回将达上限，修订前置条件=复审仅余注记级时按「通过+准出回填」呈出建议）。
 
 ---
+
+2026-10-18 Gate#1 复审 r3 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate1-ai-r3.md @ 941c457（reviewer-architect 0/0/1 + reviewer-qa 0/0/1；合并 0 BLOCKER/0 MAJOR/1 MINOR[两方同源一处]。r2 反馈 6 处全部实测消解：①四步五步双侧调和注记[auth/open.rs:6-18 流程图 5 步编号吻合]②TP-04 子锚 :158 实测 ③AC2③ 白名单与 TP-05 证伪面同面 ④:55 user_utime[open.rs:225/:430 实测]⑤scope 4 处实测 ⑥notes 承载 AC3③ 语义落位；§8 内联代跑质量经 r3 独立复核证实）。
+- 问：「B2 资质申请 Gate#1 复审（r3，只核 r2 反馈 6 处消解；编排者内联代跑[SKILL §8 留痕]，r3 独立复核即代跑质量验证）：全部实测闭合；0 BLOCKER/0 MAJOR/1 MINOR（notes 溯源标签笔误[gate2→gate1]一行修）。如何裁决？（预置口径：仅余注记级时建议通过+准出回填）」
+  答：「**通过+准出回填（推荐）**」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate1，满足两次 GATE-REJECTED gate1 2026-10-18 之后的新鲜度要求），phase → construction。
+  2. **准出回填清单**（批准条件式一行订正，编排者执行并核收留痕）：M-R3-1 溯源标签笔误两处——architecture.md 数据模型 notes 行「gate2 r2 反馈⑥」→「gate1 r2 反馈⑥」+decisions.md 核收条目同源笔误同步订正（decisions 只追加，订正以本条目声明为准）。
+  3. 后续：phase=construction——Construction 执行=工程侧产出申请材料技术清单文档+tracking.md 建文件+人类执行 115 平台提交（AC2 核心动作）+受理跟踪口径在案（AC3）+AppID 接入预备清单（AC4）；`/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认在派发前呈出）。
+
+GATE-APPROVED gate1 2026-10-18
+---
