@@ -42,3 +42,16 @@
 
 GATE-REJECTED gate1 2026-10-18
 ---
+
+2026-10-18 Gate#1 复审 r2 人类审批（AskUserQuestion 表单未获选择；对话逐字裁决）：
+- 互审输入：reviews/gate1-ai-r2.md @ 49bd976（reviewer-pm 0/0/0 + reviewer-architect 0/0/1 + reviewer-qa 0/0/2 + reviewer-dev 0/0/4；合并 0 BLOCKER/0 MAJOR/~7 MINOR。上轮 2 主题 MAJOR+14 MINOR 全部消解实证：受理跟踪簇闭环[tracking 载体三工件联动/AC3② check_method 键承载/TP-03 五字段+证伪]/AC4⑤ 分面表述三方实测一致/行锚 15+ 处抽验零漂移）。
+- 问：「B2 资质申请 Gate#1 复审（r2，只核收敛点）：上轮 2 主题 MAJOR+14 MINOR 全部消解实证（tracking 载体三工件联动/分面表述三方实测一致/行锚零漂移）；新发现 0 BLOCKER/0 MAJOR/7 MINOR（四步五步计数口径调和/子锚一位差/白名单标签等注记级）。如何裁决？」
+  答：「**打回+反馈**」
+- 反馈内容（=r2 复审 MINOR 清单，全部注记级；逐字锚定 gate1-ai-r2.md）：
+  ①「四步/五步」设备码流程计数口径调和（prd AC1⑤ 与 TP-01 各自与实文一致但计数不同——加调和注记「登录四步+刷新为第 5 步」）②TP-04 子锚 :159-161→:158（空值守卫实在 :158）③AC2③ 白名单补「以 TP-05 判据为准」注记（现窄于 TP-05 面）④蓝图端点表 :55 usertime→user_utime（r1 仅派 pm 修 AC1⑧，architect 侧同字面未同步）⑤thread::scope 计数 5 处→4 处（r1 修正表述时转抄旧计数）⑥建文件规格补 AC3③「超期升级路径」承载键注记（notes 强制子句）。
+- 裁决落点（编排者执行）：
+  1. gate1 第二次打回（gate1=rejected 维持，phase 保持 inception；**第 2 轮/上限 3 轮**）：修订点名 pm（①③）/architect（④⑤⑥）/qa（①②）——①为 pm+qa 双侧调和注记。
+  2. GATE-REJECTED 标记在后；修订完成后 gate1 复位 pending 复审 r3（只核 7 MINOR 消解），须新回执。**轮次提示：本批已用 2/3 轮，r3 若再打回将达上限**——修订务必一次闭合。
+
+GATE-REJECTED gate1 2026-10-18
+---

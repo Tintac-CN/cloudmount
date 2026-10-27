@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-18T11:20:00+08:00",
+  "updatedAt": "2026-10-18T11:50:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -37,6 +37,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "Gate#1 修订轮完成（第 1 轮）：prd r1（M1 tracking.md 定指+M2 分面+MINOR 4）/ architecture r1（tracking 规格+check_method 键+draft 注记/M2 分面+决策 #8/MINOR 3+multipart 漂移收录）/ test-strategy r1（TP-03 五字段第⑤查看方式/M2 无冲突核对/MINOR 6 含动态清点+基点 14a7eb4+双口径自命中排除）；修订只重跑被点名三角色；gate1 复位 pending 待复审（只核收敛点：2 主题 MAJOR 消解+载体裁决落实），须新回执"
+    },
+    {
+      "at": "2026-10-18T11:50:00+08:00",
+      "from": "inception",
+      "to": "inception",
+      "why": "Gate#1 复审 r2 人类裁决「打回+反馈」（decisions.md GATE-REJECTED gate1 2026-10-18 第二次标记；第 2 轮/上限 3 轮）：r2 确认上轮 2 主题 MAJOR+14 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 49bd976，四方 0B/0M/~7m），反馈=7 MINOR 清单（四步五步口径调和/TP-04 子锚一位差/AC2③ 白名单标签/蓝图 usertime 残留/thread::scope 计数差/AC3③ 承载键注记）——修订点名 pm（①③）/architect（④⑤⑥）/qa（①②）；修订务必一次闭合（再打回即达 3 轮上限）"
     }
   ]
 }
