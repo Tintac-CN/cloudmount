@@ -1,7 +1,7 @@
 {
   "slug": "b2-115-qualify",
   "intent": "M0 外部阻塞链启动：申请 115 开放平台个人开发者资质+创建 PKCE 应用（材料提交+受理跟进；人类操作为主，工程侧配套=申请材料技术清单整理+AppID 到位后的 TODO(verify) 闭环预备）——路线图批次表 B2",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -49,9 +49,9 @@
   "unitStatus": {
     "U1": "completed",
     "U2": "completed",
-    "U3": "pending"
+    "U3": "completed"
   },
-  "updatedAt": "2026-10-28T07:00:00+08:00",
+  "updatedAt": "2026-10-28T07:45:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -124,6 +124,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U2 人类执行段完成 → completed：人类回报逐字「早已提交，但已经卡住不审批，先继续开发」——115 申请已提交（核心动作完成）、审核卡住（外部阻塞）；裁决=凭据细节不阻塞（tracking.md 首条占位落位[待补字段显式标注]）、不等待审核结果、收口后开下一开发批；AC2 判定口径按裁决落定（占位在案+gate2 如实披露）；下一步 U3（AppID 预备清单）"
+    },
+    {
+      "at": "2026-10-28T07:45:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U3 AppID 接入预备清单完成 → completed（3/3），Construction 收口 → gate2：appid-readiness.md @ 06f3a7c（88 行——TODO×2 逐条+相邻对照面+config 分面[gate1 M2 口径]+认证侧+下游输入清单；代码锚 44 处实测；TP-04 动态清点恰 2 处/TP-05 产品目录零改动[16 文件全在 intent 目录]）；回归对比（F2）：cargo test --workspace 277/0+五脚本 112/72/23/13/9 与基线逐数一致=零影响证明；U2 占位披露项（AC2① 凭据细节待补——人类裁决「先继续开发」不阻塞）随 gate2 呈批如实披露；phase → gate2，提示 /aidlc:gate"
     }
   ]
 }
