@@ -19,6 +19,21 @@ pub const HEADER_LEN: usize = 24;
 pub const MAX_PAYLOAD: usize = 64 * 1024;
 pub const STATUS_SUCCESS: i32 = 0;
 
+/// Capabilities exchanged during the handshake. A peer must not assume a
+/// capability that the other side did not advertise.
+pub const CAP_HELLO: u32 = 0x0000_0001;
+pub const CAP_HEALTH: u32 = 0x0000_0002;
+pub const CAP_HYDRATE: u32 = 0x0000_0004;
+pub const KERNEL_CAPABILITIES: u32 = CAP_HELLO | CAP_HEALTH;
+pub const KERNEL_VERSION: [u8; 16] = *b"cmflt-km1\0\0\0\0\0\0\0";
+/// The same 16 bytes as two little-endian words. The kernel path uses these
+/// to avoid compiler-generated 16-byte vector copies in a driver that must
+/// stay free of SSE instructions.
+pub const KERNEL_VERSION_WORDS: [u64; 2] = [
+    u64::from_le_bytes(*b"cmflt-km"),
+    u64::from_le_bytes(*b"1\0\0\0\0\0\0\0"),
+];
+
 /// Header kind values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u16)]
@@ -27,6 +42,7 @@ pub enum MessageKind {
     Health = 2,
     HydrateRequest = 3,
     HydrateReply = 4,
+    HelloAck = 5,
 }
 
 impl MessageKind {
@@ -36,6 +52,7 @@ impl MessageKind {
             2 => Some(Self::Health),
             3 => Some(Self::HydrateRequest),
             4 => Some(Self::HydrateReply),
+            5 => Some(Self::HelloAck),
             _ => None,
         }
     }
@@ -127,7 +144,7 @@ pub enum ProtocolError {
 pub struct Hello {
     pub proto_version: u16,
     pub capabilities: u32,
-    pub engine_version: [u8; 16],
+    pub engine_version: [u64; 2],
 }
 
 pub const HELLO_PAYLOAD_LEN: usize = 24;
@@ -147,7 +164,8 @@ impl Hello {
         .encode(buf)?;
         write_u16(buf, HEADER_LEN, self.proto_version)?;
         write_u32(buf, HEADER_LEN + 2, self.capabilities)?;
-        write_bytes(buf, HEADER_LEN + 6, &self.engine_version)?;
+        write_u64(buf, HEADER_LEN + 6, self.engine_version[0])?;
+        write_u64(buf, HEADER_LEN + 14, self.engine_version[1])?;
         write_u16(buf, HEADER_LEN + 22, 0)?;
         Ok(total)
     }
@@ -171,7 +189,10 @@ impl Hello {
             return Err(ProtocolError::UnsupportedVersion);
         }
         let capabilities = read_u32(buf, HEADER_LEN + 2)?;
-        let engine_version = read_array::<16>(buf, HEADER_LEN + 6)?;
+        let engine_version = [
+            read_u64(buf, HEADER_LEN + 6)?,
+            read_u64(buf, HEADER_LEN + 14)?,
+        ];
         if read_u16(buf, HEADER_LEN + 22)? != 0 {
             return Err(ProtocolError::BadFlags);
         }
@@ -385,6 +406,108 @@ impl Health {
     }
 }
 
+/// Kernel handshake response to a user-mode `Hello`. `tx_id` is always zero.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HelloAck {
+    pub status: i32,
+    pub proto_version: u16,
+    pub capabilities: u32,
+    pub kernel_version: [u64; 2],
+}
+
+pub const HELLO_ACK_PAYLOAD_LEN: usize = 32;
+
+impl HelloAck {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, ProtocolError> {
+        let total = HEADER_LEN + HELLO_ACK_PAYLOAD_LEN;
+        if buf.len() < total {
+            return Err(ProtocolError::BufferTooSmall);
+        }
+        Header {
+            kind: MessageKind::HelloAck,
+            tx_id: 0,
+            payload_len: HELLO_ACK_PAYLOAD_LEN as u32,
+            flags: 0,
+        }
+        .encode(buf)?;
+        write_i32(buf, HEADER_LEN, self.status)?;
+        write_u16(buf, HEADER_LEN + 4, self.proto_version)?;
+        write_u16(buf, HEADER_LEN + 6, 0)?;
+        write_u32(buf, HEADER_LEN + 8, self.capabilities)?;
+        write_u64(buf, HEADER_LEN + 12, self.kernel_version[0])?;
+        write_u64(buf, HEADER_LEN + 20, self.kernel_version[1])?;
+        write_u32(buf, HEADER_LEN + 28, 0)?;
+        Ok(total)
+    }
+
+    pub fn decode(buf: &[u8]) -> Result<Self, ProtocolError> {
+        let header = Header::decode(buf)?;
+        if header.kind != MessageKind::HelloAck {
+            return Err(ProtocolError::WrongKind);
+        }
+        if header.tx_id != 0 {
+            return Err(ProtocolError::InvalidField);
+        }
+        if header.payload_len as usize != HELLO_ACK_PAYLOAD_LEN {
+            return Err(ProtocolError::BadLength);
+        }
+        if buf.len() < header.total_len()? {
+            return Err(ProtocolError::Truncated);
+        }
+        let status = read_i32(buf, HEADER_LEN)?;
+        let proto_version = read_u16(buf, HEADER_LEN + 4)?;
+        if proto_version != PROTOCOL_VERSION {
+            return Err(ProtocolError::UnsupportedVersion);
+        }
+        if read_u16(buf, HEADER_LEN + 6)? != 0 {
+            return Err(ProtocolError::BadFlags);
+        }
+        let capabilities = read_u32(buf, HEADER_LEN + 8)?;
+        let kernel_version = [
+            read_u64(buf, HEADER_LEN + 12)?,
+            read_u64(buf, HEADER_LEN + 20)?,
+        ];
+        if read_u32(buf, HEADER_LEN + 28)? != 0 {
+            return Err(ProtocolError::BadFlags);
+        }
+        Ok(Self {
+            status,
+            proto_version,
+            capabilities,
+            kernel_version,
+        })
+    }
+}
+
+/// Write the kernel's fixed handshake response without constructing a
+/// `HelloAck` value. The kernel path uses this to avoid 16-byte array copies
+/// that LLVM may lower to SSE instructions.
+pub fn encode_kernel_ack(
+    buf: &mut [u8],
+    status: i32,
+    capabilities: u32,
+) -> Result<usize, ProtocolError> {
+    let total = HEADER_LEN + HELLO_ACK_PAYLOAD_LEN;
+    if buf.len() < total {
+        return Err(ProtocolError::BufferTooSmall);
+    }
+    Header {
+        kind: MessageKind::HelloAck,
+        tx_id: 0,
+        payload_len: HELLO_ACK_PAYLOAD_LEN as u32,
+        flags: 0,
+    }
+    .encode(buf)?;
+    write_i32(buf, HEADER_LEN, status)?;
+    write_u16(buf, HEADER_LEN + 4, PROTOCOL_VERSION)?;
+    write_u16(buf, HEADER_LEN + 6, 0)?;
+    write_u32(buf, HEADER_LEN + 8, capabilities)?;
+    write_u64(buf, HEADER_LEN + 12, KERNEL_VERSION_WORDS[0])?;
+    write_u64(buf, HEADER_LEN + 20, KERNEL_VERSION_WORDS[1])?;
+    write_u32(buf, HEADER_LEN + 28, 0)?;
+    Ok(total)
+}
+
 fn checked_end(offset: usize, length: usize) -> Result<usize, ProtocolError> {
     offset.checked_add(length).ok_or(ProtocolError::Overflow)
 }
@@ -447,11 +570,17 @@ mod tests {
         assert_eq!(size_of::<Header>(), HEADER_LEN);
     }
 
+    fn words(bytes: &[u8; 16]) -> [u64; 2] {
+        let low: [u8; 8] = bytes[0..8].try_into().expect("low half");
+        let high: [u8; 8] = bytes[8..16].try_into().expect("high half");
+        [u64::from_le_bytes(low), u64::from_le_bytes(high)]
+    }
+
     fn hello() -> Hello {
         Hello {
             proto_version: PROTOCOL_VERSION,
             capabilities: 0x0000_0007,
-            engine_version: *b"cloudmount-0.1.0",
+            engine_version: words(b"cloudmount-0.1.0"),
         }
     }
 
@@ -487,6 +616,15 @@ mod tests {
         }
     }
 
+    fn hello_ack() -> HelloAck {
+        HelloAck {
+            status: STATUS_SUCCESS,
+            proto_version: PROTOCOL_VERSION,
+            capabilities: KERNEL_CAPABILITIES,
+            kernel_version: KERNEL_VERSION_WORDS,
+        }
+    }
+
     #[test]
     fn roundtrips_each_message() {
         let mut buf = [0u8; 128];
@@ -511,6 +649,22 @@ mod tests {
             Health::decode(&buf[..len]).expect("decode health"),
             health()
         );
+
+        let len = hello_ack().encode(&mut buf).expect("encode hello ack");
+        assert_eq!(
+            HelloAck::decode(&buf[..len]).expect("decode hello ack"),
+            hello_ack()
+        );
+    }
+
+    #[test]
+    fn hello_ack_truncation_and_kind_are_validated() {
+        let mut buf = [0u8; 128];
+        let len = hello_ack().encode(&mut buf).expect("encode hello ack");
+        for shorter in 0..len {
+            assert!(HelloAck::decode(&buf[..shorter]).is_err());
+        }
+        assert_eq!(Health::decode(&buf[..len]), Err(ProtocolError::WrongKind));
     }
 
     #[test]

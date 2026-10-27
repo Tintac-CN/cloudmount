@@ -1,11 +1,15 @@
-//! CloudMount minifilter — KM-0 image.
+//! CloudMount minifilter — KM-1 image.
 //!
-//! This milestone intentionally registers an empty filter: no operation
-//! callbacks, no contexts, no communication port. It proves the native-Rust
-//! build and lifecycle path (`DriverEntry` -> `FltRegisterFilter` ->
-//! `FltStartFiltering` -> unload callback -> `FltUnregisterFilter`) before any
-//! data-path logic is added. All hydration logic lives in `cmflt-core` and is
-//! tested on the host.
+//! KM-1 adds the Filter Manager communication port and the engine handshake:
+//!
+//! - `DriverEntry` registers the filter, creates the server port, then starts
+//!   filtering; any failure unwinds in reverse order.
+//! - `connect`/`disconnect` callbacks own the single client connection.
+//! - `message` accepts `Hello`/`Health` frames from `cmflt-core::protocol`,
+//!   runs them through the same pure `cmflt-core::handshake::EngineState` used
+//!   by host tests, and returns a `HelloAck` in the reply buffer.
+//! - unload closes the client port, closes the server port, then unregisters
+//!   the filter, so every reference is released before unload completes.
 //!
 //! There is no C stub, no C runtime startup, and no bindgen output. The only
 //! non-Rust inputs at link time are Microsoft's WDK import libraries.
@@ -18,10 +22,17 @@ use core::ffi::c_void;
 use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, Ordering};
 
+use cmflt_core::handshake::{EngineState, HandshakeError};
 #[cfg(not(test))]
 use cmflt_flt::raw::KeBugCheckEx;
-use cmflt_flt::raw::{FltUnregisterFilter, NtStatus, PdriverObject, PfltFilter, STATUS_SUCCESS};
-use cmflt_flt::safe::{FilterRegistration, RegisteredFilter};
+use cmflt_flt::raw::{
+    FltCloseCommunicationPort, FltUnregisterFilter, NtStatus, PdriverObject, PfltFilter, PfltPort,
+    FLT_PORT_ALL_ACCESS, STATUS_BUFFER_TOO_SMALL, STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED,
+    STATUS_PORT_DISCONNECTED, STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
+};
+use cmflt_flt::safe::{
+    close_client_port, CommunicationPort, FilterRegistration, RegisteredFilter, SpinLock,
+};
 
 /// Custom bugcheck code used for a Rust panic. The four parameters carry the
 /// source location (file pointer, line, column, 0). This turns every panic
@@ -30,7 +41,34 @@ use cmflt_flt::safe::{FilterRegistration, RegisteredFilter};
 #[cfg(not(test))]
 const CMFLT_BUGCHECK_PANIC: u32 = 0x5250_4E43;
 
+/// Port name shared with `cmflt-client` (`\CloudMountCmfltPort`).
+const PORT_NAME: &[u16] = &[
+    0x5C, // '\'
+    b'C' as u16,
+    b'l' as u16,
+    b'o' as u16,
+    b'u' as u16,
+    b'd' as u16,
+    b'M' as u16,
+    b'o' as u16,
+    b'u' as u16,
+    b'n' as u16,
+    b't' as u16,
+    b'C' as u16,
+    b'm' as u16,
+    b'f' as u16,
+    b'l' as u16,
+    b't' as u16,
+    b'P' as u16,
+    b'o' as u16,
+    b'r' as u16,
+    b't' as u16,
+];
+
 static FILTER: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
+static SERVER_PORT: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
+static CLIENT_PORT: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
+static ENGINE: SpinLock<EngineState> = SpinLock::new(EngineState::new());
 
 static REGISTRATION: FilterRegistration = FilterRegistration::new(filter_unload);
 
@@ -51,20 +89,131 @@ pub unsafe extern "system" fn DriverEntry(
         Ok(filter) => filter,
         Err(status) => return status,
     };
+    let raw_filter = filter.raw();
+    FILTER.store(raw_filter, Ordering::Release);
+
+    unsafe { ENGINE.init() };
+    let port = match unsafe {
+        CommunicationPort::create(
+            raw_filter,
+            PORT_NAME,
+            FLT_PORT_ALL_ACCESS,
+            port_connect,
+            port_disconnect,
+            port_message,
+            1,
+        )
+    } {
+        Ok(port) => port,
+        Err(status) => {
+            FILTER.store(null_mut(), Ordering::Release);
+            unsafe { filter.unregister() };
+            return status;
+        }
+    };
 
     if let Err(status) = unsafe { filter.start() } {
+        FILTER.store(null_mut(), Ordering::Release);
+        let mut client = CLIENT_PORT.swap(null_mut(), Ordering::AcqRel);
+        ENGINE.with(|state| state.on_disconnect());
+        unsafe { close_client_port(raw_filter, &mut client) };
+        unsafe { port.close() };
         unsafe { filter.unregister() };
         return status;
     }
 
-    FILTER.store(filter.into_raw(), Ordering::Release);
+    SERVER_PORT.store(port.into_raw(), Ordering::Release);
+    filter.into_raw();
     STATUS_SUCCESS
 }
 
-/// Filter unload callback. FltMgr calls this before unloading the driver; it
-/// must unregister the filter so all instances and contexts are torn down.
+/// Client connected: there is at most one connection (MaxConnections = 1).
+unsafe extern "system" fn port_connect(
+    client_port: PfltPort,
+    _server_port_cookie: *mut c_void,
+    _connection_context: *mut c_void,
+    _size_of_context: u32,
+    connection_port_cookie: *mut *mut c_void,
+) -> NtStatus {
+    if client_port.is_null() || connection_port_cookie.is_null() {
+        return STATUS_INVALID_PARAMETER;
+    }
+    unsafe { *connection_port_cookie = null_mut() };
+    CLIENT_PORT.store(client_port, Ordering::Release);
+    ENGINE.with(|state| state.on_connect());
+    STATUS_SUCCESS
+}
+
+/// Client disconnected: clear the engine state and close its port.
+unsafe extern "system" fn port_disconnect(_connection_cookie: *mut c_void) {
+    let mut client = CLIENT_PORT.swap(null_mut(), Ordering::AcqRel);
+    ENGINE.with(|state| state.on_disconnect());
+    let filter = FILTER.load(Ordering::Acquire);
+    unsafe { close_client_port(filter, &mut client) };
+}
+
+/// Message callback. The reply buffer is filled directly; no kernel allocation
+/// or blocking call is made while the engine state is locked.
+unsafe extern "system" fn port_message(
+    _port_cookie: *mut c_void,
+    input_buffer: *mut c_void,
+    input_buffer_length: u32,
+    output_buffer: *mut c_void,
+    output_buffer_length: u32,
+    return_output_buffer_length: *mut u32,
+) -> NtStatus {
+    if return_output_buffer_length.is_null() {
+        return STATUS_INVALID_PARAMETER;
+    }
+    unsafe { *return_output_buffer_length = 0 };
+    if input_buffer.is_null() || input_buffer_length == 0 {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    let input = unsafe {
+        core::slice::from_raw_parts(input_buffer as *const u8, input_buffer_length as usize)
+    };
+    let output: &mut [u8] = if output_buffer.is_null() || output_buffer_length == 0 {
+        &mut []
+    } else {
+        unsafe {
+            core::slice::from_raw_parts_mut(output_buffer as *mut u8, output_buffer_length as usize)
+        }
+    };
+
+    match ENGINE.with(|state| state.handle(input, output)) {
+        Ok(length) => {
+            if length > 0 {
+                unsafe { *return_output_buffer_length = length as u32 };
+            }
+            STATUS_SUCCESS
+        }
+        Err(error) => handshake_status(error),
+    }
+}
+
+const fn handshake_status(error: HandshakeError) -> NtStatus {
+    match error {
+        HandshakeError::NotConnected => STATUS_PORT_DISCONNECTED,
+        HandshakeError::NotHandshaken | HandshakeError::Malformed => STATUS_INVALID_PARAMETER,
+        HandshakeError::UnsupportedMessage => STATUS_NOT_IMPLEMENTED,
+        HandshakeError::VersionMismatch => STATUS_REVISION_MISMATCH,
+        HandshakeError::OutputTooSmall => STATUS_BUFFER_TOO_SMALL,
+    }
+}
+
+/// Filter unload callback. Close the client port first, then the server port,
+/// then unregister the filter. This is the reverse of creation order.
 unsafe extern "system" fn filter_unload(_flags: u32) -> NtStatus {
     let filter: PfltFilter = FILTER.swap(null_mut(), Ordering::AcqRel);
+    let mut client = CLIENT_PORT.swap(null_mut(), Ordering::AcqRel);
+    ENGINE.with(|state| state.on_disconnect());
+    unsafe { close_client_port(filter, &mut client) };
+
+    let server = SERVER_PORT.swap(null_mut(), Ordering::AcqRel);
+    if !server.is_null() {
+        unsafe { FltCloseCommunicationPort(server) };
+    }
     if !filter.is_null() {
         unsafe { FltUnregisterFilter(filter) };
     }

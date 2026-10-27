@@ -95,7 +95,7 @@ fn control_messages_have_zero_transaction_id() {
     let hello = Hello {
         proto_version: PROTOCOL_VERSION,
         capabilities: 0,
-        engine_version: [0u8; 16],
+        engine_version: [0u64; 2],
     };
     let len = hello.encode(&mut buf).expect("hello");
     let header = Header::decode(&buf[..len]).expect("header");

@@ -3,6 +3,13 @@
 version = 3
 
 [[package]]
+name = "cmflt-client"
+version = "0.1.0"
+dependencies = [
+ "cmflt-core",
+]
+
+[[package]]
 name = "cmflt-core"
 version = "0.1.0"
 
@@ -10,6 +17,7 @@ version = "0.1.0"
 name = "cmflt-driver"
 version = "0.1.0"
 dependencies = [
+ "cmflt-core",
  "cmflt-flt",
 ]
 

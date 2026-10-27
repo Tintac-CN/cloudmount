@@ -1,0 +1,15 @@
+[package]
+name = "cmflt-client"
+description = "User-mode KM-1 handshake smoke client for the cmflt minifilter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cmflt-client"
+path = "src/main.rs"
+
+[dependencies]
+cmflt-core = { workspace = true }
