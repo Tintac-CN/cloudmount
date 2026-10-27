@@ -1,0 +1,11 @@
+[package]
+name = "cmflt-sim"
+description = "User-mode deterministic simulator and property tests for cmflt-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cmflt-core = { workspace = true }

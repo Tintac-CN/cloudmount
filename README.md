@@ -131,7 +131,7 @@ crates/
   cloudmount-cli         CLI：login/ls/upload/download/quota/dehydrate
   cloudmount-daemon      cloudmountd：同步/挂载/serve 三模式
 apps/desktop                Tauri 2 桌面壳（托盘 + web-ui）
-drivers/win             自研 minifilter（设计文档就绪，长期目标）
+drivers/win             自研 minifilter（原生 Rust KM-0 骨架，长期）
 web-ui/                  共享前端 SPA（零框架）
 packaging/               systemd / Dockerfile / 发布配置
 docs/                    架构、路线图、边缘部署手册

@@ -19,6 +19,8 @@ drivers/win/*.pdb
 drivers/win/*.cat
 drivers/win/x64/
 drivers/win/.vs/
+drivers/win/target/
+drivers/win/out/
 
 # 本地配置与凭据（绝不入库）
 *.local.toml

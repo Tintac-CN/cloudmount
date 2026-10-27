@@ -1,0 +1,14 @@
+[package]
+name = "cmflt-core"
+description = "Pure no_std hydration state machine, wire protocol and range accounting for cmflt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[features]
+# Kept for downstream users that want to build the core with std-only helpers.
+std = []

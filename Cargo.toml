@@ -10,7 +10,8 @@ members = [
     "crates/cloudmount-daemon",
 ]
 # Tauri 桌面壳是独立 cargo 项目（依赖重、构建需前端产物），不进 workspace：
-exclude = ["apps/desktop"]
+# drivers/win 是原生 Rust minifilter 的独立 kernel workspace（no_std + WDK link 参数），同样隔离：
+exclude = ["apps/desktop", "drivers/win"]
 
 [workspace.package]
 version = "0.1.0"
