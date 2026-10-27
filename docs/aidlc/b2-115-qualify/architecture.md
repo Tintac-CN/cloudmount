@@ -111,7 +111,7 @@
 | `status` | 枚举 submitted/accepted/approved/rejected/escalated | **六态映射：`draft`=尚不建记录，首条记录自 submitted 起**（draft 态无提交日期，与 submit_date 不可空不冲突 [dev-m6]）；状态迁移按状态机节 |
 | `expect_date` / `escalate_date` | 日期 | 由 submit_date 推导（+7/+14 工作日），非平台承诺 |
 | `check_method` | 自由文本 | 受理状态**查看方式**（gate1 裁决新增键，承载 prd AC3②）：平台页面入口（在哪个页面看）+ 查看凭据（以什么账号/入口查看）；不可空 |
-| `notes` | 自由文本 | **禁止记录**密钥/凭证明文/实名证件信息（安全节约束）；**显式承载** prd AC3③「超期升级路径」栏位（gate2 r2 反馈⑥——升级裁决/催办记录落此键） |
+| `notes` | 自由文本 | **禁止记录**密钥/凭证明文/实名证件信息（安全节约束）；**显式承载** prd AC3③「超期升级路径」栏位（gate1 r2 反馈⑥——升级裁决/催办记录落此键） |
 
 - **多次更新语义**：status 每次变更**追加新行**（新行含变更后 status 与日期），不改写旧行——追加式日志保留完整审计历史。
 - AppID 本身在下游才落 `config.toml`（AppID 接入预备节）；跟踪记录中可记 AppID 值（非密钥），但不与任何 secret 同处记录。

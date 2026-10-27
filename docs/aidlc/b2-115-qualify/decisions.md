@@ -74,3 +74,9 @@ GATE-REJECTED gate1 2026-10-18
 
 GATE-APPROVED gate1 2026-10-18
 ---
+
+2026-10-18 Gate#1 准出回填核收（编排者内联执行——人类裁决「通过+准出回填」条件式一行订正）：
+- **M-R3-1 落位**：architecture.md 数据模型 notes 行溯源标签「gate2 r2 反馈⑥」→「gate1 r2 反馈⑥」（实测 grep 唯一处改净）；decisions.md 核收条目内的同源笔误按只追加原则**不改写**——订正以本条目声明为准（该条目内「gate2 r2 反馈⑥」应读作「gate1 r2 反馈⑥」，出处=reviews/gate1-ai-r2.md @ 49bd976 MINOR-6）。
+- gate1 裁决的全部准出条件闭合；phase=construction；下一步 `/aidlc:construct` 进入 Sprint Planning（A1 接入 intent——A3 拆分确认在派发前呈出；Construction 核心=工程侧材料清单+tracking.md 建文件+人类执行 115 提交）。
+
+---

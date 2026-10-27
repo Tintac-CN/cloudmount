@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-18T12:10:00+08:00",
+  "updatedAt": "2026-10-18T12:20:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -55,6 +55,12 @@
       "from": "gate1",
       "to": "construction",
       "why": "Gate#1 复审 r3 人类通过（decisions.md GATE-APPROVED gate1 2026-10-18）：复审 r3 只核 r2 反馈 6 处消解确认全部实测闭合（reviews/gate1-ai-r3.md @ 941c457，两方 0B/0M/1m——§8 内联代跑质量经独立复核证实）；新发现 1 MINOR（notes 溯源标签笔误 gate2→gate1 一行修）随准出回填闭合；phase → construction"
+    },
+    {
+      "at": "2026-10-18T12:20:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Gate#1 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式一行订正）：M-R3-1 溯源标签 architecture notes 行 gate2→gate1 改净（decisions 核收条目同源笔误按只追加原则以核收条目声明订正）；gate1 裁决全部准出条件闭合；Construction 核心=工程侧材料清单+tracking.md 建文件+人类执行 115 提交"
     }
   ]
 }
