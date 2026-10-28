@@ -1,21 +1,30 @@
 {
   "slug": "ci-desktop-fmt-clippy",
   "intent": "CI 补 desktop fmt/clippy 步骤（backlog 台账条目 23——终验口径缺口流水线上游补死）",
-  "phase": "inception",
+  "phase": "gate1",
   "route": "classic",
-  "gates": { "gate1": "pending", "gate2": "pending" },
+  "gates": {
+    "gate1": "pending",
+    "gate2": "pending"
+  },
   "tddLock": false,
   "tddLockPaths": [],
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-28T17:05:51+08:00",
+  "updatedAt": "2026-10-28T17:40:00+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
       "from": null,
       "to": "inception",
       "why": "intent created via 人类指令「开条目 23」（b2-115-qualify ops 裁决②「直接开下一批」+INTENT-DONE 后批号指定=backlog 台账条目 23[CI 补 desktop fmt/clippy——desktop-installers retro 唯一未沉淀的可执行候选]）；A1 表单呈出（decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-28T17:40:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "classic 三工件齐且对齐拍完成（qa TP→AC 回填：AC1←TP-01/05/06、AC2←TP-03、AC3←TP-04/05[qa 按实文补 AC3 面——actionlint 降级计数诚实直测 AC3 When]、AC4←TP-02——AC1..AC4 全覆盖无缺锚；qa 报备 3 项判据粒度出入供 Construction 落字面裁量）；phase → gate1"
     }
   ]
 }
