@@ -84,9 +84,14 @@ drivers/win/
   开发 GUID、`RECALL_ON_DATA_ACCESS|OFFLINE` 属性、`PlaceholderMeta` 32 字节
   payload 与状态不变量（Placeholder/Partial/Full/Pinned）；`Placeholder` 组合
   `RangeSet`，提供 `needs_recall`、`mark_hydrated`、`pin/unpin`、`dehydrate`
-  的 partial→full→placeholder 转移，宿主测试覆盖边界与 OOB。
-- **尚未完成**：实际 `FltTagFile`/属性写入、目录枚举投影、扫描配额与真机
-  L2 场景；这些需要 testsigning/VM 与引擎侧配合。
+  的 partial→full→placeholder 转移，宿主测试覆盖边界与 OOB。新增固定 56 字节
+  `encode_blob`/`reparse_blob`，可直接用于后续 `FSCTL_SET_REPARSE_POINT` 或
+  `FltTagFileEx`。
+- **扫描抑制配额**：`cmflt-core::scan::ScanQuota` 提供每会话请求数/字节数上限、
+  原子式 acquire/release/reset 与 denied 计数，宿主测试覆盖请求/字节耗尽与
+  释放下溢。
+- **尚未完成**：实际 `FltTagFile`/属性写入、目录枚举投影、配额接入水合路径与
+  真机 L2 场景；这些需要 testsigning/VM 与引擎侧配合。
 
 ## 未完成（需要测试机）
 
@@ -160,7 +165,7 @@ fltmc unload cloudmount
 ## 验证记录（2026-10-28，KM-2 续）
 
 ```text
-cargo test --workspace            70 passed / 0 failed
+cargo test --workspace            76 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK

@@ -15,6 +15,7 @@ pub mod placeholder;
 pub mod policy;
 pub mod protocol;
 pub mod range;
+pub mod scan;
 
 #[cfg(test)]
 extern crate std;
