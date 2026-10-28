@@ -1,10 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$SysPath = (Join-Path (Split-Path -Parent $PSScriptRoot) "out\cloudmount.sys"),
+    [string]$SysPath = "",
     [string]$Subject = "CloudMount Test Driver"
 )
 
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($SysPath)) {
+    $SysPath = Join-Path (Split-Path -Parent $PSScriptRoot) "out\cloudmount.sys"
+}
 if (-not (Test-Path $SysPath)) { throw "driver image not found: $SysPath" }
 
 $wdkBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin\10.0.19041.0\x64"

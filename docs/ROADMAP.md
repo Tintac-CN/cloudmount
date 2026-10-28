@@ -193,9 +193,11 @@
 通过 PR #3 合入（a098018：NTFS-only attach + CREATE pre-op + 宿主可测
 create 分类）。KM-2 续在 `feat/cmflt-km2-readonly`：CREATE 已从真实
 `FLT_CALLBACK_DATA` 读取参数并分类，新增 `cmflt-core::placeholder` 的
-reparse tag/GUID/属性/PlaceholderMeta 模型 + Placeholder/RangeSet 转移 + reparse blob + ScanQuota + 占位符创建路径（user-mode reparse/offline + driver post-op recall）+ KM-3 HydrationCoordinator + Dehydrate/Pin/Invalidate 协议 + MockEngine + KM-5 Journal/recovery/TelemetryRing（宿主 104 tests）。driver 7,168 字节，
+reparse tag/GUID/属性/PlaceholderMeta 模型 + Placeholder/RangeSet 转移 + reparse blob + ScanQuota + 占位符创建路径（user-mode reparse/offline + driver post-op recall）+ KM-3 HydrationCoordinator + Dehydrate/Pin/Invalidate 协议 + MockEngine + KM-5 Journal/recovery/TelemetryRing（宿主 104 tests）。driver 7,168 字节（test-signed 8,592），
 导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`，无 FP/SSE。实际 tag 写入、目录投影与
-真机加载待 testsigning/VM。
+真机加载待 testsigning/VM。**本机 Secure Boot=True，testsigning 被固件策略
+拒绝**；已签名驱动与 preflight/load/G1 脚本就绪，需先在 UEFI 关闭 Secure Boot
+或换 Secure Boot 关闭的 VM。
 
 关键结论：不再走"C 内核 + Rust 用户态"；官方两条红线（HSM 组内不得对 recall 文件
 做 targeted 缓存读写、必须处理 section 同步钩子）已写入设计；零售分发需过
