@@ -112,6 +112,14 @@ impl PlaceholderMeta {
         Ok(GUID_REPARSE_TOTAL_LEN)
     }
 
+    /// Fixed-size buffer suitable for `FSCTL_SET_REPARSE_POINT` or a future
+    /// `FltTagFileEx` call.
+    pub fn encode_blob(&self) -> Result<[u8; GUID_REPARSE_TOTAL_LEN], PlaceholderError> {
+        let mut buf = [0u8; GUID_REPARSE_TOTAL_LEN];
+        self.encode(&mut buf)?;
+        Ok(buf)
+    }
+
     pub fn decode(buf: &[u8]) -> Result<Self, PlaceholderError> {
         if buf.len() < GUID_REPARSE_TOTAL_LEN {
             return Err(PlaceholderError::BufferTooSmall);
@@ -187,6 +195,10 @@ impl Placeholder {
 
     pub const fn ranges(&self) -> &RangeSet {
         &self.ranges
+    }
+
+    pub fn reparse_blob(&self) -> Result<[u8; GUID_REPARSE_TOTAL_LEN], PlaceholderError> {
+        self.meta.encode_blob()
     }
 
     /// True when any byte in the requested range is not local. Zero-length
@@ -434,6 +446,18 @@ mod tests {
             PlaceholderMeta::decode(&bad_reserved),
             Err(PlaceholderError::InvalidField)
         );
+    }
+
+    #[test]
+    fn encode_blob_is_fixed_size_and_roundtrips() {
+        let value = meta(PlaceholderState::Partial, 4096, 1024);
+        let blob = value.encode_blob().expect("blob");
+        assert_eq!(blob.len(), GUID_REPARSE_TOTAL_LEN);
+        assert_eq!(PlaceholderMeta::decode(&blob), Ok(value));
+
+        let placeholder = Placeholder::new(7, 4096);
+        let blob = placeholder.reparse_blob().expect("placeholder blob");
+        assert_eq!(PlaceholderMeta::decode(&blob), Ok(*placeholder.meta()));
     }
 
     #[test]
