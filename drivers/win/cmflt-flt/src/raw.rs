@@ -11,7 +11,7 @@
 #![allow(non_camel_case_types)]
 
 use core::ffi::c_void;
-use core::mem::size_of;
+use core::mem::{offset_of, size_of};
 
 pub type NtStatus = i32;
 pub type PdriverObject = *mut c_void;
@@ -136,6 +136,54 @@ pub struct ObjectAttributes {
     pub security_quality_of_service: *mut c_void,
 }
 
+/// Prefix of `FLT_CALLBACK_DATA` needed by the create callback.
+///
+/// The real structure has more fields after `Iopb`; because this is a
+/// `#[repr(C)]` prefix, reading the first three fields from a real callback
+/// data pointer is layout-compatible. The offsets are asserted below.
+#[repr(C)]
+pub struct FltCallbackData {
+    pub flags: u32,
+    pub _padding: u32,
+    pub thread: *mut c_void,
+    pub iopb: *mut FltIoParameterBlock,
+}
+
+/// Prefix of `FLT_IO_PARAMETER_BLOCK`; the `Parameters` union begins at
+/// offset 24 and its `Create` member begins at offset 0.
+#[repr(C)]
+pub struct FltIoParameterBlock {
+    pub irp_flags: u32,
+    pub major_function: u8,
+    pub minor_function: u8,
+    pub operation_flags: u8,
+    pub reserved: u8,
+    pub target_file_object: *mut c_void,
+    pub target_instance: *mut c_void,
+    pub parameters: FltCreateParameters,
+}
+
+/// `FLT_PARAMETERS.Create` (x64 size 40).
+#[repr(C)]
+pub struct FltCreateParameters {
+    pub security_context: *mut IoSecurityContext,
+    pub options: u32,
+    pub file_attributes: u16,
+    pub share_access: u16,
+    pub ea_length: u32,
+    pub ea_buffer: *mut c_void,
+    pub allocation_size: i64,
+}
+
+/// `IO_SECURITY_CONTEXT` (x64 size 24).
+#[repr(C)]
+pub struct IoSecurityContext {
+    pub security_qos: *mut c_void,
+    pub access_state: *mut c_void,
+    pub desired_access: u32,
+    pub full_create_options: u32,
+}
+
 /// Placeholder for the ten callbacks this milestone leaves NULL.
 ///
 /// `Option<extern "system" fn()>` has the same representation as a function
@@ -183,6 +231,14 @@ const _: () = {
     assert!(size_of::<FltOperationRegistration>() == 32);
     assert!(size_of::<UnicodeString>() == 16);
     assert!(size_of::<ObjectAttributes>() == 48);
+    assert!(size_of::<FltCallbackData>() == 24);
+    assert!(offset_of!(FltCallbackData, iopb) == 16);
+    assert!(offset_of!(FltIoParameterBlock, parameters) == 24);
+    assert!(size_of::<FltCreateParameters>() == 40);
+    assert!(offset_of!(FltCreateParameters, options) == 8);
+    assert!(offset_of!(FltCreateParameters, ea_buffer) == 24);
+    assert!(size_of::<IoSecurityContext>() == 24);
+    assert!(offset_of!(IoSecurityContext, desired_access) == 16);
 };
 
 extern "system" {

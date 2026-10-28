@@ -20,18 +20,19 @@
 
 use core::ffi::c_void;
 use core::ptr::null_mut;
-use core::sync::atomic::{AtomicPtr, Ordering};
+use core::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 
 use cmflt_core::handshake::{EngineState, HandshakeError};
+use cmflt_core::policy::{classify_create, CreateIntent};
 #[cfg(not(test))]
 use cmflt_flt::raw::KeBugCheckEx;
 use cmflt_flt::raw::{
-    DeviceType, FltCloseCommunicationPort, FltFilesystemType, FltInstanceSetupFlags,
-    FltOperationRegistration, FltPreopCallbackStatus, FltUnregisterFilter, NtStatus, PdriverObject,
-    PfltFilter, PfltPort, FLT_FSTYPE_NTFS, FLT_PORT_ALL_ACCESS, FLT_PREOP_SUCCESS_NO_CALLBACK,
-    IRP_MJ_CREATE, IRP_MJ_OPERATION_END, STATUS_BUFFER_TOO_SMALL, STATUS_FLT_DO_NOT_ATTACH,
-    STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED, STATUS_PORT_DISCONNECTED,
-    STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
+    DeviceType, FltCallbackData, FltCloseCommunicationPort, FltFilesystemType,
+    FltInstanceSetupFlags, FltOperationRegistration, FltPreopCallbackStatus, FltUnregisterFilter,
+    NtStatus, PdriverObject, PfltFilter, PfltPort, FLT_FSTYPE_NTFS, FLT_PORT_ALL_ACCESS,
+    FLT_PREOP_SUCCESS_NO_CALLBACK, IRP_MJ_CREATE, IRP_MJ_OPERATION_END, STATUS_BUFFER_TOO_SMALL,
+    STATUS_FLT_DO_NOT_ATTACH, STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED,
+    STATUS_PORT_DISCONNECTED, STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
 };
 use cmflt_flt::safe::{
     close_client_port, CommunicationPort, FilterRegistration, RegisteredFilter, SpinLock,
@@ -73,9 +74,15 @@ static SERVER_PORT: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
 static CLIENT_PORT: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
 static ENGINE: SpinLock<EngineState> = SpinLock::new(EngineState::new());
 
-/// KM-2 operation table. The create pre-op is pass-through for now; the
-/// host-tested `cmflt_core::policy` classification will be wired to
-/// `FLT_CALLBACK_DATA` when the data path lands.
+/// Create-path telemetry counters. They make the policy classification
+/// observable without changing create behavior; hydration is still KM-3.
+static CREATE_METADATA: AtomicU32 = AtomicU32::new(0);
+static CREATE_DIRECTORY: AtomicU32 = AtomicU32::new(0);
+static CREATE_DATA: AtomicU32 = AtomicU32::new(0);
+static CREATE_UNKNOWN: AtomicU32 = AtomicU32::new(0);
+
+/// KM-2 operation table. The create pre-op classifies the request and always
+/// passes through: create itself never hydrates.
 static OPERATIONS: [FltOperationRegistration; 2] = [
     FltOperationRegistration {
         major_function: IRP_MJ_CREATE,
@@ -244,14 +251,55 @@ unsafe extern "system" fn instance_setup(
 
 /// KM-2 create pre-op. Attribute-only opens, directory enumeration and data
 /// opens all pass through; hydration is triggered only from READ or section
-/// synchronization, never from CREATE. The host-tested `policy` module will
-/// classify `FLT_CALLBACK_DATA` here once the data path lands.
+/// synchronization, never from CREATE. The classification is recorded in
+/// scalar counters for telemetry and later scan-suppression policy.
 unsafe extern "system" fn pre_create(
-    _data: *mut c_void,
+    data: *mut c_void,
     _flt_objects: *mut c_void,
     _completion_context: *mut *mut c_void,
 ) -> FltPreopCallbackStatus {
+    match unsafe { read_create_parameters(data) } {
+        Some((desired_access, create_options)) => {
+            match classify_create(desired_access, create_options) {
+                CreateIntent::MetadataOnly => {
+                    CREATE_METADATA.fetch_add(1, Ordering::Relaxed);
+                }
+                CreateIntent::DirectoryEnumeration => {
+                    CREATE_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+                }
+                CreateIntent::DataAccess => {
+                    CREATE_DATA.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+        None => {
+            CREATE_UNKNOWN.fetch_add(1, Ordering::Relaxed);
+        }
+    }
     FLT_PREOP_SUCCESS_NO_CALLBACK
+}
+
+/// Read `DesiredAccess` and the low 24 CreateOptions bits from the documented
+/// `FLT_CALLBACK_DATA` / `FLT_IO_PARAMETER_BLOCK` / `FLT_PARAMETERS.Create`
+/// prefix layouts. A malformed or unexpected callback is treated as unknown
+/// and passed through, never as a data request.
+unsafe fn read_create_parameters(data: *mut c_void) -> Option<(u32, u32)> {
+    if data.is_null() {
+        return None;
+    }
+    let callback = unsafe { &*(data as *const FltCallbackData) };
+    if callback.iopb.is_null() {
+        return None;
+    }
+    let iopb = unsafe { &*callback.iopb };
+    if iopb.parameters.security_context.is_null() {
+        return None;
+    }
+    let security = unsafe { &*iopb.parameters.security_context };
+    Some((
+        security.desired_access,
+        iopb.parameters.options & 0x00FF_FFFF,
+    ))
 }
 
 /// Filter unload callback. Close the client port first, then the server port,

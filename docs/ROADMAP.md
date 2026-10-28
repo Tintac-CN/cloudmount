@@ -189,12 +189,13 @@
 —— 用 Rust 从零实现（cdylib 直出 `.sys`，手写 FltMgr 绑定层，无 C/C++ 桩），
 含 14 项稳定机制与 S1–S6 门禁、KM-0…KM-7 里程碑（18–30 人月，验证占半）。
 
-**2026-10-27 进展**：KM-0 已通过 PR #1、KM-1 通过 PR #2 合入 `origin/main`
-（通信端口 + `Hello`/`HelloAck`/`Health` + 用户态 `cmflt-client`；driver 6,144 字节，
-导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`，无 FP/SSE）。KM-2 在分支
-`feat/cmflt-km2-readonly` 起步：仅 NTFS 附着、`IRP_MJ_CREATE` pre-op 直通骨架、
-宿主可测的 create/扫描抑制分类（宿主 60 tests）。
-加载/卸载与真机握手待 testsigning 或 VM 验证。
+**2026-10-28 进展**：KM-0/KM-1 已通过 PR #1/#2 合入 `origin/main`；KM-2 起步
+通过 PR #3 合入（a098018：NTFS-only attach + CREATE pre-op + 宿主可测
+create 分类）。KM-2 续在 `feat/cmflt-km2-readonly`：CREATE 已从真实
+`FLT_CALLBACK_DATA` 读取参数并分类，新增 `cmflt-core::placeholder` 的
+reparse tag/GUID/属性/PlaceholderMeta 模型 + Placeholder/RangeSet 转移（宿主 70 tests）。driver 6,144 字节，
+导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`，无 FP/SSE。实际 tag 写入、目录投影与
+真机加载待 testsigning/VM。
 
 关键结论：不再走"C 内核 + Rust 用户态"；官方两条红线（HSM 组内不得对 recall 文件
 做 targeted 缓存读写、必须处理 section 同步钩子）已写入设计；零售分发需过

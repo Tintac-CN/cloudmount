@@ -71,14 +71,22 @@ drivers/win/
 
 - **仅 NTFS 附着**：`InstanceSetupCallback` 对 `FLT_FSTYPE_NTFS` 返回
   `STATUS_SUCCESS`，其余返回 `STATUS_FLT_DO_NOT_ATTACH`。
-- **CREATE 回调骨架**：注册 `IRP_MJ_CREATE` pre-op（`FLT_PREOP_SUCCESS_NO_CALLBACK`
-  直通），保证 create 路径不做任何数据 I/O；这是属性-only open/扫描抑制的挂点。
+- **CREATE 回调已接线**：`IRP_MJ_CREATE` pre-op 从真实 `FLT_CALLBACK_DATA` →
+  `FLT_IO_PARAMETER_BLOCK` → `FLT_PARAMETERS.Create` 读取 `DesiredAccess` 和
+  CreateOptions（低 24 位），按策略分类后仍 `FLT_PREOP_SUCCESS_NO_CALLBACK` 直通；
+  create 路径不做任何数据 I/O。分类计数写入标量原子计数器（metadata/directory/
+  data/unknown），为后续扫描抑制遥测留口。
 - **create 分类策略**：`cmflt-core::policy` 把 `DesiredAccess/CreateOptions`
   分为 `MetadataOnly` / `DirectoryEnumeration` / `DataAccess`，宿主测试覆盖
   数据位、属性-only、目录枚举、reparse-point open；`should_hydrate_on_create`
   恒为 false。
-- **尚未完成**：把分类接到 `FLT_CALLBACK_DATA`、自定义 reparse tag 占位符创建、
-  目录枚举投影、扫描配额；这些是 KM-2 的后续切片。
+- **占位符元数据模型**：`cmflt-core::placeholder` 定义非 Microsoft reparse tag、
+  开发 GUID、`RECALL_ON_DATA_ACCESS|OFFLINE` 属性、`PlaceholderMeta` 32 字节
+  payload 与状态不变量（Placeholder/Partial/Full/Pinned）；`Placeholder` 组合
+  `RangeSet`，提供 `needs_recall`、`mark_hydrated`、`pin/unpin`、`dehydrate`
+  的 partial→full→placeholder 转移，宿主测试覆盖边界与 OOB。
+- **尚未完成**：实际 `FltTagFile`/属性写入、目录枚举投影、扫描配额与真机
+  L2 场景；这些需要 testsigning/VM 与引擎侧配合。
 
 ## 未完成（需要测试机）
 
@@ -149,10 +157,10 @@ fltmc unload cloudmount
 
 生产使用前必须申请正式 altitude 并过 HLK/WHCP；attestation 签名仅限测试用途。
 
-## 验证记录（2026-10-27，KM-2 起步）
+## 验证记录（2026-10-28，KM-2 续）
 
 ```text
-cargo test --workspace            60 passed / 0 failed
+cargo test --workspace            70 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
@@ -174,7 +182,7 @@ testsigning 或 VM 执行。
 |---|---|---|
 | KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
 | KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **已合入（PR #2）** |
-| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **起步：NTFS-only attach + CREATE pre-op + policy** |
+| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 已接线 + 占位符元数据模型；实际 tag 写入/投影待续** |
 | KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | 待开始 |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
 | KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | 待开始 |
