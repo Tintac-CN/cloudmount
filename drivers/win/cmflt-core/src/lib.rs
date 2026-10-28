@@ -12,11 +12,13 @@
 pub mod coordinator;
 pub mod handshake;
 pub mod hydration;
+pub mod journal;
 pub mod placeholder;
 pub mod policy;
 pub mod protocol;
 pub mod range;
 pub mod scan;
+pub mod telemetry;
 
 #[cfg(test)]
 extern crate std;

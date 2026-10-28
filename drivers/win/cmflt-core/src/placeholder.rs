@@ -41,7 +41,7 @@ pub enum PlaceholderState {
 }
 
 impl PlaceholderState {
-    const fn from_u8(value: u8) -> Option<Self> {
+    pub const fn from_u8(value: u8) -> Option<Self> {
         match value {
             0 => Some(Self::Placeholder),
             1 => Some(Self::Partial),

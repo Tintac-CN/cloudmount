@@ -123,6 +123,17 @@ drivers/win/
   `HydrateReply`，维护 file data/pin/invalidate 状态；集成测试跑通
   coordinator → request → engine → reply → coordinator 的端到端链路。
 
+## KM-5 已交付（崩溃一致/可观测核心）
+
+- `cmflt-core::journal::JournalRecord`：固定 48 字节记录（file_id/tx_id/range/
+  size/state），编解码与字段校验；`Journal` 是 64 条固定环形缓冲，覆盖
+  record 淘汰、dropped 计数与按 file_id 查最新记录。
+- `plan_recovery`：size 不匹配 → `RehydrateAll`；记录范围仍本地 → `Trusted`；
+  范围缺失 → `RehydrateRange`。
+- `cmflt-core::telemetry::TelemetryRing`：64 条固定事件环，递增 seq、
+  覆盖最旧、dropped 计数，事件含 kind/tx_id/code；覆盖 ETW/事件包之前的内核
+  黑匣子模型。
+
 ## 未完成（需要测试机）
 
 - **测试签名加载/卸载循环**：本机 `testsigning` 关闭；启用需
@@ -197,7 +208,7 @@ fltmc unload cloudmount
 ## 验证记录（2026-10-28，KM-2 续）
 
 ```text
-cargo test --workspace            96 passed / 0 failed
+cargo test --workspace            104 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
@@ -224,7 +235,7 @@ testsigning 或 VM 执行。
 | KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 接线 + 占位符创建路径（user-mode reparse/offline + driver post-op recall）；投影待续** |
 | KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | **协调器 + 协议 + MockEngine（96 tests）；内核 Cbdq/读路径待续** |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
-| KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | 待开始 |
+| KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | **Journal/recovery + telemetry ring 核心完成（104 tests）；传输/真机对账待续** |
 | KM-6 | Shell 集成（NSE/overlay/右键/缩略图） | 待开始 |
 | KM-7 | HLK/WHCP + 安装器 + 灰度 | 待开始 |
 
