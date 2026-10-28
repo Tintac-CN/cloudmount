@@ -51,7 +51,7 @@
     "U2": "completed",
     "U3": "completed"
   },
-  "updatedAt": "2026-10-28T08:30:00+08:00",
+  "updatedAt": "2026-10-28T16:00:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -136,6 +136,12 @@
       "from": "gate2",
       "to": "operations",
       "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-28）：互审 0 BLOCKER/4 MAJOR 报告条目[去重 1 主题=tracking 首条占位行列错位，四方同源一格修]/12 MINOR[去重 8]（reviews/gate2-ai.md @ 0571b50；verifier 独立终检 0/0/3——3/3 units 一致+零代码约束成立+验证声称全复现+150 锚五方抽验零虚构；AC2 占位披露三处一致实证）；裁决=「通过+准出回填」——M1 一格修+8 MINOR 随准出回填闭合；AC2 占位披露终确认；phase → operations（/aidlc:ops——route=classic retro 硬性）"
+    },
+    {
+      "at": "2026-10-28T16:00:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Gate#2 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式一行级订正）：M1 tracking 首条 8 列复位[补 receipt_no 待补格+删空行+检查时点建议入 notes]+MINOR 7 项[ARCHITECTURE 锚 :48/footprint/一位差×2/AC1⑧ 子面补注/节标题/decisions 日期声明订正]——gate2 裁决全部准出条件闭合 @ 7e2b7ea；下一步 /aidlc:ops"
     }
   ]
 }

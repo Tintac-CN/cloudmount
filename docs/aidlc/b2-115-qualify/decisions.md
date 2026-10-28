@@ -110,3 +110,10 @@ PLAN-CONFIRMED 2026-10-18
 
 GATE-APPROVED gate2 2026-10-28
 ---
+
+2026-10-28 Gate#2 准出回填核收（编排者内联执行——人类裁决「通过+准出回填」条件式一行级订正）：
+- **M1 落位**：tracking.md 首条占位记录修复为 8 列对齐（补 receipt_no 待补格+删 :35 空行断表+检查时点建议[+3/+7/+10/+14]入 notes）——TP-03 逐字段机械对照恢复成立；节标题「本阶段为空」同步更新。
+- **MINOR 落位**：ARCHITECTURE.md 锚 :47→:48 两处修正（state.json U1 条目勘误方向反转以本条目声明订正——「:48→:47」勘误结论本身错误，正确锚为 :48）；application-checklist footprint 陈述更新（3 文件）；queue.rs:99-100+二维码 :357 两处一位差锚修正；AC1⑧ 两枚举子面补注（downurl 行+Range 流式/upload 行+二次认证+OSS 直传）；decisions U2 条目日期笔误（2026-10-18→2026-10-28）以本条目声明订正（只追加原则不改写）。
+- gate2 裁决的全部准出条件闭合；phase=operations；下一步 `/aidlc:ops`（route=classic——retro 硬性要求）。
+
+---
