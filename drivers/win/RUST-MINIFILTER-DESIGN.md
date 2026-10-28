@@ -42,14 +42,20 @@
 >
 > - `InstanceSetupCallback` 仅附着 NTFS（`FLT_FSTYPE_NTFS`），其余卷返回
 >   `STATUS_FLT_DO_NOT_ATTACH`。
-> - 注册 `IRP_MJ_CREATE` pre-op（目前直通、无数据 I/O），作为属性-only open /
->   扫描抑制的挂点；`FLT_OPERATION_REGISTRATION` x64 布局由 `const assert` 锁定。
+> - 注册 `IRP_MJ_CREATE` pre-op，并从真实 `FLT_CALLBACK_DATA` →
+>   `FLT_IO_PARAMETER_BLOCK` → `FLT_PARAMETERS.Create` 读取
+>   `DesiredAccess/CreateOptions`；分类后仍直通、无数据 I/O。所有结构偏移由
+>   `const assert` 锁定。
 > - `cmflt-core::policy` 对 `DesiredAccess/CreateOptions` 分类
->   `MetadataOnly/DirectoryEnumeration/DataAccess`，明确 create 路径永不水合。
-> - 实测：宿主 60 项测试通过；driver 仍 6,144 字节、导入
+>   `MetadataOnly/DirectoryEnumeration/DataAccess`，明确 create 路径永不水合；
+>   分类计数进入标量原子计数器。
+> - `cmflt-core::placeholder` 定义非 Microsoft reparse tag、开发 GUID、
+>   `RECALL_ON_DATA_ACCESS|OFFLINE` 属性、32 字节 `PlaceholderMeta` 与
+>   Placeholder/Partial/Full/Pinned 状态不变量；`Placeholder` 组合 `RangeSet`，
+>   覆盖 `needs_recall` / `mark_hydrated` / `pin` / `dehydrate` 转移。
+> - 实测：宿主 70 项测试通过；driver 仍 6,144 字节、导入
 >   `FLTMGR.SYS` + `NTOSKRNL.EXE`、无 RWX/FP/SSE。
-> - 未完成：分类接入 `FLT_CALLBACK_DATA`、自定义 reparse tag 占位符创建、
->   目录枚举投影与扫描配额。
+> - 未完成：实际 `FltTagFile`/属性写入、目录枚举投影、扫描配额与真机 L2。
 
 ---
 
@@ -504,7 +510,7 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 |---|---|---|---|
 | **KM-0** 骨架与构建 | cdylib 直出 `.sys`；`.inf`；段布局与链接参数；空 filter（无回调）可加载卸载 | 构建/PE 门禁绿（**2026-10-27 已达成**）；`sc start/stop` 与 `fltmc` 可见（**待 testsigning/VM**） | 3–4 周 |
 | **KM-1** 绑定与骨架回调 | `cmflt-flt` safe 层（§5.5 清单）；通信端口 + 默认安全描述符；握手/版本协商；`Hello/HelloAck/Health` | **实现完成（2026-10-27）**：端口/握手/客户端 + 52 宿主测试；引擎真机连接与 **G1 首版**待 testsigning/VM；绑定层无 C/C++ 组件 | 4–6 周 |
-| **KM-2** 只读视图 | 自有 tag 占位符创建；目录枚举投影（元数据）；**属性-only open 零 I/O**；扫描抑制 | **起步（2026-10-27）**：NTFS-only attach + CREATE pre-op + host-tested create policy（60 tests）；占位符/投影待续 | 4–6 周 |
+| **KM-2** 只读视图 | 自有 tag 占位符创建；目录枚举投影（元数据）；**属性-only open 零 I/O**；扫描抑制 | **续（2026-10-28）**：NTFS-only attach + 真实 CREATE 分类 + 占位符元数据/范围转移模型（70 tests）；实际 tag 写入/投影待续 | 4–6 周 |
 | **KM-3** 按需水合 | 状态机全量（§6）+ Cbdq 取消安全 + 超时/降级/熔断 + `FsRtlChangeBackingFileObject` 切换 + `FltFlushBuffers` | **G2**（取消×水合×卸载矩阵）；**G4**（引擎 kill/挂起）；大文件吞吐达标 | 6–8 周 |
 | **KM-4** mmap 与写路径 | section 同步钩子（读/写/ModWrite）+ fast I/O disallow + oplock/共享冲突降级 + 写回与去水合 | mmap 压测零错读；无 `ERROR_SHARING_VIOLATION` 误报 | 4–6 周 |
 | **KM-5** 崩溃一致与遥测 | 对账协议 + TxId 幂等 + 原子后备切换 + ETW/黑匣子 + triage 脚本 | **G5**（掉电对账）；**G8**（BSOD 可定位） | 4–6 周 |
