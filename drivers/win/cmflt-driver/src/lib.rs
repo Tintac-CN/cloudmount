@@ -23,16 +23,23 @@ use core::ptr::null_mut;
 use core::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 
 use cmflt_core::handshake::{EngineState, HandshakeError};
+use cmflt_core::placeholder::{
+    CMFLT_REPARSE_TAG, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
+};
 use cmflt_core::policy::{classify_create, CreateIntent};
 #[cfg(not(test))]
 use cmflt_flt::raw::KeBugCheckEx;
 use cmflt_flt::raw::{
-    DeviceType, FltCallbackData, FltCloseCommunicationPort, FltFilesystemType,
-    FltInstanceSetupFlags, FltOperationRegistration, FltPreopCallbackStatus, FltUnregisterFilter,
-    NtStatus, PdriverObject, PfltFilter, PfltPort, FLT_FSTYPE_NTFS, FLT_PORT_ALL_ACCESS,
-    FLT_PREOP_SUCCESS_NO_CALLBACK, IRP_MJ_CREATE, IRP_MJ_OPERATION_END, STATUS_BUFFER_TOO_SMALL,
-    STATUS_FLT_DO_NOT_ATTACH, STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED,
-    STATUS_PORT_DISCONNECTED, STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
+    DeviceType, FltCallbackData, FltCloseCommunicationPort, FltDoCompletionProcessingWhenSafe,
+    FltFilesystemType, FltInstanceSetupFlags, FltOperationRegistration, FltPostOperationFlags,
+    FltPostopCallbackStatus, FltPreopCallbackStatus, FltQueryInformationFile,
+    FltSetInformationFile, FltUnregisterFilter, NtStatus, PdriverObject, PfltFilter, PfltPort,
+    FILE_ATTRIBUTE_REPARSE_POINT, FILE_BASIC_INFORMATION_CLASS,
+    FILE_REPARSE_POINT_INFORMATION_CLASS, FLT_FSTYPE_NTFS, FLT_PORT_ALL_ACCESS,
+    FLT_POSTOP_FINISHED_PROCESSING, FLT_PREOP_SUCCESS_NO_CALLBACK, IRP_MJ_CREATE,
+    IRP_MJ_OPERATION_END, STATUS_BUFFER_TOO_SMALL, STATUS_FLT_DO_NOT_ATTACH,
+    STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED, STATUS_PORT_DISCONNECTED,
+    STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
 };
 use cmflt_flt::safe::{
     close_client_port, CommunicationPort, FilterRegistration, RegisteredFilter, SpinLock,
@@ -88,7 +95,7 @@ static OPERATIONS: [FltOperationRegistration; 2] = [
         major_function: IRP_MJ_CREATE,
         flags: 0,
         pre_operation: Some(pre_create),
-        post_operation: None,
+        post_operation: Some(post_create),
         reserved1: null_mut(),
     },
     FltOperationRegistration {
@@ -300,6 +307,124 @@ unsafe fn read_create_parameters(data: *mut c_void) -> Option<(u32, u32)> {
         security.desired_access,
         iopb.parameters.options & 0x00FF_FFFF,
     ))
+}
+
+/// Post-create entry. It may run at DISPATCH_LEVEL, so all file-information
+/// work is deferred through `FltDoCompletionProcessingWhenSafe`.
+unsafe extern "system" fn post_create(
+    data: *mut c_void,
+    flt_objects: *mut c_void,
+    completion_context: *mut c_void,
+    flags: FltPostOperationFlags,
+) -> FltPostopCallbackStatus {
+    let mut status = FLT_POSTOP_FINISHED_PROCESSING;
+    let safe = unsafe {
+        FltDoCompletionProcessingWhenSafe(
+            data,
+            flt_objects,
+            completion_context,
+            flags,
+            safe_post_create,
+            &mut status,
+        )
+    };
+    if safe == 0 {
+        FLT_POSTOP_FINISHED_PROCESSING
+    } else {
+        status
+    }
+}
+
+unsafe extern "system" fn safe_post_create(
+    data: *mut c_void,
+    _flt_objects: *mut c_void,
+    _completion_context: *mut c_void,
+    _flags: FltPostOperationFlags,
+) -> FltPostopCallbackStatus {
+    unsafe { finalize_placeholder(data) };
+    FLT_POSTOP_FINISHED_PROCESSING
+}
+
+/// A user-mode-created placeholder carries our GUID reparse tag and OFFLINE,
+/// but Windows only lets a kernel component set `RECALL_ON_DATA_ACCESS`.
+/// Detect the tag and add the recall attribute in one PASSIVE-level pass.
+unsafe fn finalize_placeholder(data: *mut c_void) {
+    if data.is_null() {
+        return;
+    }
+    let callback = unsafe { &*(data as *const FltCallbackData) };
+    if (callback.io_status.status_or_pointer as i32) < 0 {
+        return;
+    }
+    if callback.iopb.is_null() {
+        return;
+    }
+    let iopb = unsafe { &*callback.iopb };
+    let instance = iopb.target_instance;
+    let file_object = iopb.target_file_object;
+    if instance.is_null() || file_object.is_null() {
+        return;
+    }
+
+    let mut basic = core::mem::MaybeUninit::<[u8; 40]>::uninit();
+    let mut returned = 0u32;
+    let status = unsafe {
+        FltQueryInformationFile(
+            instance,
+            file_object,
+            basic.as_mut_ptr() as *mut c_void,
+            40,
+            FILE_BASIC_INFORMATION_CLASS,
+            &mut returned,
+        )
+    };
+    if status < 0 {
+        return;
+    }
+    let attributes =
+        unsafe { core::ptr::read_unaligned((basic.as_ptr() as *const u8).add(32) as *const u32) };
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT == 0
+        || attributes & FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS != 0
+    {
+        return;
+    }
+
+    let mut reparse = core::mem::MaybeUninit::<[u8; 16]>::uninit();
+    let status = unsafe {
+        FltQueryInformationFile(
+            instance,
+            file_object,
+            reparse.as_mut_ptr() as *mut c_void,
+            16,
+            FILE_REPARSE_POINT_INFORMATION_CLASS,
+            &mut returned,
+        )
+    };
+    if status < 0 {
+        return;
+    }
+    let tag =
+        unsafe { core::ptr::read_unaligned((reparse.as_ptr() as *const u8).add(8) as *const u32) };
+    if tag != CMFLT_REPARSE_TAG {
+        return;
+    }
+
+    let new_attributes = attributes | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | FILE_ATTRIBUTE_OFFLINE;
+    unsafe {
+        core::ptr::write_unaligned(
+            (basic.as_mut_ptr() as *mut u8).add(32) as *mut u32,
+            new_attributes,
+        )
+    };
+    let _ = unsafe {
+        FltSetInformationFile(
+            instance,
+            file_object,
+            basic.as_mut_ptr() as *mut c_void,
+            40,
+            FILE_BASIC_INFORMATION_CLASS,
+        )
+    };
 }
 
 /// Filter unload callback. Close the client port first, then the server port,
