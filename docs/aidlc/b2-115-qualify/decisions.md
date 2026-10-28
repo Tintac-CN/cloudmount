@@ -126,3 +126,13 @@ GATE-APPROVED gate2 2026-10-28
 - 裁决落点（编排者执行）：ops-runbook.md 落盘（tracking 维护/回流/下游触发——资质申请批无运行时/部署面，按运维实质适配）+retro.md 落盘（classic 硬性）→ 完结确认呈出。
 
 ---
+
+2026-10-28 完结确认（AskUserQuestion，逐字转写）：
+- 问：「完结确认（b2-115-qualify）：ops-runbook+retro 落盘（c4e74e3）；115 申请已提交（审核卡住不阻塞）、材料清单/AppID 预备清单交付、tracking 留仓手动更新——是否确认完结（phase=done）？若选「确认完结」，请顺带回复下一批批号。」
+  答：「**确认完结（推荐）**」（批号未随附）
+- 完结判据核验（classic 全达成）：retro.md 落盘（硬性）+ ops-runbook.md 落盘 + 人类确认（本条）→ **phase=done**；b2-115-qualify 退出活跃位（resume/续跑均拒，历史只读）。
+- **下一批衔接状态**：ops 裁决②「直接开下一批」+本条完结确认=启动指令成立，但**批号尚未指定**（B3 Cookie 独有能力/条目 23 CI fmt-clippy/条目 31 真机核验批/条目 24 flaky 根治等均在台账待命）——待人类指定批号后按 /aidlc:inception 接入。
+- **tracking.md 维护提醒**（裁决①）：审核卡住期间人类手动更新（+3/+7/+10/+14 检查时点已载 notes）；AppID 到位后按 ops-runbook 下游触发节开「AppID 实测」intent。
+
+INTENT-DONE 2026-10-28
+---

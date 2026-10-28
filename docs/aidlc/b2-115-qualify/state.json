@@ -1,7 +1,7 @@
 {
   "slug": "b2-115-qualify",
   "intent": "M0 外部阻塞链启动：申请 115 开放平台个人开发者资质+创建 PKCE 应用（材料提交+受理跟进；人类操作为主，工程侧配套=申请材料技术清单整理+AppID 到位后的 TODO(verify) 闭环预备）——路线图批次表 B2",
-  "phase": "operations",
+  "phase": "done",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -51,7 +51,7 @@
     "U2": "completed",
     "U3": "completed"
   },
-  "updatedAt": "2026-10-28T16:25:00+08:00",
+  "updatedAt": "2026-10-28T16:45:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -154,6 +154,12 @@
       "from": "operations",
       "to": "operations",
       "why": "ops-runbook.md（受理跟踪维护[留仓+手动更新]/下游触发[AppID 到位→backlog A 节首行→「AppID 实测」intent]/回流/审核驳回分支——资质申请批无部署监控面，按运维实质适配）+retro.md（classic 硬性——含「人类操作批协议特化首次完整跑通」「外部阻塞处理范式」「编排者记录质量自检点」「AC↔规格子项双向核对」四条沉淀）落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-28T16:45:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（AskUserQuestion 逐字「确认完结（推荐）」+ INTENT-DONE 2026-10-28）：classic 完结判据全达成（retro 硬性+ops-runbook+人类确认）→ phase=done，intent 退出活跃位。生命周期总览：115 资质申请批——材料技术清单（11 项+15 端点，150+ 锚五方抽验零虚构）+tracking.md（受理跟踪，人类回报「早已提交，卡住不审批」逐字在案+占位留痕）+appid-readiness.md（下游「AppID 实测」intent 输入）；Gate#1 三轮（2 主题打回→修订→7m 打回→内联 6 处→r3 通过）+Gate#2 五方互审+verifier（0 BLOCKER+M1 一格修准出回填）；下一批批号待人类指定（台账待命）"
     }
   ]
 }
