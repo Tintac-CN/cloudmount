@@ -29,6 +29,13 @@ pub const STATUS_BUFFER_TOO_SMALL: NtStatus = 0xC000_0023u32 as NtStatus;
 pub const STATUS_PORT_DISCONNECTED: NtStatus = 0xC000_0037u32 as NtStatus;
 pub const STATUS_REVISION_MISMATCH: NtStatus = 0xC000_0059u32 as NtStatus;
 pub const STATUS_INSUFFICIENT_RESOURCES: NtStatus = 0xC000_009Au32 as NtStatus;
+pub const STATUS_FLT_DO_NOT_ATTACH: NtStatus = 0xC01C_000Fu32 as NtStatus;
+
+pub type FltInstanceSetupFlags = u32;
+pub type DeviceType = u32;
+pub type FltFilesystemType = u32;
+/// `FLT_FSTYPE_NTFS` (the enum starts at UNKNOWN=0, RAW=1, NTFS=2).
+pub const FLT_FSTYPE_NTFS: FltFilesystemType = 2;
 
 pub const FLT_PORT_CONNECT: u32 = 0x0000_0001;
 pub const STANDARD_RIGHTS_ALL: u32 = 0x001F_0000;
@@ -68,6 +75,46 @@ pub type MessageNotifyCallback = unsafe extern "system" fn(
     output_buffer_length: u32,
     return_output_buffer_length: *mut u32,
 ) -> NtStatus;
+
+/// `PFLT_INSTANCE_SETUP_CALLBACK`.
+pub type FltInstanceSetupCallback = unsafe extern "system" fn(
+    flt_objects: *mut c_void,
+    flags: FltInstanceSetupFlags,
+    volume_device_type: DeviceType,
+    volume_filesystem_type: FltFilesystemType,
+) -> NtStatus;
+
+/// `FLT_PREOP_CALLBACK_STATUS` values used by KM-2.
+pub type FltPreopCallbackStatus = i32;
+pub const FLT_PREOP_SUCCESS_WITH_CALLBACK: FltPreopCallbackStatus = 0;
+pub const FLT_PREOP_SUCCESS_NO_CALLBACK: FltPreopCallbackStatus = 1;
+
+/// `PFLT_PRE_OPERATION_CALLBACK`. `FLT_CALLBACK_DATA` stays opaque until the
+/// data path needs its parameters.
+pub type FltPreOperationCallback = unsafe extern "system" fn(
+    data: *mut c_void,
+    flt_objects: *mut c_void,
+    completion_context: *mut *mut c_void,
+) -> FltPreopCallbackStatus;
+
+pub type FltOperationRegistrationFlags = u32;
+pub const FLTFL_OPERATION_REGISTRATION_SKIP_PAGING_IO: FltOperationRegistrationFlags = 0x0000_0001;
+
+pub const IRP_MJ_CREATE: u8 = 0x00;
+pub const IRP_MJ_OPERATION_END: u8 = 0x80;
+
+/// `FLT_OPERATION_REGISTRATION` (x64 size 32).
+#[repr(C)]
+pub struct FltOperationRegistration {
+    pub major_function: u8,
+    pub flags: FltOperationRegistrationFlags,
+    pub pre_operation: Option<FltPreOperationCallback>,
+    pub post_operation: UnusedCallback,
+    pub reserved1: *mut c_void,
+}
+
+// The operation table is an immutable static read by FltMgr.
+unsafe impl Sync for FltOperationRegistration {}
 
 /// `UNICODE_STRING`; the buffer is borrowed for the duration of the FltMgr
 /// call and must remain alive until that call returns.
@@ -111,9 +158,9 @@ pub struct FltRegistration {
     pub version: u16,
     pub flags: u32,
     pub context_registration: *const c_void,
-    pub operation_registration: *const c_void,
+    pub operation_registration: *const FltOperationRegistration,
     pub filter_unload_callback: Option<FilterUnloadCallback>,
-    pub instance_setup_callback: UnusedCallback,
+    pub instance_setup_callback: Option<FltInstanceSetupCallback>,
     pub instance_query_teardown_callback: UnusedCallback,
     pub instance_teardown_start_callback: UnusedCallback,
     pub instance_teardown_complete_callback: UnusedCallback,
@@ -133,6 +180,7 @@ const _: () = assert!(size_of::<Option<FilterUnloadCallback>>() == size_of::<usi
 #[cfg(target_pointer_width = "64")]
 const _: () = {
     assert!(size_of::<FltRegistration>() == 112);
+    assert!(size_of::<FltOperationRegistration>() == 32);
     assert!(size_of::<UnicodeString>() == 16);
     assert!(size_of::<ObjectAttributes>() == 48);
 };

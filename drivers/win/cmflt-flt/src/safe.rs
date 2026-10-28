@@ -11,11 +11,12 @@ use core::sync::atomic::AtomicUsize;
 use crate::raw::{
     ConnectNotifyCallback, DisconnectNotifyCallback, FilterUnloadCallback,
     FltBuildDefaultSecurityDescriptor, FltCloseClientPort, FltCloseCommunicationPort,
-    FltCreateCommunicationPort, FltFreeSecurityDescriptor, FltRegisterFilter, FltRegistration,
-    FltStartFiltering, FltUnregisterFilter, MessageNotifyCallback, NtStatus, ObjectAttributes,
-    PdriverObject, PfltFilter, PfltPort, SecurityDescriptor, UnicodeString,
-    FLT_REGISTRATION_VERSION, KSPIN_LOCK, OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE,
-    STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, STATUS_UNSUCCESSFUL,
+    FltCreateCommunicationPort, FltFreeSecurityDescriptor, FltInstanceSetupCallback,
+    FltOperationRegistration, FltRegisterFilter, FltRegistration, FltStartFiltering,
+    FltUnregisterFilter, MessageNotifyCallback, NtStatus, ObjectAttributes, PdriverObject,
+    PfltFilter, PfltPort, SecurityDescriptor, UnicodeString, FLT_REGISTRATION_VERSION, KSPIN_LOCK,
+    OBJ_CASE_INSENSITIVE, OBJ_KERNEL_HANDLE, STATUS_INSUFFICIENT_RESOURCES, STATUS_SUCCESS,
+    STATUS_UNSUCCESSFUL,
 };
 
 use crate::raw::{KeAcquireSpinLockRaiseToDpc, KeInitializeSpinLock, KeReleaseSpinLock};
@@ -55,6 +56,19 @@ impl FilterRegistration {
                 section_notification_callback: None,
             },
         }
+    }
+
+    /// Attach an instance-setup callback (KM-2: NTFS-only attachment).
+    pub const fn with_instance_setup(mut self, callback: FltInstanceSetupCallback) -> Self {
+        self.raw.instance_setup_callback = Some(callback);
+        self
+    }
+
+    /// Attach a static `FLT_OPERATION_REGISTRATION` table. The table must be
+    /// terminated by `{ IRP_MJ_OPERATION_END }` and outlive the filter.
+    pub const fn with_operations(mut self, operations: *const FltOperationRegistration) -> Self {
+        self.raw.operation_registration = operations;
+        self
     }
 
     pub fn as_ptr(&self) -> *const FltRegistration {
@@ -331,5 +345,32 @@ mod tests {
     fn spin_lock_is_constructible_without_kernel_calls() {
         let lock = SpinLock::new(0u32);
         assert_eq!(lock.lock.load(core::sync::atomic::Ordering::Relaxed), 0);
+    }
+
+    static TEST_OPS: [FltOperationRegistration; 1] = [FltOperationRegistration {
+        major_function: crate::raw::IRP_MJ_OPERATION_END,
+        flags: 0,
+        pre_operation: None,
+        post_operation: None,
+        reserved1: core::ptr::null_mut(),
+    }];
+
+    unsafe extern "system" fn setup(
+        _flt_objects: *mut core::ffi::c_void,
+        _flags: u32,
+        _device_type: u32,
+        _filesystem_type: u32,
+    ) -> NtStatus {
+        STATUS_SUCCESS
+    }
+
+    #[test]
+    fn registration_builders_set_km2_fields() {
+        let registration = FilterRegistration::new(unload)
+            .with_instance_setup(setup)
+            .with_operations(TEST_OPS.as_ptr());
+        let raw = unsafe { &*registration.as_ptr() };
+        assert!(raw.instance_setup_callback.is_some());
+        assert_eq!(raw.operation_registration, TEST_OPS.as_ptr());
     }
 }

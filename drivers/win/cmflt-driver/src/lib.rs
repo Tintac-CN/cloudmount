@@ -26,9 +26,12 @@ use cmflt_core::handshake::{EngineState, HandshakeError};
 #[cfg(not(test))]
 use cmflt_flt::raw::KeBugCheckEx;
 use cmflt_flt::raw::{
-    FltCloseCommunicationPort, FltUnregisterFilter, NtStatus, PdriverObject, PfltFilter, PfltPort,
-    FLT_PORT_ALL_ACCESS, STATUS_BUFFER_TOO_SMALL, STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED,
-    STATUS_PORT_DISCONNECTED, STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
+    DeviceType, FltCloseCommunicationPort, FltFilesystemType, FltInstanceSetupFlags,
+    FltOperationRegistration, FltPreopCallbackStatus, FltUnregisterFilter, NtStatus, PdriverObject,
+    PfltFilter, PfltPort, FLT_FSTYPE_NTFS, FLT_PORT_ALL_ACCESS, FLT_PREOP_SUCCESS_NO_CALLBACK,
+    IRP_MJ_CREATE, IRP_MJ_OPERATION_END, STATUS_BUFFER_TOO_SMALL, STATUS_FLT_DO_NOT_ATTACH,
+    STATUS_INVALID_PARAMETER, STATUS_NOT_IMPLEMENTED, STATUS_PORT_DISCONNECTED,
+    STATUS_REVISION_MISMATCH, STATUS_SUCCESS,
 };
 use cmflt_flt::safe::{
     close_client_port, CommunicationPort, FilterRegistration, RegisteredFilter, SpinLock,
@@ -70,7 +73,29 @@ static SERVER_PORT: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
 static CLIENT_PORT: AtomicPtr<c_void> = AtomicPtr::new(null_mut());
 static ENGINE: SpinLock<EngineState> = SpinLock::new(EngineState::new());
 
-static REGISTRATION: FilterRegistration = FilterRegistration::new(filter_unload);
+/// KM-2 operation table. The create pre-op is pass-through for now; the
+/// host-tested `cmflt_core::policy` classification will be wired to
+/// `FLT_CALLBACK_DATA` when the data path lands.
+static OPERATIONS: [FltOperationRegistration; 2] = [
+    FltOperationRegistration {
+        major_function: IRP_MJ_CREATE,
+        flags: 0,
+        pre_operation: Some(pre_create),
+        post_operation: None,
+        reserved1: null_mut(),
+    },
+    FltOperationRegistration {
+        major_function: IRP_MJ_OPERATION_END,
+        flags: 0,
+        pre_operation: None,
+        post_operation: None,
+        reserved1: null_mut(),
+    },
+];
+
+static REGISTRATION: FilterRegistration = FilterRegistration::new(filter_unload)
+    .with_instance_setup(instance_setup)
+    .with_operations(OPERATIONS.as_ptr());
 
 /// Minifilter entry point. `/ENTRY:DriverEntry` is passed by `build.rs`.
 ///
@@ -200,6 +225,33 @@ const fn handshake_status(error: HandshakeError) -> NtStatus {
         HandshakeError::VersionMismatch => STATUS_REVISION_MISMATCH,
         HandshakeError::OutputTooSmall => STATUS_BUFFER_TOO_SMALL,
     }
+}
+
+/// Attach only to NTFS volumes: placeholders require NTFS reparse points and
+/// the HSM semantics of NTFS.
+unsafe extern "system" fn instance_setup(
+    _flt_objects: *mut c_void,
+    _flags: FltInstanceSetupFlags,
+    _volume_device_type: DeviceType,
+    volume_filesystem_type: FltFilesystemType,
+) -> NtStatus {
+    if volume_filesystem_type == FLT_FSTYPE_NTFS {
+        STATUS_SUCCESS
+    } else {
+        STATUS_FLT_DO_NOT_ATTACH
+    }
+}
+
+/// KM-2 create pre-op. Attribute-only opens, directory enumeration and data
+/// opens all pass through; hydration is triggered only from READ or section
+/// synchronization, never from CREATE. The host-tested `policy` module will
+/// classify `FLT_CALLBACK_DATA` here once the data path lands.
+unsafe extern "system" fn pre_create(
+    _data: *mut c_void,
+    _flt_objects: *mut c_void,
+    _completion_context: *mut *mut c_void,
+) -> FltPreopCallbackStatus {
+    FLT_PREOP_SUCCESS_NO_CALLBACK
 }
 
 /// Filter unload callback. Close the client port first, then the server port,
