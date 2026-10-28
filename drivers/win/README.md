@@ -117,6 +117,11 @@ drivers/win/
   - `settle`/`on_reset` 支持下一轮 recall；`on_engine_healthy` 复位熔断。
 - 宿主测试覆盖全量水合、部分水合后二次 recall、Busy、取消、超时熔断、
   switch 失败、switch 中取消、配额耗尽、非法范围、reset 排空与范围精确标记。
+- **协议补齐**：`Dehydrate` / `PinSet` / `Invalidate` K→U 消息，含长度、tx_id、
+  pin 值与 reserved 校验。
+- **MockEngine**：`cmflt-sim::engine` 消费 `HydrateRequest` 并生成
+  `HydrateReply`，维护 file data/pin/invalidate 状态；集成测试跑通
+  coordinator → request → engine → reply → coordinator 的端到端链路。
 
 ## 未完成（需要测试机）
 
@@ -192,7 +197,7 @@ fltmc unload cloudmount
 ## 验证记录（2026-10-28，KM-2 续）
 
 ```text
-cargo test --workspace            88 passed / 0 failed
+cargo test --workspace            96 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
@@ -217,7 +222,7 @@ testsigning 或 VM 执行。
 | KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
 | KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **已合入（PR #2）** |
 | KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 接线 + 占位符创建路径（user-mode reparse/offline + driver post-op recall）；投影待续** |
-| KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | **协调器核心完成（88 tests）；内核 Cbdq/读路径待续** |
+| KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | **协调器 + 协议 + MockEngine（96 tests）；内核 Cbdq/读路径待续** |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
 | KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | 待开始 |
 | KM-6 | Shell 集成（NSE/overlay/右键/缩略图） | 待开始 |
