@@ -94,6 +94,16 @@
 >   `FLTMGR.SYS` + `NTOSKRNL.EXE`、无 RWX/FP/SSE。
 > - 未完成：ETW/事件包传输、真实重启对账、内核 READ/Cbdq 接线与 HLK。
 
+> **v1.6 加载准备（2026-10-28）**
+>
+> - driver 已用自签测试证书签名并 `signtool verify /pa` 通过；证书导入
+>   Root/TrustedPublisher。
+> - 新增 `scripts/preflight-load.ps1`、`load-driver.ps1`、`g1-loop.ps1`，
+>   覆盖管理员/Secure Boot/testsigning/签名预检、安装+加载+握手、G1 100 循环。
+> - **本机阻塞**：`Confirm-SecureBootUEFI=True`，`bcdedit /set testsigning on`
+>   返回「该值受安全引导策略保护」。需在 UEFI/BIOS 关闭 Secure Boot 后重启，
+>   或使用 Secure Boot 关闭的 VM；在此之前无法执行加载/卸载与 G1/G2/G4/G5。
+
 ---
 
 ## 0. 结论摘要

@@ -1,10 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$Path = (Join-Path (Split-Path -Parent $PSScriptRoot) "out\cloudmount.sys"),
+    [string]$Path = "",
     [switch]$SkipFpScan
 )
 
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($Path)) {
+    $Path = Join-Path (Split-Path -Parent $PSScriptRoot) "out\cloudmount.sys"
+}
 
 function Find-Dumpbin {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"

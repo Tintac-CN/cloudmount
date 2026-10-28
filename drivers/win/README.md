@@ -1,6 +1,6 @@
 # CloudMount Windows 存储内核（自研 minifilter · 原生 Rust）
 
-> 状态：**KM-0/KM-1 已合入；KM-2 占位符创建完成；KM-3 水合协调器核心完成**（2026-10-28）。
+> 状态：**KM-0/KM-1 已合入；KM-2 占位符创建完成；KM-3/KM-5 核心完成；驱动已 test-sign，等待 Secure Boot 关闭后的 testsigning 加载**（2026-10-28）。
 > M2 仍用 CfAPI 发布产品；`cmflt` 是长期自研后端，通过
 > `cloudmount-vfs::MountBackend` 平滑替换，不阻塞任何产品里程碑。
 >
@@ -183,24 +183,32 @@ Git Bash 可直接 `bash scripts/test-host.sh`。
 
 ## 安装与加载（测试机）
 
+**前置：Secure Boot 必须关闭**。`bcdedit /set testsigning on` 在 Secure Boot
+开启时会返回「该值受安全引导策略保护」。当前开发机 `Confirm-SecureBootUEFI`
+仍为 True，所以只能完成签名与预检，无法在本机加载驱动。
+
 ```powershell
-# 1. test-sign（首次会创建自签证书并导入 Root/TrustedPublisher，需要管理员）
+# 0. 预检：管理员 / Secure Boot 关闭 / testsigning 生效 / 驱动签名
+powershell -ExecutionPolicy Bypass -File scripts/preflight-load.ps1
+
+# 1. test-sign（首次创建自签证书并导入 Root/TrustedPublisher，需要管理员）
 powershell -ExecutionPolicy Bypass -File scripts/sign-test.ps1
 
-# 2. 开启测试签名并重启
+# 2. 开启测试签名并重启（Secure Boot 已关闭的前提下）
 bcdedit /set testsigning on
 Restart-Computer
 
-# 3. 安装 INF（DefaultInstall）并加载
-InfDefaultInstall.exe .\cloudmount.inf
-fltmc load cloudmount
-fltmc filters          # 应看到 cloudmount，Altitude=189900，Group=FSFilter HSM
+# 3. 一键安装 + 加载 + 握手冒烟
+powershell -ExecutionPolicy Bypass -File scripts/load-driver.ps1
 
-# 4. 握手/心跳冒烟（需要管理员权限以连接端口）
-.\target\debug\cmflt-client.exe
-# 期望：handshake ok / health ok
+# 4. G1：100 次加载/卸载循环
+powershell -ExecutionPolicy Bypass -File scripts/g1-loop.ps1
 
-fltmc unload cloudmount
+# 手动操作等价于：
+# InfDefaultInstall.exe .\cloudmount.inf
+# fltmc load cloudmount
+# .\target\debug\cmflt-client.exe handshake
+# fltmc unload cloudmount
 ```
 
 生产使用前必须申请正式 altitude 并过 HLK/WHCP；attestation 签名仅限测试用途。
@@ -212,7 +220,8 @@ cargo test --workspace            104 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
-cloudmount.sys                    7,168 bytes
+cloudmount.sys（unsigned）         7,168 bytes
+cloudmount.sys（test-signed）      8,592 bytes
 entry point                       DriverEntry
 subsystem                         Native (1)
 imports                           FLTMGR.SYS + NTOSKRNL.EXE
@@ -221,6 +230,7 @@ writable+executable sections      none
 cmflt-client handshake（无 driver） 0x80070002（预期：端口不存在）
 cmflt-client create-placeholder    本机实测：sparse + reparse + OFFLINE 成功；
                                   RECALL_ON_DATA_ACCESS 需加载 driver 后置
+testsigning 启用                   BLOCKED：Secure Boot=True
 ```
 
 详细证据与复现命令见本文件"构建与测试"节；加载/卸载与真实握手仍待
