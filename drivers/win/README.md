@@ -1,6 +1,6 @@
 # CloudMount Windows 存储内核（自研 minifilter · 原生 Rust）
 
-> 状态：**KM-0/KM-1 已合入；KM-2 只读视图已起步**（分支 `feat/cmflt-km2-readonly`，2026-10-27）。
+> 状态：**KM-0/KM-1 已合入；KM-2 占位符创建完成；KM-3 水合协调器核心完成**（2026-10-28）。
 > M2 仍用 CfAPI 发布产品；`cmflt` 是长期自研后端，通过
 > `cloudmount-vfs::MountBackend` 平滑替换，不阻塞任何产品里程碑。
 >
@@ -103,6 +103,21 @@ drivers/win/
 - **尚未完成**：driver 加载后的端到端 recall 验证、目录枚举投影、配额接入
   水合路径与真机 L2 场景；这些需要 testsigning/VM 与引擎侧配合。
 
+## KM-3 已交付（协调器核心）
+
+- `cmflt-core::coordinator::HydrationCoordinator` 把占位符范围、`ScanQuota`、
+  既有水合状态机和 `tx_id` 组合成一个纯逻辑协调器：
+  - `begin_read` 返回 `Pass` / `Recall{tx_id,range,deadline}` / `Busy` /
+    `Degraded` / `Quota` / `Invalid`；
+  - `on_dequeued` → `on_reply_accepted` → `on_verify_ok` → `on_switch_ok`
+    完成一次水合，按实际范围更新 Placeholder（Partial/Full）；
+  - `on_cancel`/`on_timeout`/`on_switch_failed` 释放配额并进入
+    Canceled/Degraded/Failed；switch 期间的取消/超时进入 `Draining`，等
+    switch 完成后再结算；
+  - `settle`/`on_reset` 支持下一轮 recall；`on_engine_healthy` 复位熔断。
+- 宿主测试覆盖全量水合、部分水合后二次 recall、Busy、取消、超时熔断、
+  switch 失败、switch 中取消、配额耗尽、非法范围、reset 排空与范围精确标记。
+
 ## 未完成（需要测试机）
 
 - **测试签名加载/卸载循环**：本机 `testsigning` 关闭；启用需
@@ -177,7 +192,7 @@ fltmc unload cloudmount
 ## 验证记录（2026-10-28，KM-2 续）
 
 ```text
-cargo test --workspace            76 passed / 0 failed
+cargo test --workspace            88 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
@@ -202,7 +217,7 @@ testsigning 或 VM 执行。
 | KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
 | KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **已合入（PR #2）** |
 | KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 接线 + 占位符创建路径（user-mode reparse/offline + driver post-op recall）；投影待续** |
-| KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | 待开始 |
+| KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | **协调器核心完成（88 tests）；内核 Cbdq/读路径待续** |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
 | KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | 待开始 |
 | KM-6 | Shell 集成（NSE/overlay/右键/缩略图） | 待开始 |
