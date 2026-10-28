@@ -90,8 +90,18 @@ drivers/win/
 - **扫描抑制配额**：`cmflt-core::scan::ScanQuota` 提供每会话请求数/字节数上限、
   原子式 acquire/release/reset 与 denied 计数，宿主测试覆盖请求/字节耗尽与
   释放下溢。
-- **尚未完成**：实际 `FltTagFile`/属性写入、目录枚举投影、配额接入水合路径与
-  真机 L2 场景；这些需要 testsigning/VM 与引擎侧配合。
+- **占位符创建路径**：
+  - `cmflt-client create-placeholder <path> [--size N] [--file-id N]` 以
+    `CREATE_NEW` 创建 sparse 文件，写入 56 字节 GUID reparse blob 和
+    `OFFLINE` 属性。本机实测 user-mode 可以设置 reparse/offline，但**不能**
+    设置 `RECALL_ON_DATA_ACCESS`。
+  - driver 的 CREATE post-op 在 `FltDoCompletionProcessingWhenSafe` 的
+    PASSIVE 回调里查询 `FileBasicInformation` + `FileReparsePointInformation`；
+    若 tag 为自有 CMFLT tag，则用 `FltSetInformationFile` 补
+    `RECALL_ON_DATA_ACCESS|OFFLINE`。工具会重新打开文件以触发该回调；driver
+    未加载时打印明确告警。
+- **尚未完成**：driver 加载后的端到端 recall 验证、目录枚举投影、配额接入
+  水合路径与真机 L2 场景；这些需要 testsigning/VM 与引擎侧配合。
 
 ## 未完成（需要测试机）
 
@@ -131,9 +141,11 @@ powershell -ExecutionPolicy Bypass -File scripts/test-host.ps1
 powershell -ExecutionPolicy Bypass -File scripts/build-driver.ps1
 # 产物：drivers/win/out/cloudmount.sys
 
-# 用户态握手客户端
+# 用户态客户端
 cargo build -p cmflt-client
 # 产物：drivers/win/target/debug/cmflt-client.exe
+# 握手：cmflt-client handshake
+# 占位符：cmflt-client create-placeholder <new-file> --size 4096 --file-id 42
 ```
 
 Git Bash 可直接 `bash scripts/test-host.sh`。
@@ -169,13 +181,15 @@ cargo test --workspace            76 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
-cloudmount.sys                    6,144 bytes
+cloudmount.sys                    7,168 bytes
 entry point                       DriverEntry
 subsystem                         Native (1)
 imports                           FLTMGR.SYS + NTOSKRNL.EXE
 FP/SSE/AVX in disassembly         none
 writable+executable sections      none
-cmflt-client（driver 未加载）      0x80070002（预期：端口不存在）
+cmflt-client handshake（无 driver） 0x80070002（预期：端口不存在）
+cmflt-client create-placeholder    本机实测：sparse + reparse + OFFLINE 成功；
+                                  RECALL_ON_DATA_ACCESS 需加载 driver 后置
 ```
 
 详细证据与复现命令见本文件"构建与测试"节；加载/卸载与真实握手仍待
@@ -187,7 +201,7 @@ testsigning 或 VM 执行。
 |---|---|---|
 | KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
 | KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **已合入（PR #2）** |
-| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 已接线 + 占位符元数据模型；实际 tag 写入/投影待续** |
+| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 接线 + 占位符创建路径（user-mode reparse/offline + driver post-op recall）；投影待续** |
 | KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | 待开始 |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
 | KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | 待开始 |

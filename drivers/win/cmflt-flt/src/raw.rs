@@ -103,13 +103,30 @@ pub const FLTFL_OPERATION_REGISTRATION_SKIP_PAGING_IO: FltOperationRegistrationF
 pub const IRP_MJ_CREATE: u8 = 0x00;
 pub const IRP_MJ_OPERATION_END: u8 = 0x80;
 
+/// `FLT_POSTOP_CALLBACK_STATUS` values used by KM-2.
+pub type FltPostopCallbackStatus = i32;
+pub const FLT_POSTOP_FINISHED_PROCESSING: FltPostopCallbackStatus = 0;
+pub const FLT_POSTOP_MORE_PROCESSING_REQUIRED: FltPostopCallbackStatus = 1;
+
+pub type FltPostOperationFlags = u32;
+pub type FltPostOperationCallback = unsafe extern "system" fn(
+    data: *mut c_void,
+    flt_objects: *mut c_void,
+    completion_context: *mut c_void,
+    flags: FltPostOperationFlags,
+) -> FltPostopCallbackStatus;
+
+pub const FILE_BASIC_INFORMATION_CLASS: i32 = 4;
+pub const FILE_REPARSE_POINT_INFORMATION_CLASS: i32 = 33;
+pub const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+
 /// `FLT_OPERATION_REGISTRATION` (x64 size 32).
 #[repr(C)]
 pub struct FltOperationRegistration {
     pub major_function: u8,
     pub flags: FltOperationRegistrationFlags,
     pub pre_operation: Option<FltPreOperationCallback>,
-    pub post_operation: UnusedCallback,
+    pub post_operation: Option<FltPostOperationCallback>,
     pub reserved1: *mut c_void,
 }
 
@@ -136,17 +153,25 @@ pub struct ObjectAttributes {
     pub security_quality_of_service: *mut c_void,
 }
 
-/// Prefix of `FLT_CALLBACK_DATA` needed by the create callback.
+/// `IO_STATUS_BLOCK` (x64 size 16).
+#[repr(C)]
+pub struct IoStatusBlock {
+    pub status_or_pointer: usize,
+    pub information: usize,
+}
+
+/// Prefix of `FLT_CALLBACK_DATA` needed by the create callbacks.
 ///
-/// The real structure has more fields after `Iopb`; because this is a
-/// `#[repr(C)]` prefix, reading the first three fields from a real callback
-/// data pointer is layout-compatible. The offsets are asserted below.
+/// The real structure has more fields after `IoStatus`; because this is a
+/// `#[repr(C)]` prefix, reading the first fields from a real callback data
+/// pointer is layout-compatible. The offsets are asserted below.
 #[repr(C)]
 pub struct FltCallbackData {
     pub flags: u32,
     pub _padding: u32,
     pub thread: *mut c_void,
     pub iopb: *mut FltIoParameterBlock,
+    pub io_status: IoStatusBlock,
 }
 
 /// Prefix of `FLT_IO_PARAMETER_BLOCK`; the `Parameters` union begins at
@@ -231,8 +256,10 @@ const _: () = {
     assert!(size_of::<FltOperationRegistration>() == 32);
     assert!(size_of::<UnicodeString>() == 16);
     assert!(size_of::<ObjectAttributes>() == 48);
-    assert!(size_of::<FltCallbackData>() == 24);
+    assert!(size_of::<IoStatusBlock>() == 16);
+    assert!(size_of::<FltCallbackData>() == 40);
     assert!(offset_of!(FltCallbackData, iopb) == 16);
+    assert!(offset_of!(FltCallbackData, io_status) == 24);
     assert!(offset_of!(FltIoParameterBlock, parameters) == 24);
     assert!(size_of::<FltCreateParameters>() == 40);
     assert!(offset_of!(FltCreateParameters, options) == 8);
@@ -285,6 +312,39 @@ extern "system" {
 
     /// `VOID FltFreeSecurityDescriptor(PSECURITY_DESCRIPTOR)`
     pub fn FltFreeSecurityDescriptor(security_descriptor: SecurityDescriptor);
+
+    /// `BOOLEAN FltDoCompletionProcessingWhenSafe(PFLT_CALLBACK_DATA,
+    /// PCFLT_RELATED_OBJECTS, PVOID, FLT_POST_OPERATION_FLAGS,
+    /// PFLT_POST_OPERATION_CALLBACK, PFLT_POSTOP_CALLBACK_STATUS)`
+    pub fn FltDoCompletionProcessingWhenSafe(
+        data: *mut c_void,
+        flt_objects: *mut c_void,
+        completion_context: *mut c_void,
+        flags: FltPostOperationFlags,
+        safe_post_callback: FltPostOperationCallback,
+        ret_status: *mut FltPostopCallbackStatus,
+    ) -> u8;
+
+    /// `NTSTATUS FltQueryInformationFile(PFLT_INSTANCE, PFILE_OBJECT,
+    /// PVOID, ULONG, FILE_INFORMATION_CLASS, PULONG)`
+    pub fn FltQueryInformationFile(
+        instance: *mut c_void,
+        file_object: *mut c_void,
+        file_information: *mut c_void,
+        length: u32,
+        file_information_class: i32,
+        length_returned: *mut u32,
+    ) -> NtStatus;
+
+    /// `NTSTATUS FltSetInformationFile(PFLT_INSTANCE, PFILE_OBJECT,
+    /// PVOID, ULONG, FILE_INFORMATION_CLASS)`
+    pub fn FltSetInformationFile(
+        instance: *mut c_void,
+        file_object: *mut c_void,
+        file_information: *mut c_void,
+        length: u32,
+        file_information_class: i32,
+    ) -> NtStatus;
 }
 
 extern "system" {
