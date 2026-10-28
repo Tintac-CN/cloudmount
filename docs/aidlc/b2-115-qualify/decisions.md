@@ -117,3 +117,12 @@ GATE-APPROVED gate2 2026-10-28
 - gate2 裁决的全部准出条件闭合；phase=operations；下一步 `/aidlc:ops`（route=classic——retro 硬性要求）。
 
 ---
+
+2026-10-28 Operations 人类裁决（AskUserQuestion，逐字转写）：
+- 问：「①115 审核卡住期间，受理跟踪（tracking.md）的维护方式？」
+  答：「**tracking 留仓+手动更新（推荐）**」——115 审核卡住为外部阻塞；tracking.md 留仓由人类随审核进展手动更新（追加式日志——status 变更追加新行不改旧行）；AppID 到位后按 backlog 台账 A 节首行触发下游「AppID 实测」intent。
+- 问：「②收口后的下一步衔接？」
+  答：「**直接开下一批**」——批号未指定（B3 Cookie 独有能力/条目 23 CI fmt-clippy/条目 31 真机核验批等均在台账待命）；收口时由人类指定具体批次后按 /aidlc:inception 接入。
+- 裁决落点（编排者执行）：ops-runbook.md 落盘（tracking 维护/回流/下游触发——资质申请批无运行时/部署面，按运维实质适配）+retro.md 落盘（classic 硬性）→ 完结确认呈出。
+
+---

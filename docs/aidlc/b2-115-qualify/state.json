@@ -51,7 +51,7 @@
     "U2": "completed",
     "U3": "completed"
   },
-  "updatedAt": "2026-10-28T16:00:00+08:00",
+  "updatedAt": "2026-10-28T16:25:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -142,6 +142,18 @@
       "from": "operations",
       "to": "operations",
       "why": "Gate#2 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式一行级订正）：M1 tracking 首条 8 列复位[补 receipt_no 待补格+删空行+检查时点建议入 notes]+MINOR 7 项[ARCHITECTURE 锚 :48/footprint/一位差×2/AC1⑧ 子面补注/节标题/decisions 日期声明订正]——gate2 裁决全部准出条件闭合 @ 7e2b7ea；下一步 /aidlc:ops"
+    },
+    {
+      "at": "2026-10-28T16:15:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Operations 两裁决到齐（AskUserQuestion 逐字）：①tracking 留仓+手动更新（115 审核卡住为外部阻塞——人类随审核进展追加式更新；AppID 到位按 backlog A 节首行触发下游「AppID 实测」intent）②直接开下一批（批号待收口时指定）；ops-runbook+retro 落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-28T16:25:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "ops-runbook.md（受理跟踪维护[留仓+手动更新]/下游触发[AppID 到位→backlog A 节首行→「AppID 实测」intent]/回流/审核驳回分支——资质申请批无部署监控面，按运维实质适配）+retro.md（classic 硬性——含「人类操作批协议特化首次完整跑通」「外部阻塞处理范式」「编排者记录质量自检点」「AC↔规格子项双向核对」四条沉淀）落盘；完结确认呈出"
     }
   ]
 }
