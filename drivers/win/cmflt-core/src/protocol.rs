@@ -43,6 +43,9 @@ pub enum MessageKind {
     HydrateRequest = 3,
     HydrateReply = 4,
     HelloAck = 5,
+    Dehydrate = 6,
+    PinSet = 7,
+    Invalidate = 8,
 }
 
 impl MessageKind {
@@ -53,6 +56,9 @@ impl MessageKind {
             3 => Some(Self::HydrateRequest),
             4 => Some(Self::HydrateReply),
             5 => Some(Self::HelloAck),
+            6 => Some(Self::Dehydrate),
+            7 => Some(Self::PinSet),
+            8 => Some(Self::Invalidate),
             _ => None,
         }
     }
@@ -406,6 +412,178 @@ impl Health {
     }
 }
 
+/// Kernel-to-engine space-release request. The engine drops local data for
+/// `file_id`; no data travels in the message.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dehydrate {
+    pub tx_id: u64,
+    pub file_id: u64,
+    pub flags: u32,
+}
+
+pub const DEHYDRATE_PAYLOAD_LEN: usize = 16;
+
+impl Dehydrate {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, ProtocolError> {
+        let total = HEADER_LEN + DEHYDRATE_PAYLOAD_LEN;
+        if buf.len() < total {
+            return Err(ProtocolError::BufferTooSmall);
+        }
+        Header {
+            kind: MessageKind::Dehydrate,
+            tx_id: self.tx_id,
+            payload_len: DEHYDRATE_PAYLOAD_LEN as u32,
+            flags: 0,
+        }
+        .encode(buf)?;
+        write_u64(buf, HEADER_LEN, self.file_id)?;
+        write_u32(buf, HEADER_LEN + 8, self.flags)?;
+        write_u32(buf, HEADER_LEN + 12, 0)?;
+        Ok(total)
+    }
+
+    pub fn decode(buf: &[u8]) -> Result<Self, ProtocolError> {
+        let header = Header::decode(buf)?;
+        if header.kind != MessageKind::Dehydrate {
+            return Err(ProtocolError::WrongKind);
+        }
+        if header.tx_id == 0 {
+            return Err(ProtocolError::InvalidField);
+        }
+        if header.payload_len as usize != DEHYDRATE_PAYLOAD_LEN {
+            return Err(ProtocolError::BadLength);
+        }
+        if buf.len() < header.total_len()? {
+            return Err(ProtocolError::Truncated);
+        }
+        let file_id = read_u64(buf, HEADER_LEN)?;
+        let flags = read_u32(buf, HEADER_LEN + 8)?;
+        if read_u32(buf, HEADER_LEN + 12)? != 0 {
+            return Err(ProtocolError::BadFlags);
+        }
+        Ok(Self {
+            tx_id: header.tx_id,
+            file_id,
+            flags,
+        })
+    }
+}
+
+/// Kernel-to-engine pin policy change.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PinSet {
+    pub tx_id: u64,
+    pub file_id: u64,
+    /// 0 = unpinned, 1 = pinned (always keep local).
+    pub pin: u8,
+}
+
+pub const PIN_SET_PAYLOAD_LEN: usize = 16;
+
+impl PinSet {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, ProtocolError> {
+        let total = HEADER_LEN + PIN_SET_PAYLOAD_LEN;
+        if buf.len() < total {
+            return Err(ProtocolError::BufferTooSmall);
+        }
+        if self.pin > 1 {
+            return Err(ProtocolError::InvalidField);
+        }
+        Header {
+            kind: MessageKind::PinSet,
+            tx_id: self.tx_id,
+            payload_len: PIN_SET_PAYLOAD_LEN as u32,
+            flags: 0,
+        }
+        .encode(buf)?;
+        write_u64(buf, HEADER_LEN, self.file_id)?;
+        write_u8(buf, HEADER_LEN + 8, self.pin)?;
+        write_bytes(buf, HEADER_LEN + 9, &[0u8; 7])?;
+        Ok(total)
+    }
+
+    pub fn decode(buf: &[u8]) -> Result<Self, ProtocolError> {
+        let header = Header::decode(buf)?;
+        if header.kind != MessageKind::PinSet {
+            return Err(ProtocolError::WrongKind);
+        }
+        if header.tx_id == 0 {
+            return Err(ProtocolError::InvalidField);
+        }
+        if header.payload_len as usize != PIN_SET_PAYLOAD_LEN {
+            return Err(ProtocolError::BadLength);
+        }
+        if buf.len() < header.total_len()? {
+            return Err(ProtocolError::Truncated);
+        }
+        let file_id = read_u64(buf, HEADER_LEN)?;
+        let pin = read_u8(buf, HEADER_LEN + 8)?;
+        if pin > 1 {
+            return Err(ProtocolError::InvalidField);
+        }
+        let reserved = read_array::<7>(buf, HEADER_LEN + 9)?;
+        if reserved != [0u8; 7] {
+            return Err(ProtocolError::BadFlags);
+        }
+        Ok(Self {
+            tx_id: header.tx_id,
+            file_id,
+            pin,
+        })
+    }
+}
+
+/// Kernel-to-engine invalidation notice (no transaction id).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Invalidate {
+    pub file_id: u64,
+    pub flags: u32,
+}
+
+pub const INVALIDATE_PAYLOAD_LEN: usize = 16;
+
+impl Invalidate {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, ProtocolError> {
+        let total = HEADER_LEN + INVALIDATE_PAYLOAD_LEN;
+        if buf.len() < total {
+            return Err(ProtocolError::BufferTooSmall);
+        }
+        Header {
+            kind: MessageKind::Invalidate,
+            tx_id: 0,
+            payload_len: INVALIDATE_PAYLOAD_LEN as u32,
+            flags: 0,
+        }
+        .encode(buf)?;
+        write_u64(buf, HEADER_LEN, self.file_id)?;
+        write_u32(buf, HEADER_LEN + 8, self.flags)?;
+        write_u32(buf, HEADER_LEN + 12, 0)?;
+        Ok(total)
+    }
+
+    pub fn decode(buf: &[u8]) -> Result<Self, ProtocolError> {
+        let header = Header::decode(buf)?;
+        if header.kind != MessageKind::Invalidate {
+            return Err(ProtocolError::WrongKind);
+        }
+        if header.tx_id != 0 {
+            return Err(ProtocolError::InvalidField);
+        }
+        if header.payload_len as usize != INVALIDATE_PAYLOAD_LEN {
+            return Err(ProtocolError::BadLength);
+        }
+        if buf.len() < header.total_len()? {
+            return Err(ProtocolError::Truncated);
+        }
+        let file_id = read_u64(buf, HEADER_LEN)?;
+        let flags = read_u32(buf, HEADER_LEN + 8)?;
+        if read_u32(buf, HEADER_LEN + 12)? != 0 {
+            return Err(ProtocolError::BadFlags);
+        }
+        Ok(Self { file_id, flags })
+    }
+}
+
 /// Kernel handshake response to a user-mode `Hello`. `tx_id` is always zero.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HelloAck {
@@ -521,6 +699,10 @@ fn write_bytes(buf: &mut [u8], offset: usize, bytes: &[u8]) -> Result<(), Protoc
     Ok(())
 }
 
+fn write_u8(buf: &mut [u8], offset: usize, value: u8) -> Result<(), ProtocolError> {
+    write_bytes(buf, offset, &[value])
+}
+
 fn write_u16(buf: &mut [u8], offset: usize, value: u16) -> Result<(), ProtocolError> {
     write_bytes(buf, offset, &value.to_le_bytes())
 }
@@ -541,6 +723,10 @@ fn read_array<const N: usize>(buf: &[u8], offset: usize) -> Result<[u8; N], Prot
     let end = checked_end(offset, N)?;
     let slice = buf.get(offset..end).ok_or(ProtocolError::Truncated)?;
     slice.try_into().map_err(|_| ProtocolError::Truncated)
+}
+
+fn read_u8(buf: &[u8], offset: usize) -> Result<u8, ProtocolError> {
+    Ok(read_array::<1>(buf, offset)?[0])
 }
 
 fn read_u16(buf: &[u8], offset: usize) -> Result<u16, ProtocolError> {
@@ -654,6 +840,69 @@ mod tests {
         assert_eq!(
             HelloAck::decode(&buf[..len]).expect("decode hello ack"),
             hello_ack()
+        );
+    }
+
+    #[test]
+    fn roundtrips_km3_control_messages() {
+        let mut buf = [0u8; 128];
+
+        let dehydrate = Dehydrate {
+            tx_id: 9,
+            file_id: 7,
+            flags: 0,
+        };
+        let len = dehydrate.encode(&mut buf).expect("dehydrate");
+        assert_eq!(Dehydrate::decode(&buf[..len]), Ok(dehydrate));
+
+        let pin = PinSet {
+            tx_id: 10,
+            file_id: 7,
+            pin: 1,
+        };
+        let len = pin.encode(&mut buf).expect("pin set");
+        assert_eq!(PinSet::decode(&buf[..len]), Ok(pin));
+
+        let invalidate = Invalidate {
+            file_id: 7,
+            flags: 0,
+        };
+        let len = invalidate.encode(&mut buf).expect("invalidate");
+        assert_eq!(Invalidate::decode(&buf[..len]), Ok(invalidate));
+    }
+
+    #[test]
+    fn km3_control_messages_reject_bad_fields() {
+        let mut buf = [0u8; 128];
+
+        let bad_pin = PinSet {
+            tx_id: 1,
+            file_id: 2,
+            pin: 2,
+        };
+        assert_eq!(bad_pin.encode(&mut buf), Err(ProtocolError::InvalidField));
+
+        let zero_tx = Dehydrate {
+            tx_id: 0,
+            file_id: 7,
+            flags: 0,
+        };
+        let len = zero_tx.encode(&mut buf).expect("encode");
+        assert_eq!(
+            Dehydrate::decode(&buf[..len]),
+            Err(ProtocolError::InvalidField)
+        );
+
+        let pin = PinSet {
+            tx_id: 1,
+            file_id: 7,
+            pin: 1,
+        };
+        let len = pin.encode(&mut buf).expect("pin");
+        buf[HEADER_LEN + 8] = 2;
+        assert_eq!(
+            PinSet::decode(&buf[..len]),
+            Err(ProtocolError::InvalidField)
         );
     }
 

@@ -11,6 +11,8 @@
 //!
 //! It also carries a small xorshift PRNG so no external crate is needed.
 
+pub mod engine;
+
 use cmflt_core::hydration::{step, Action, Event, IoStatus, State};
 
 /// Deterministic xorshift64* generator.
