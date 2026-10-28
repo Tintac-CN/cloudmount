@@ -104,6 +104,16 @@
 >   返回「该值受安全引导策略保护」。需在 UEFI/BIOS 关闭 Secure Boot 后重启，
 >   或使用 Secure Boot 关闭的 VM；在此之前无法执行加载/卸载与 G1/G2/G4/G5。
 
+> **v1.7 KM-3 IRP 仿真（2026-10-28）**
+>
+> - `cmflt-sim::driver::SimDriver` 模拟 pending read → complete/cancel/timeout，
+>   断言每次 read 恰一次结算、取消/超时释放配额、Busy、engine not-found、
+>   无重复 complete、成功读前范围已水合。
+> - 实测：宿主 110 项测试通过；driver 仍 7,168 字节（signed 8,592）、
+>   导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`、无 RWX/FP/SSE。
+> - 未完成：内核 Cbdq/FltSendMessage 映射、section sync/写路径、ETW、
+>   testsigning 加载与 G1/G2/G4/G5。
+
 ---
 
 ## 0. 结论摘要
