@@ -84,6 +84,16 @@
 >   `FLTMGR.SYS` + `NTOSKRNL.EXE`、无 RWX/FP/SSE。
 > - 未完成：内核 READ/Cbdq/FltSendMessage 接线、目录投影、真机 L2/G1。
 
+> **v1.5 KM-5 核心实施（2026-10-28）**
+>
+> - `cmflt-core::journal`：固定 48 字节 JournalRecord、64 条环形 Journal、
+>   `plan_recovery`（Trusted/RehydrateRange/RehydrateAll）。
+> - `cmflt-core::telemetry::TelemetryRing`：64 条无分配事件环，seq/dropped/
+>   kind/tx_id/code，作为 ETW/事件包之前的内核黑匣子模型。
+> - 实测：宿主 104 项测试通过；driver 仍 7,168 字节、导入
+>   `FLTMGR.SYS` + `NTOSKRNL.EXE`、无 RWX/FP/SSE。
+> - 未完成：ETW/事件包传输、真实重启对账、内核 READ/Cbdq 接线与 HLK。
+
 ---
 
 ## 0. 结论摘要
@@ -540,7 +550,7 @@ strip = "debuginfo"    # 保留符号表供 !analyze（如体积允许）
 | **KM-2** 只读视图 | 自有 tag 占位符创建；目录枚举投影（元数据）；**属性-only open 零 I/O**；扫描抑制 | **续（2026-10-28）**：NTFS-only attach + 真实 CREATE 分类 + 占位符元数据/范围转移 + reparse blob + ScanQuota + 占位符创建（user-mode reparse/offline + driver post-op recall）（76 tests）；目录投影待续 | 4–6 周 |
 | **KM-3** 按需水合 | 状态机全量（§6）+ Cbdq 取消安全 + 超时/降级/熔断 + `FsRtlChangeBackingFileObject` 切换 + `FltFlushBuffers` | **协调器 + 协议 + MockEngine（2026-10-28，96 tests）**：Pass/Recall/Busy/Quota/Degraded、取消/超时/Draining、partial→full、Dehydrate/Pin/Invalidate；内核 READ/Cbdq 接线与 **G2/G4** 待 testsigning/VM | 6–8 周 |
 | **KM-4** mmap 与写路径 | section 同步钩子（读/写/ModWrite）+ fast I/O disallow + oplock/共享冲突降级 + 写回与去水合 | mmap 压测零错读；无 `ERROR_SHARING_VIOLATION` 误报 | 4–6 周 |
-| **KM-5** 崩溃一致与遥测 | 对账协议 + TxId 幂等 + 原子后备切换 + ETW/黑匣子 + triage 脚本 | **G5**（掉电对账）；**G8**（BSOD 可定位） | 4–6 周 |
+| **KM-5** 崩溃一致与遥测 | 对账协议 + TxId 幂等 + 原子后备切换 + ETW/黑匣子 + triage 脚本 | **核心模型完成（2026-10-28，104 tests）**：Journal/recovery + TelemetryRing；ETW/事件包、掉电对账 **G5** 与 BSOD triage **G8** 待 testsigning/VM | 4–6 周 |
 | **KM-6** Shell 集成（用户态） | NSE（导航栏）+ `IShellIconOverlayIdentifier`（注意 15 个上限）+ `IExplorerCommand`（始终保留/释放空间）+ `IThumbnailProvider` | Explorer 体验与 OneDrive 对齐；不改内核 | 4–8 周 |
 | **KM-7** 认证与发布 | HLK/WHCP 测试与认证、安装器、静默升级、兼容性白皮书 | **S6 全矩阵通过**；认证取得 | 8–12 周（含等待） |
 
