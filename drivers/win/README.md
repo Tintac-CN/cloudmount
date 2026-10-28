@@ -1,6 +1,6 @@
 # CloudMount Windows 存储内核（自研 minifilter · 原生 Rust）
 
-> 状态：**KM-0 已合入；KM-1 通信端口 + 握手已实现**（分支 `feat/cmflt-km1-port`，2026-10-27）。
+> 状态：**KM-0/KM-1 已合入；KM-2 只读视图已起步**（分支 `feat/cmflt-km2-readonly`，2026-10-27）。
 > M2 仍用 CfAPI 发布产品；`cmflt` 是长期自研后端，通过
 > `cloudmount-vfs::MountBackend` 平滑替换，不阻塞任何产品里程碑。
 >
@@ -66,6 +66,19 @@ drivers/win/
 - **用户态冒烟工具**：`cmflt-client.exe` 连接端口、发 Hello/Health、
   校验 HelloAck。
 - 宿主测试 52 项（core 35 + flt 5 + sim 5 + 集成 7）。
+
+## KM-2 已起步（只读视图）
+
+- **仅 NTFS 附着**：`InstanceSetupCallback` 对 `FLT_FSTYPE_NTFS` 返回
+  `STATUS_SUCCESS`，其余返回 `STATUS_FLT_DO_NOT_ATTACH`。
+- **CREATE 回调骨架**：注册 `IRP_MJ_CREATE` pre-op（`FLT_PREOP_SUCCESS_NO_CALLBACK`
+  直通），保证 create 路径不做任何数据 I/O；这是属性-only open/扫描抑制的挂点。
+- **create 分类策略**：`cmflt-core::policy` 把 `DesiredAccess/CreateOptions`
+  分为 `MetadataOnly` / `DirectoryEnumeration` / `DataAccess`，宿主测试覆盖
+  数据位、属性-only、目录枚举、reparse-point open；`should_hydrate_on_create`
+  恒为 false。
+- **尚未完成**：把分类接到 `FLT_CALLBACK_DATA`、自定义 reparse tag 占位符创建、
+  目录枚举投影、扫描配额；这些是 KM-2 的后续切片。
 
 ## 未完成（需要测试机）
 
@@ -136,10 +149,10 @@ fltmc unload cloudmount
 
 生产使用前必须申请正式 altitude 并过 HLK/WHCP；attestation 签名仅限测试用途。
 
-## 验证记录（2026-10-27，KM-1）
+## 验证记录（2026-10-27，KM-2 起步）
 
 ```text
-cargo test --workspace            52 passed / 0 failed
+cargo test --workspace            60 passed / 0 failed
 cargo clippy --workspace          -D warnings OK
 cargo build -p cmflt-driver       OK（release）
 cargo build -p cmflt-client       OK
@@ -160,8 +173,8 @@ testsigning 或 VM 执行。
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
 | KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
-| KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **实现完成，真机连接待验** |
-| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | 待开始 |
+| KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **已合入（PR #2）** |
+| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **起步：NTFS-only attach + CREATE pre-op + policy** |
 | KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | 待开始 |
 | KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
 | KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | 待开始 |
