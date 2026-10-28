@@ -103,6 +103,9 @@ pub enum Event {
     EngineHealthy,
     /// Teardown/reset of the per-file transaction state.
     Reset,
+    /// A transaction reached its settled outcome and the per-file state can
+    /// return to Idle for the next recall.
+    Settled,
 }
 
 /// Executable instruction produced by the state machine.
@@ -183,6 +186,7 @@ pub fn step(state: State, event: Event) -> Option<Transition> {
         (Idle, DataAccess) => (Queued, ENQUEUE),
         (Idle, EngineUnavailable) => (Degraded, TRIP),
         (Idle, Reset) => (Idle, NONE),
+        (Idle, Settled) => (Idle, NONE),
 
         (Queued, Dequeued) => (Waiting, SEND),
         (Queued, Cancel) => (Canceled, COMPLETE_CANCELLED),
@@ -219,13 +223,16 @@ pub fn step(state: State, event: Event) -> Option<Transition> {
         (Hydrated, Dehydrate) => (Idle, DEHYDRATE),
         (Hydrated, EngineUnavailable) => (Degraded, TRIP),
         (Hydrated, Reset) => (Hydrated, NONE),
+        (Hydrated, Settled) => (Idle, NONE),
 
         (Canceled, Reset) | (Failed, Reset) => (Idle, NONE),
+        (Canceled, Settled) | (Failed, Settled) => (Idle, NONE),
 
         (Degraded, DataAccess) => (Degraded, FAST_FAIL),
         (Degraded, EngineHealthy) => (Idle, RESET_BREAKER),
         (Degraded, Reset) => (Degraded, NONE),
         (Degraded, EngineUnavailable) => (Degraded, NONE),
+        (Degraded, Settled) => (Degraded, NONE),
 
         _ => return None,
     };
@@ -261,7 +268,7 @@ mod tests {
         State::Degraded,
     ];
 
-    const ALL_EVENTS: [Event; 14] = [
+    const ALL_EVENTS: [Event; 15] = [
         Event::DataAccess,
         Event::Dequeued,
         Event::Cancel,
@@ -276,6 +283,7 @@ mod tests {
         Event::EngineUnavailable,
         Event::EngineHealthy,
         Event::Reset,
+        Event::Settled,
     ];
 
     #[test]
@@ -307,7 +315,7 @@ mod tests {
                 let handled = step(state, event).is_some();
                 assert_eq!(
                     handled,
-                    matches!(event, Event::Reset),
+                    matches!(event, Event::Reset | Event::Settled),
                     "{} accepted unexpected {event:?}",
                     state_name(state)
                 );
@@ -361,6 +369,19 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn settled_returns_completed_state_to_idle() {
+        for state in [State::Hydrated, State::Canceled, State::Failed] {
+            let transition = step(state, Event::Settled).expect("settled");
+            assert_eq!(transition.next, State::Idle);
+            assert!(transition.actions.is_empty());
+        }
+        assert_eq!(
+            step(State::Degraded, Event::Settled).expect("settled").next,
+            State::Degraded
+        );
     }
 
     #[test]

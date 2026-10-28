@@ -8,7 +8,7 @@ use cmflt_core::protocol::{
 };
 use cmflt_core::range::{ByteRange, RangeError, RangeSet, MAX_RANGES};
 
-const EVENTS: [Event; 14] = [
+const EVENTS: [Event; 15] = [
     Event::DataAccess,
     Event::Dequeued,
     Event::Cancel,
@@ -23,6 +23,7 @@ const EVENTS: [Event; 14] = [
     Event::EngineUnavailable,
     Event::EngineHealthy,
     Event::Reset,
+    Event::Settled,
 ];
 
 const STATES: [State; 11] = [

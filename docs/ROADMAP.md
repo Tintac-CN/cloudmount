@@ -193,7 +193,7 @@
 通过 PR #3 合入（a098018：NTFS-only attach + CREATE pre-op + 宿主可测
 create 分类）。KM-2 续在 `feat/cmflt-km2-readonly`：CREATE 已从真实
 `FLT_CALLBACK_DATA` 读取参数并分类，新增 `cmflt-core::placeholder` 的
-reparse tag/GUID/属性/PlaceholderMeta 模型 + Placeholder/RangeSet 转移 + reparse blob + ScanQuota + 占位符创建路径（user-mode reparse/offline + driver post-op recall；宿主 76 tests）。driver 7,168 字节，
+reparse tag/GUID/属性/PlaceholderMeta 模型 + Placeholder/RangeSet 转移 + reparse blob + ScanQuota + 占位符创建路径（user-mode reparse/offline + driver post-op recall）+ KM-3 HydrationCoordinator（宿主 88 tests）。driver 7,168 字节，
 导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`，无 FP/SSE。实际 tag 写入、目录投影与
 真机加载待 testsigning/VM。
 
