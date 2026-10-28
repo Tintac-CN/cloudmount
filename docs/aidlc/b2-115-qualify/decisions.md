@@ -97,3 +97,16 @@ PLAN-CONFIRMED 2026-10-18
 - 下一步：U3（AppID 预备清单——工程侧独立产出）→ 回归对比 → gate2。
 
 ---
+
+2026-10-28 Gate#2 人类审批（AskUserQuestion 表单未获选择；对话逐字裁决）：
+- 互审输入：reviews/gate2-ai.md @ 0571b50（reviewer-pm 0/1/4 + reviewer-architect 0/1/4 + reviewer-qa 0/1/2 + reviewer-dev 0/1/3 + verifier 0/0/3；合并 0 BLOCKER/4 MAJOR 报告条目[去重 1 主题]/12 MINOR[去重 ~8]。verifier 独立终检：3/3 units 交付一致[U2 按人类裁决「先继续开发」口径判定+占位披露三处一致]/零代码约束成立/验证声称全部独立复跑/AC1..AC4 逐条可指认；技术事实面 150+ 锚五方独立抽验零虚构）。
+- 问：「B2 资质申请 Gate#2 交付门互审：0 BLOCKER / 4 MAJOR 报告条目（去重 1 主题）/ 12 MINOR（去重 8）。……唯一 MAJOR=tracking.md 首条占位行列错位（一格修）。如何裁决？」
+  答：「**通过+准出回填**」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate2），phase → operations。
+  2. **准出回填清单**（批准条件式一行级订正，编排者执行并核收留痕）：M1 tracking.md:36 占位行补 receipt_no 待补格+删 :35 空行（全行复位 8 列对齐）；MINOR：decisions U2 条目日期笔误以核收条目声明订正（2026-10-18→2026-10-28——只追加原则不改写）/AC1⑧ 两枚举子面（download Range/upload 二次认证）补注 application-checklist（接口面已有端点行+子面注记）/ARCHITECTURE.md 锚 :47→:48 两处修正+state.json U1 勘误方向反转以核收条目声明订正/units/2 检查时点建议（+3/+7/+10/+14）补落 tracking.md notes 或独立节/tracking.md:29 节标题「本阶段为空」更新/application-checklist.md:4 批次 footprint 陈述更新（3 文件）/queue.rs:100-101→:99-100+二维码 :356→:357 两处一位差锚修正。
+  3. **AC2 占位披露终确认**：人类裁决「先继续开发」（2026-10-28）的口径执行情况经 pm 评估+五方实证成立（三处披露一致+无虚报）——本回执终确认。
+  4. 后续：phase=operations，`/aidlc:ops`（route=classic——retro 硬性要求）。
+
+GATE-APPROVED gate2 2026-10-28
+---

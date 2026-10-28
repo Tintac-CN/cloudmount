@@ -1,11 +1,11 @@
 {
   "slug": "b2-115-qualify",
   "intent": "M0 外部阻塞链启动：申请 115 开放平台个人开发者资质+创建 PKCE 应用（材料提交+受理跟进；人类操作为主，工程侧配套=申请材料技术清单整理+AppID 到位后的 TODO(verify) 闭环预备）——路线图批次表 B2",
-  "phase": "gate2",
+  "phase": "operations",
   "route": "classic",
   "gates": {
     "gate1": "approved",
-    "gate2": "pending"
+    "gate2": "approved"
   },
   "tddLock": false,
   "tddLockPaths": [],
@@ -51,7 +51,7 @@
     "U2": "completed",
     "U3": "completed"
   },
-  "updatedAt": "2026-10-28T07:45:00+08:00",
+  "updatedAt": "2026-10-28T08:30:00+08:00",
   "history": [
     {
       "at": "2026-10-18T09:17:57+08:00",
@@ -130,6 +130,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "U3 AppID 接入预备清单完成 → completed（3/3），Construction 收口 → gate2：appid-readiness.md @ 06f3a7c（88 行——TODO×2 逐条+相邻对照面+config 分面[gate1 M2 口径]+认证侧+下游输入清单；代码锚 44 处实测；TP-04 动态清点恰 2 处/TP-05 产品目录零改动[16 文件全在 intent 目录]）；回归对比（F2）：cargo test --workspace 277/0+五脚本 112/72/23/13/9 与基线逐数一致=零影响证明；U2 占位披露项（AC2① 凭据细节待补——人类裁决「先继续开发」不阻塞）随 gate2 呈批如实披露；phase → gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-28T08:30:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-28）：互审 0 BLOCKER/4 MAJOR 报告条目[去重 1 主题=tracking 首条占位行列错位，四方同源一格修]/12 MINOR[去重 8]（reviews/gate2-ai.md @ 0571b50；verifier 独立终检 0/0/3——3/3 units 一致+零代码约束成立+验证声称全复现+150 锚五方抽验零虚构；AC2 占位披露三处一致实证）；裁决=「通过+准出回填」——M1 一格修+8 MINOR 随准出回填闭合；AC2 占位披露终确认；phase → operations（/aidlc:ops——route=classic retro 硬性）"
     }
   ]
 }
