@@ -1,7 +1,7 @@
 {
   "slug": "ci-desktop-fmt-clippy",
   "intent": "CI 补 desktop fmt/clippy 步骤（backlog 台账条目 23——终验口径缺口流水线上游补死）",
-  "phase": "inception",
+  "phase": "gate1",
   "route": "classic",
   "gates": {
     "gate1": "rejected",
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-29T09:05:00+08:00",
+  "updatedAt": "2026-10-29T21:15:00+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
@@ -31,6 +31,12 @@
       "from": "gate1",
       "to": "inception",
       "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-29，第 1 轮/上限 3 轮）：互审 2 BLOCKER/8 MAJOR 主题/~20 MINOR（reviews/gate1-ai.md @ 8576a45）；裁决=「打回修订，两项推荐采纳」——①B1 字面源=--manifest-path 完整字面（prd/TP 同步收敛）②OQ① 形态=独立 desktop job+windows-latest 单腿（M7 冲突随裁决消解）；修订点名 pm/architect/qa 三角色（B2 rust-cache 值修正+架构对齐 PRD+护栏/负断言锚集补齐+现状基线统一等）；gate1 复位 pending 待复审（只核收敛点），须新回执"
+    },
+    {
+      "at": "2026-10-29T21:15:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "Gate#1 修订轮完成（第 1 轮）：两裁决全落实（B1 字面源=--manifest-path 完整字面三工件同一/OQ① 形态=独立 desktop job+windows-latest 单腿入 AC1 与 TP-01）+B2 修复（workspaces: apps/desktop -> target+断言精确形态+「不连带根 workspace」叙述修正）+M1 断言 44 条补齐（四命令/matrix×2/components/另三 job/env/on:）/+M2 负断言补全（status 函数/shell 级/if: false）+M4 现状统一 clean+时间线修正+M5 对齐表按实文回填+M6 缓存体积 10GB 风险+timeout 60/M7 消解（独立 job 形态）＋OQ 清理（⑤关闭/cargo test 默认排除/脚本名落定）；三工件只改被点名项；gate1 复位 pending 待复审（只核收敛点：2 BLOCKER+裁决落实），须新回执"
     }
   ]
 }
