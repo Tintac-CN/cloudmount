@@ -1,10 +1,10 @@
 {
   "slug": "ci-desktop-fmt-clippy",
   "intent": "CI 补 desktop fmt/clippy 步骤（backlog 台账条目 23——终验口径缺口流水线上游补死）",
-  "phase": "gate1",
+  "phase": "inception",
   "route": "classic",
   "gates": {
-    "gate1": "pending",
+    "gate1": "rejected",
     "gate2": "pending"
   },
   "tddLock": false,
@@ -12,7 +12,7 @@
   "tddLockOverride": null,
   "testBaseline": null,
   "unitStatus": {},
-  "updatedAt": "2026-10-28T17:40:00+08:00",
+  "updatedAt": "2026-10-29T09:05:00+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
@@ -25,6 +25,12 @@
       "from": "inception",
       "to": "gate1",
       "why": "classic 三工件齐且对齐拍完成（qa TP→AC 回填：AC1←TP-01/05/06、AC2←TP-03、AC3←TP-04/05[qa 按实文补 AC3 面——actionlint 降级计数诚实直测 AC3 When]、AC4←TP-02——AC1..AC4 全覆盖无缺锚；qa 报备 3 项判据粒度出入供 Construction 落字面裁量）；phase → gate1"
+    },
+    {
+      "at": "2026-10-29T09:05:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-29，第 1 轮/上限 3 轮）：互审 2 BLOCKER/8 MAJOR 主题/~20 MINOR（reviews/gate1-ai.md @ 8576a45）；裁决=「打回修订，两项推荐采纳」——①B1 字面源=--manifest-path 完整字面（prd/TP 同步收敛）②OQ① 形态=独立 desktop job+windows-latest 单腿（M7 冲突随裁决消解）；修订点名 pm/architect/qa 三角色（B2 rust-cache 值修正+架构对齐 PRD+护栏/负断言锚集补齐+现状基线统一等）；gate1 复位 pending 待复审（只核收敛点），须新回执"
     }
   ]
 }
