@@ -38,7 +38,7 @@
 | 2026-10-16 | 15 | TP-23 无显式承接载体（补埋点） | desktop-installers runbook 备案④ | 测试 | 待排 |
 | 2026-10-16 | 16 | T4 修订断言①防空真依赖步骤名字面 | desktop-installers runbook 备案⑤ | CI | 待排 |
 | 2026-10-16 | 22 | .gitignore L13-14 src-tauri 死路径清理（=D2） | desktop-installers runbook 备案⑪ | 文档 | **并入 B1** |
-| 2026-10-16 | 23 | CI 补 desktop fmt/clippy 步骤（终验口径缺口上游补死） | desktop-installers retro | CI | 待排（体积小） |
+| 2026-10-16 | 23 | CI 补 desktop fmt/clippy 步骤（终验口径缺口上游补死） | desktop-installers retro | CI | **🚧 已交付**（ci-desktop-fmt-clippy gate2 通过 2026-10-29：ci.yml desktop job + 断言 47 条；待 ops 收口） |
 | 2026-10-16 | 24 | hash.rs:157 per-run 唯一 temp 目录（间歇 flaky 头号嫌疑根治） | audit-p0p1-fixes runbook+retro | 代码 | 待排 |
 | 2026-10-16 | 25 | exec.rs 错误路径 dir_creating 条目残留 | audit-p0p1-fixes runbook | 代码 | 待排 |
 | 2026-10-16 | 26 | webdav.rs:513 冗余条件 | audit-p0p1-fixes runbook | 代码 | 待排 |
@@ -46,6 +46,8 @@
 | 2026-10-16 | 28 | cookie.rs:584 initupload 解密明文日志收口（F-04 脱敏不变量延伸） | audit-p0p1-fixes runbook+retro | 代码（安全卫生） | 待排 |
 | 2026-10-16 | 35 | 伪隐藏 mac 形态二选一（Dock 留存 vs LSUIElement）随真机实测裁决 | desktop-installers retro+runbook | 代码 | 并入真机核验批（条目 31） |
 | 2026-10-16 | 36 | gen_icons 扩尺寸集沿 stdlib 方案扩（条件性） | desktop-installers retro | 代码 | 条件待排 |
+| 2026-10-29 | 40 | ci-desktop-yaml.test.sh 断言硬化：负断言语法变体（#12 `- if:` 列表项/#46 flow-map `env: {RUSTFLAGS: ...}`/#45 `./apps/desktop` 前缀/#10-#14 同类变体）+ `job_block` 2 空格注释截断 + #43/#44 自检端到端深度 + 头注「M 基线=47 个 report 调用点」措辞与 python/pyyaml 依赖注明（当前无违规，硬化批随下次解锁执行） | ci-desktop-fmt-clippy gate2-ai MINOR 3/4/5/10 | CI | 待排 |
+| 2026-10-29 | 41 | ci-desktop job 首跑观察与门控收口：TP-06 首跑（desktop job 绿 + runner `rustc -V` 与本机对比 + cache 体积/命中率与 10GB 配额）+ branch protection 加入 desktop required checks（现状未加入，红可见但不挡 merge） | ci-desktop-fmt-clippy gate2-ai MINOR 12 + architecture M6 风险节 | CI | 待排（首推后触发） |
 
 ### 观察项（跟踪类）
 

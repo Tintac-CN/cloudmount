@@ -50,3 +50,26 @@ GATE-REJECTED gate1 2026-10-29
 
 GATE-APPROVED gate1 2026-10-29
 ---
+
+2026-10-29 Gate#2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate2-ai.md @ 227646b（reviewer-pm 0/0/5 + reviewer-architect 0/0/4 + reviewer-qa 0/0/7 + reviewer-dev 0/0/8 + verifier 0/0/3；合并去重 0 BLOCKER / 0 MAJOR / 15 MINOR。五方独立复跑：断言脚本 47/47、既有五脚本 112/72/23/13/9、cargo test --workspace 277/0（26 目标）与 testBaseline 逐数一致零回退、产品面 diff 白名单守恒（ci.yml +33/−0；新脚本 +420/−0）、蓝图逐行 0 差异、TDD 红→锁→绿完整、工作区干净）。
+- 呈批两问（逐字）：
+  问①：「Gate#2 五方评审（reviewer-pm/architect/qa/dev + verifier）：0 BLOCKER / 0 MAJOR / 15 MINOR——交付与证据链自洽……MINOR 均为文档口径/后续硬化/ops 出口项。如何裁决？」
+  答①：「**通过+准出回填（推荐）**」
+  问②：「15 MINOR 之一：脚本头注「M 基线 = 47 个 report 调用点」措辞失准（实测静态调用点 49；运行期 M=47/48）。订正方式如何选择？」
+  答②：「**保持锁定（推荐）**」
+- 裁决落点（编排者执行）：
+  1. gate2 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate2；gate2 首轮审批，无既有 GATE-REJECTED gate2 作废问题），phase → operations。
+  2. **准出回填清单**（批准条件式文本级订正，编排者执行并核收留痕，不重走复审）：
+     a. **M 计数口径订正**（architecture r3 头注 + 断言清单头 + 计数口径段 + 数据模型 + 架构旧 OQ 关项）：47=断言编号数（#1-#47）；静态 `report` 调用点=49（#42 分支展开）；运行期 M=47（actionlint 不可用）/48（可用），以脚本运行末行为准且 N==M。
+     b. **fmt `--all` 作用域事实订正**（verifier-m1 实测证伪）：`--all` 含 local path-based dependencies——实际检查 70 文件（desktop 4 + 根 workspace 66），非「不连带根 crate」；同步订正「覆盖增量/失败归因」叙述（无假绿/假红，仅归因稀释；`--all` 为 B1 裁决字面不得擅改）。
+     c. **措辞收严**：`--locked` 未加（与既有 rust job 同纪律，lock 过期 cargo 可更新）；job 顺序无断言锁定（由 units/1.md 实现记录 + gate2 复核确认）。
+     d. **OQ② 归属订正**：从「已关闭」小节移入「待人类裁决/待触发」（实质收敛、待人类逐字确认）；OQ③ 注明 2026-10-29 实测 clean 未触发。
+     e. **TP-02 基线锚补记**：`<base>`=`2d5d695`（本 intent 开工基线=gate1 批准提交；TP-02 要求「Construction 记录于 decisions」，本条即载体；产品面 diff 白名单据此核验）。
+     f. **backlog 登记**：条目 40（断言脚本硬化候选：负断言语法变体/job_block 注释截断/#43·#44 自检深度/头注 M 口径与 python 依赖措辞）；条目 41（首跑观察 + required checks）；条目 23 状态更新为「已交付（gate2 通过，待 ops 收口）」。
+  3. **脚本头注 M 口径订正方式 = 保持锁定**（人类逐字裁决）：TDD 锁与脚本 hash 保持不动（锁后零改动审计链完整）；头注「M 基线 = 47 个 report 调用点」的准确口径由 architecture/decisions 本轮订正覆盖，脚本头注字面登记 backlog 条目 40 随下次解锁批（硬化批）订正。
+  4. **Operations 出口条件**（AC3 后半句 + gate2 MINOR 收口）：ops-runbook/retro 必须收录「六脚本」硬门口径（112/72/23/13/9/47；本机 actionlint 不可用，desktop 脚本运行期 M=47）；记录 TP-06 首跑观察（desktop job 首跑绿、runner `rustc -V` 与本机对比、cache 体积/命中率与 10GB 配额）与 branch protection 未加入 required checks 的现状；M6 缓存体积 follow-up 保留。
+  5. 后续：phase=operations，`/aidlc:ops`（route=classic——retro 硬性要求）。
+
+GATE-APPROVED gate2 2026-10-29
+---
