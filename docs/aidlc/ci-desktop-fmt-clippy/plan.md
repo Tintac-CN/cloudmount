@@ -28,8 +28,8 @@
 
 ## TDD 锁记录
 
-- 失败测试提交：<待红阶段提交后回填>
-- 置位：<待置位后回填>（`tddLockPaths=[scripts/ci-desktop-yaml.test.sh]`）
+- 失败测试提交：`810ad27`（红态 `29/47 passed` EXIT=1——FAIL 恰为 desktop 断言 #1-#16/#45/#46）
+- 置位：`f5d0295`（2026-10-29T21:50:16+08:00；`tddLockPaths=[scripts/ci-desktop-yaml.test.sh]`）
 
 ## 缺口与开放问题
 

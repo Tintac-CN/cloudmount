@@ -49,9 +49,9 @@
     "coverage": null
   },
   "unitStatus": {
-    "U1": "pending"
+    "U1": "done"
   },
-  "updatedAt": "2026-10-29T21:50:16+08:00",
+  "updatedAt": "2026-10-29T21:54:08+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
@@ -94,6 +94,12 @@
       "from": "construction",
       "to": "construction",
       "why": "TDD 锁置位（U1 红提交 810ad27）：scripts/ci-desktop-yaml.test.sh 47 条断言，红态末行 29/47 passed exit 1——FAIL 恰为 desktop 断言 #1-#16/#45/#46（18 条），护栏 #17-#41/#47 与机制 #42-#44 全绿；隔离树双验证（注入蓝图 job→47/47；注入违规→对应负断言 FAIL）；tddLockPaths=[scripts/ci-desktop-yaml.test.sh]"
+    },
+    {
+      "at": "2026-10-29T21:54:08+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 绿完成（d5818ed：ci.yml desktop job +33/−0，jobs=rust/rust-mock-features/desktop/web-ui/arm-cross）→ completed（1/1）：断言脚本 47/47 exit 0；AC2 三条实测全 clean（fmt EXIT=0；clippy --all-targets 与不含 --all-targets 均 EXIT=0，OQ③ 未触发）；五既有脚本 112/72/23/13/9 计数不变；仓库级 fmt/clippy clean；F2 回归对比 cargo test --workspace 277/0（26 目标）与基线逐数一致零回退；diff 产品面=ci.yml+新脚本，黑名单零命中"
     }
   ]
 }
