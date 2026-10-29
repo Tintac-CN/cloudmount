@@ -56,6 +56,39 @@ jobs:
       # - cfapi 集成腿（T-01/T-02）在 GH windows runner 因 SyncRoot 注册
       #   失败（0x80070490）自动跳过——该面实际守护只剩单元腿。
 
+  # apps/desktop 为 workspace exclude 独立 cargo 项目（根 Cargo.toml:13）——
+  # rust job 的 fmt --all / clippy --workspace 只覆盖 workspace members，对
+  # desktop 零效力（desktop-installers gate2 互审实证：desktop fmt dirty 394 行
+  # 未被根级命令拦截）。本 job 补死该缺口：命令与 ops-runbook 终验硬门同口径，
+  # 构建形态沿 release.yml desktop 步先例（--manifest-path，产物落 apps/desktop/target）。
+  # gate1 裁决：独立 job + windows-latest 单腿；fmt/clippy 字面 = B1 裁决的
+  # --manifest-path 完整形态（与 prd/test-strategy 同一字面源）。
+  desktop:
+    name: Desktop（fmt + clippy）
+    runs-on: windows-latest
+    # 冷编上限护栏：防依赖树/缓存异常导致 runner 长时间占用；首跑实测后按
+    # 约 2x 余量调整（调整须 decisions 留痕）。
+    timeout-minutes: 60
+    # 最小权限：checkout 只需 contents 读；cache 走 runtime token，不受 GITHUB_TOKEN 权限面约束。
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      # desktop 独立 target 目录（apps/desktop/target）不在 rust job 的 cache key 覆盖内。
+      # Swatinem/rust-cache@v2 语义 = $workspace -> $target，target 相对 workspace 解析：
+      # `apps/desktop -> target` 即 apps/desktop/target；workspaces 一旦给出，v2 只缓存
+      # 列出的 workspace（不连带根 workspace），key 含 desktop Cargo.lock hash（依赖变更自动失效）。
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop -> target
+      - name: Format
+        run: cargo fmt --manifest-path apps/desktop/Cargo.toml --all -- --check
+      - name: Clippy
+        run: cargo clippy --manifest-path apps/desktop/Cargo.toml --all-targets -- -D warnings
+
   web-ui:
     name: Web UI（typecheck + build）
     runs-on: ubuntu-latest
