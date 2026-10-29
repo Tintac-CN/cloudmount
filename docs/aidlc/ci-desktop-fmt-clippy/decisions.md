@@ -83,3 +83,8 @@ GATE-APPROVED gate2 2026-10-29
 - 工件落盘：`ops-runbook.md`（交付/触发面、监控告警、首跑观察清单含红态三分类、六脚本硬门口径 112/72/23/13/9/47、阈值与缓存处置顺序、回流与台账）+ `retro.md`（classic 硬性要求：什么有效/什么没用/学到的东西/下个 bolt）。
 - 回流机制：生产事件/学习写新 intent 的 `intent.md` 或 `docs/aidlc/backlog.md`；已完结 intent 工件只读；本 intent 学习已全部入 `retro.md`。
 - 完结确认呈出（待人类逐字裁决）：确认完结 → phase=done；否则继续观察或修订。
+
+2026-10-29 完结确认（AskUserQuestion 表单未获选择）：
+- 问：「Operations 收口：ops-runbook（六脚本硬门 112/72/23/13/9/47、首跑观察清单、缓存处置顺序）+ retro（含 verifier 发现的 fmt --all 作用域事实订正）已提交；ops 三问表单未获选择，阈值以推荐暂定值落档（标注待追认）。是否完结本 intent？」（确认完结[推荐]／暂不完结／打回修订）
+- **表单未获选择（非拒绝）**：按协议「完结判据 = retro.md 落盘 + 人类确认」——编排者**不自行置 done**；phase 保持 `operations`（intent 仍活跃），待人类一句话「确认完结」后置 done。
+- 当前状态：gate1/gate2=approved；`ops-runbook.md` + `retro.md` 已落盘提交（9a9eb9e）；三项 ops 暂定阈值仍待追认（首推当日核／稳定 ≥3 绿加 required checks／10GB+既有 job 时长双阈）；backlog 条目 41 承接首跑观察与 required checks。
