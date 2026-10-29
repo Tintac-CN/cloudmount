@@ -194,8 +194,18 @@
 ## 长期 · 自研 Windows minifilter（drivers/win）
 
 **实现方案已定稿**：[RUST-MINIFILTER-DESIGN.md](../drivers/win/RUST-MINIFILTER-DESIGN.md)
-—— 用 Rust 从零实现（cdylib 直出 `.sys`，自建 FltMgr 绑定层 + 薄 C 壳回退路径），
+—— 用 Rust 从零实现（cdylib 直出 `.sys`，手写 FltMgr 绑定层，无 C/C++ 桩），
 含 14 项稳定机制与 S1–S6 门禁、KM-0…KM-7 里程碑（18–30 人月，验证占半）。
+
+**2026-10-28 进展**：KM-0/KM-1 已通过 PR #1/#2 合入 `origin/main`；KM-2 起步
+通过 PR #3 合入（a098018：NTFS-only attach + CREATE pre-op + 宿主可测
+create 分类）。KM-2 续在 `feat/cmflt-km2-readonly`：CREATE 已从真实
+`FLT_CALLBACK_DATA` 读取参数并分类，新增 `cmflt-core::placeholder` 的
+reparse tag/GUID/属性/PlaceholderMeta 模型 + Placeholder/RangeSet 转移 + reparse blob + ScanQuota + 占位符创建路径（user-mode reparse/offline + driver post-op recall）+ KM-3 HydrationCoordinator + Dehydrate/Pin/Invalidate 协议 + MockEngine + IRP 生命周期仿真 + KM-5 Journal/recovery/TelemetryRing（宿主 110 tests）。driver 7,168 字节（test-signed 8,592），
+导入 `FLTMGR.SYS` + `NTOSKRNL.EXE`，无 FP/SSE。实际 tag 写入、目录投影与
+真机加载待 testsigning/VM。**本机 Secure Boot=True，testsigning 被固件策略
+拒绝**；已签名驱动与 preflight/load/G1 脚本就绪，需先在 UEFI 关闭 Secure Boot
+或换 Secure Boot 关闭的 VM。
 
 关键结论：不再走"C 内核 + Rust 用户态"；官方两条红线（HSM 组内不得对 recall 文件
 做 targeted 缓存读写、必须处理 section 同步钩子）已写入设计；零售分发需过

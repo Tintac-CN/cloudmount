@@ -10,7 +10,8 @@ members = [
     "crates/cloudmount-daemon",
 ]
 # 桌面壳（egui/eframe）是独立 cargo 项目（GUI 依赖重，与 workspace 依赖图隔离），不进 workspace：
-exclude = ["apps/desktop"]
+# drivers/win 是原生 Rust minifilter 的独立 kernel workspace（no_std + WDK link 参数），同样隔离：
+exclude = ["apps/desktop", "drivers/win"]
 
 [workspace.package]
 version = "0.1.0"

@@ -129,3 +129,29 @@ jobs:
         run: |
           target/${{ matrix.target }}/release/cloudmountd --help
           target/${{ matrix.target }}/release/cloudmount --help
+
+  cmflt-host:
+    name: cmflt（原生 Rust minifilter：host tests + driver type-check）
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: drivers/win
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy (pure core + simulator)
+        run: cargo clippy -p cmflt-core -p cmflt-flt -p cmflt-sim --all-targets -- -D warnings
+      - name: Test (pure core + simulator)
+        run: cargo test -p cmflt-core -p cmflt-flt -p cmflt-sim
+      # The kernel crate is type-checked only; linking .sys needs the WDK and
+      # is validated on a self-hosted/VM driver machine.
+      - name: Check driver (no link)
+        run: cargo check -p cmflt-driver
+      - name: Clippy driver (lib only)
+        run: cargo clippy -p cmflt-driver --lib -- -D warnings
+      - name: Build user-mode handshake client
+        run: cargo build -p cmflt-client

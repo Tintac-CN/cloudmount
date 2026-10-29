@@ -1,73 +1,262 @@
-# CloudMount Windows 存储内核（自研 minifilter）
+# CloudMount Windows 存储内核（自研 minifilter · 原生 Rust）
 
-> 状态：**设计定稿 / 待实现**。M2 先用 CfAPI（微软原生占位符）发布可用产品，
-> 本驱动作为后续的自研后端，通过 `cloudmount-vfs::MountBackend` 平滑替换。
+> 状态：**KM-0/KM-1 已合入；KM-2 占位符创建完成；KM-3/KM-5 核心完成；驱动已 test-sign，等待 Secure Boot 关闭后的 testsigning 加载**（2026-10-28）。
+> M2 仍用 CfAPI 发布产品；`cmflt` 是长期自研后端，通过
+> `cloudmount-vfs::MountBackend` 平滑替换，不阻塞任何产品里程碑。
 >
-> 📄 **完整实现方案见 [RUST-MINIFILTER-DESIGN.md](RUST-MINIFILTER-DESIGN.md)**
-> —— 用 Rust 从零实现，含"更稳定"的 14 项机制、验证矩阵（S1–S6 门禁）与
-> KM-0…KM-7 里程碑。本文档只保留动机与总体决策摘要。
+> 📄 完整方案：[RUST-MINIFILTER-DESIGN.md](RUST-MINIFILTER-DESIGN.md)
+> —— 含 14 项稳定机制、S1–S6 门禁、KM-0…KM-7 里程碑与验证矩阵。
 
-## 目标与动机
+## 原生 Rust 边界（与 C/C++ 解耦）
 
-把"类 OneDrive 占位符 + 按需水合"的挂载能力完全握在自己手里：
+本目录以"原生 RUST 目标"为硬约束：
 
-- 摆脱 **CfAPI 的限制**（仅 NTFS、SyncRoot 注册、受微软内核组件行为约束）；
-- 摆脱 **WinFsp 的 GPLv3**（本项目全开源 AGPL，但希望内核组件许可自主）；
-- 配合 Rust 核心做到极致轻量（目标整进程空闲 < 10MB）。
+- **驱动镜像 100% Rust**：`cmflt-driver` 是 `#![no_std]` `cdylib`，由 rustc 直接
+  产出 PE，`/ENTRY:DriverEntry`，无 C 启动桩、无 C 运行时、无 C++ EH。
+- **FltMgr ABI 手写**：`cmflt-flt/src/raw.rs` 按 WDK 文档声明 `FLT_REGISTRATION`
+  与三个生命周期 API；x64 结构体大小 112 字节用 `const assert` 锁定，
+  `FLT_REGISTRATION_VERSION = 0x0203`。**不使用 bindgen/libclang**。
+- **无 C/C++ 源文件**：旧 `src/filter.c` 与 `include/cloudmount_proto.h` 已删除
+  （git 历史可查）；内核/引擎协议由 `cmflt-core::protocol` 定义，双方都是 Rust。
+- **唯一非 Rust 构建输入**是 MSVC 链接器与 WDK 的 `.lib` 导入库——这是 Windows
+  内核 ABI 的平台边界，不是仓库内编译的 C/C++ 组件。
+- 设计文档 D1 的"薄 C 壳回退路径"**不再作为仓库内维护组件**；若未来绑定层出现
+  无法隔离的 UB，回退方案重新立项，见设计文档文首 v1.1 修订。
 
-## 架构决策摘要（详细论证见设计文档 §3）
+## 目录结构
 
-1. **Minifilter，不是 FSD。** 占位符 = "NTFS 上的云视图"，用 Filter Manager
-   挂在 NTFS 卷上拦截 I/O 即可，ACL/缓存管理器/内存映射/oplock 全部由 NTFS
-   承担。完整 FSD（WinFsp 路线）工作量大一个数量级，无必要。
-2. **内核用 Rust（v1.0 方案更新）。** 早前判断"C 写内核"已被推翻：Rust 可用
-   `crate-type=["cdylib"]` **直出 `.sys`，无需 C 桩**，已有真实 minifilter 先例
-   （`apriorit/filesystem-kernel-filter-rs`）。缺的是 **FltMgr 绑定**（`wdk-sys`
-   为零、`windows-drivers-rs` 不支持 minifilter）→ 自建绑定层，并保留"薄 C 壳"
-   回退路径。通信仍走 **Filter Manager message port**（cldflt.sys 同款机制）。
-3. **占位符 = 自有 GUID reparse point + HSM 组 + `RECALL_ON_DATA_ACCESS`。**
-   filter 注册在 HSM Load Order Group（180000+），后备切换用官方原语
-   `FsRtlChangeBackingFileObject`，**不自己重造 cache/section 一致性**。
-   两条官方红线必须遵守：HSM 组内不得对带 recall 属性的文件做 targeted 缓存读写；
-   必须处理 `IRP_MJ_ACQUIRE_FOR_SECTION_SYNCHRONIZATION`（否则 mmap 读到位图的 0）。
-4. **Explorer 集成必须自研（最大隐性成本）。** 原生云状态图标绑定
-   `IO_REPARSE_TAG_CLOUD_*` + CfAPI sync root，第三方 tag 不享受。需自研：
-   Shell Namespace Extension（导航栏节点）、`IShellIconOverlayIdentifier`
-   （注意 15 个上限）、`IExplorerCommand` 右键（"始终保留/释放空间"）、
-   `IThumbnailProvider`。用户态 COM 组件，可用 Rust + `windows-rs` 实现。
-5. **签名与分发（2026 政策已变）。** 开发期 `bcdedit /set testsigning on` + 自签；
-   **attestation 签名现已限定测试用途**，零售分发必须过 **HLK/WHCP**，
-   且 Windows Server 2016+ 不接受 filter 驱动的 attestation 提交。
-   EV 证书不可避免。必须过 Driver Verifier，并在 HVCI 开启环境测试。
+```
+drivers/win/
+├── Cargo.toml                 # 独立 workspace（与主产品 workspace 隔离）
+├── cmflt-core/                # #![no_std] 纯逻辑：状态机 / 协议 / 范围记账 / 握手
+├── cmflt-flt/                 # 手写 FltMgr ABI + safe 生命周期/端口/自旋锁封装
+├── cmflt-driver/              # #![no_std] cdylib：DriverEntry / 端口回调 / unload
+├── cmflt-sim/                 # std 用户态仿真器与属性测试（无 WDK 可跑）
+├── cmflt-client/              # std 用户态握手冒烟客户端（FltLib）
+├── scripts/                   # host 测试 / 构建 / PE 验证 / test-sign
+├── cloudmount.inf             # HSM 组安装信息（Class=HSM / Group=FSFilter HSM）
+└── RUST-MINIFILTER-DESIGN.md  # 完整设计与里程碑
+```
 
-## 里程碑与工作量（详见设计文档 §11）
+## KM-0 已交付
 
-| 里程碑 | 内容 | 估算 |
+- `DriverEntry` → `FltRegisterFilter` → `FltStartFiltering` 的完整生命周期；
+- unload 回调中 `FltUnregisterFilter`，支持 `fltmc unload`；
+- 空 filter 形态：无 operation/context/port 回调，先把构建链与卸载路径钉死；
+- 自定义 panic handler：任何 Rust panic 走 `KeBugCheckEx(0x52504E43, file, line, col, 0)`；
+- 宿主侧纯逻辑：水合状态机（含取消/超时/熔断/后备切换排空）、显式小端协议、
+  固定容量 hydrated-range 记账；
+- 41 项宿主测试 + 64 seeds × 20,000 步随机游走（约 128 万事件）不变量检查；
+- PE 静态门禁：x64 / Native / `DriverEntry` / 仅导入 `FLTMGR.SYS` / 无 RWX 段 /
+  反汇编无 `xmm|ymm|zmm`。
+
+## KM-1 已交付
+
+- **通信端口**：`\CloudMountCmfltPort`，`FltCreateCommunicationPort` +
+  `FltBuildDefaultSecurityDescriptor(FLT_PORT_ALL_ACCESS)`（系统/管理员可连）；
+  connect/disconnect/message 三个回调；unload 按 client → server → unregister
+  逆序关闭。
+- **握手**：用户态 `Hello{proto,caps,engine_version}` → 内核 `HelloAck{status,
+  proto,caps,kernel_version}`；`Health` 心跳仅在握手成功后接受；版本不匹配
+  返回 `STATUS_REVISION_MISMATCH`，未握手 Health 返回 `STATUS_INVALID_PARAMETER`。
+- **并发**：`SpinLock<EngineState>` 保护连接状态；协议解析与 ack 编码在锁内完成，
+  临界区不含阻塞/分配。
+- **版本/健康字段用原子标量 + 两个 `u64` 版本字**：避免 LLVM 把 16 字节
+  拷贝/清零降成 SSE，驱动镜像继续通过 `xmm/ymm/zmm` 零命中门禁。
+- **用户态冒烟工具**：`cmflt-client.exe` 连接端口、发 Hello/Health、
+  校验 HelloAck。
+- 宿主测试 52 项（core 35 + flt 5 + sim 5 + 集成 7）。
+
+## KM-2 已起步（只读视图）
+
+- **仅 NTFS 附着**：`InstanceSetupCallback` 对 `FLT_FSTYPE_NTFS` 返回
+  `STATUS_SUCCESS`，其余返回 `STATUS_FLT_DO_NOT_ATTACH`。
+- **CREATE 回调已接线**：`IRP_MJ_CREATE` pre-op 从真实 `FLT_CALLBACK_DATA` →
+  `FLT_IO_PARAMETER_BLOCK` → `FLT_PARAMETERS.Create` 读取 `DesiredAccess` 和
+  CreateOptions（低 24 位），按策略分类后仍 `FLT_PREOP_SUCCESS_NO_CALLBACK` 直通；
+  create 路径不做任何数据 I/O。分类计数写入标量原子计数器（metadata/directory/
+  data/unknown），为后续扫描抑制遥测留口。
+- **create 分类策略**：`cmflt-core::policy` 把 `DesiredAccess/CreateOptions`
+  分为 `MetadataOnly` / `DirectoryEnumeration` / `DataAccess`，宿主测试覆盖
+  数据位、属性-only、目录枚举、reparse-point open；`should_hydrate_on_create`
+  恒为 false。
+- **占位符元数据模型**：`cmflt-core::placeholder` 定义非 Microsoft reparse tag、
+  开发 GUID、`RECALL_ON_DATA_ACCESS|OFFLINE` 属性、`PlaceholderMeta` 32 字节
+  payload 与状态不变量（Placeholder/Partial/Full/Pinned）；`Placeholder` 组合
+  `RangeSet`，提供 `needs_recall`、`mark_hydrated`、`pin/unpin`、`dehydrate`
+  的 partial→full→placeholder 转移，宿主测试覆盖边界与 OOB。新增固定 56 字节
+  `encode_blob`/`reparse_blob`，可直接用于后续 `FSCTL_SET_REPARSE_POINT` 或
+  `FltTagFileEx`。
+- **扫描抑制配额**：`cmflt-core::scan::ScanQuota` 提供每会话请求数/字节数上限、
+  原子式 acquire/release/reset 与 denied 计数，宿主测试覆盖请求/字节耗尽与
+  释放下溢。
+- **占位符创建路径**：
+  - `cmflt-client create-placeholder <path> [--size N] [--file-id N]` 以
+    `CREATE_NEW` 创建 sparse 文件，写入 56 字节 GUID reparse blob 和
+    `OFFLINE` 属性。本机实测 user-mode 可以设置 reparse/offline，但**不能**
+    设置 `RECALL_ON_DATA_ACCESS`。
+  - driver 的 CREATE post-op 在 `FltDoCompletionProcessingWhenSafe` 的
+    PASSIVE 回调里查询 `FileBasicInformation` + `FileReparsePointInformation`；
+    若 tag 为自有 CMFLT tag，则用 `FltSetInformationFile` 补
+    `RECALL_ON_DATA_ACCESS|OFFLINE`。工具会重新打开文件以触发该回调；driver
+    未加载时打印明确告警。
+- **尚未完成**：driver 加载后的端到端 recall 验证、目录枚举投影、配额接入
+  水合路径与真机 L2 场景；这些需要 testsigning/VM 与引擎侧配合。
+
+## KM-3 已交付（协调器核心）
+
+- `cmflt-core::coordinator::HydrationCoordinator` 把占位符范围、`ScanQuota`、
+  既有水合状态机和 `tx_id` 组合成一个纯逻辑协调器：
+  - `begin_read` 返回 `Pass` / `Recall{tx_id,range,deadline}` / `Busy` /
+    `Degraded` / `Quota` / `Invalid`；
+  - `on_dequeued` → `on_reply_accepted` → `on_verify_ok` → `on_switch_ok`
+    完成一次水合，按实际范围更新 Placeholder（Partial/Full）；
+  - `on_cancel`/`on_timeout`/`on_switch_failed` 释放配额并进入
+    Canceled/Degraded/Failed；switch 期间的取消/超时进入 `Draining`，等
+    switch 完成后再结算；
+  - `settle`/`on_reset` 支持下一轮 recall；`on_engine_healthy` 复位熔断。
+- 宿主测试覆盖全量水合、部分水合后二次 recall、Busy、取消、超时熔断、
+  switch 失败、switch 中取消、配额耗尽、非法范围、reset 排空与范围精确标记。
+- **协议补齐**：`Dehydrate` / `PinSet` / `Invalidate` K→U 消息，含长度、tx_id、
+  pin 值与 reserved 校验。
+- **MockEngine**：`cmflt-sim::engine` 消费 `HydrateRequest` 并生成
+  `HydrateReply`，维护 file data/pin/invalidate 状态；集成测试跑通
+  coordinator → request → engine → reply → coordinator 的端到端链路。
+- **IRP 生命周期仿真**：`cmflt-sim::driver::SimDriver` 模拟 pending →
+  complete/cancel/timeout；断言每次 read 恰一次结算、取消/超时释放配额、
+  Busy 正确、engine not-found 失败、无重复 complete、成功读前范围已水合。
+
+## KM-5 已交付（崩溃一致/可观测核心）
+
+- `cmflt-core::journal::JournalRecord`：固定 48 字节记录（file_id/tx_id/range/
+  size/state），编解码与字段校验；`Journal` 是 64 条固定环形缓冲，覆盖
+  record 淘汰、dropped 计数与按 file_id 查最新记录。
+- `plan_recovery`：size 不匹配 → `RehydrateAll`；记录范围仍本地 → `Trusted`；
+  范围缺失 → `RehydrateRange`。
+- `cmflt-core::telemetry::TelemetryRing`：64 条固定事件环，递增 seq、
+  覆盖最旧、dropped 计数，事件含 kind/tx_id/code；覆盖 ETW/事件包之前的内核
+  黑匣子模型。
+
+## 未完成（需要测试机）
+
+- **测试签名加载/卸载循环**：本机 `testsigning` 关闭；启用需
+  `bcdedit /set testsigning on` + 重启，或在 VM/专用测试机执行。
+- Driver Verifier、File System Filter Verification、200 次加载卸载循环（G1）。
+- 真实引擎连接 `cmflt-client`（需 driver 已加载）；上下文与 operation 回调（KM-2）。
+
+## 构建前置
+
+| 组件 | 要求 | 本机状态（2026-10-27） |
 |---|---|---|
-| KM-0 | 构建链（cdylib 直出 .sys）+ 空 filter 可加载卸载 + CI 门禁 | 3–4 周 |
-| KM-1 | FltMgr 安全绑定层 + 通信端口 + 握手（**决定是否走 C 回退**） | 4–6 周 |
-| KM-2 | 只读视图：占位符创建 + 目录投影 + 扫描抑制 | 4–6 周 |
-| KM-3 | 按需水合：状态机 + 取消安全 + 超时降级 + 后备切换 | 6–8 周 |
-| KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 4–6 周 |
-| KM-5 | 崩溃一致对账 + 遥测/黑匣子 + triage 自动化 | 4–6 周 |
-| KM-6 | Shell 集成（用户态 COM：NSE/overlay/右键/缩略图） | 4–8 周 |
-| KM-7 | HLK/WHCP 认证 + 安装器 + 灰度 | 8–12 周（含等待） |
+| Rust | stable，`x86_64-pc-windows-msvc` | 1.99.0 ✅ |
+| MSVC | VS2019 BuildTools（C++ + Windows SDK） | 16.11 ✅ |
+| WDK | `Microsoft.WindowsWDK.10.0.19041`（kernel headers + km libs） | 10.1.19041.685 ✅ |
+| 权限 | 构建不需要；安装/签名需要管理员 | 提权 shell ✅ |
 
-到"敢给陌生人装"的质量：**约 18–30 人月**，其中**验证与压测占一半以上**——
-这正是"更稳定"的代价。改动幅度大，建议在 KM-1 结束后重新评估。
+WDK 可用 winget 安装：
 
-## 当前仓库文件
+```powershell
+winget install --id Microsoft.WindowsWDK.10.0.19041 --exact --silent `
+  --accept-package-agreements --accept-source-agreements
+```
 
-- [`RUST-MINIFILTER-DESIGN.md`](RUST-MINIFILTER-DESIGN.md) —— **完整实现方案（主文档）**
-- `src/filter.c` —— 早期 C 骨架（**已废弃，仅作历史参考**；v1.0 方案改为纯 Rust）
-- `include/cloudmount_proto.h` —— 内核/用户态协议定义（将被 Rust schema 取代，暂留参考）
-- `cloudmount.inf` —— 驱动安装信息文件骨架
+`cargo check -p cmflt-driver` 不需要 WDK；链接 `.sys` 需要。构建脚本会通过
+`CMFLT_WDK_LIB` / `CMFLT_WDK_VERSION` 覆盖自动探测。
+
+## 构建与测试
+
+```powershell
+cd drivers/win
+
+# 宿主测试 + 驱动类型检查（无需 WDK/管理员）
+powershell -ExecutionPolicy Bypass -File scripts/test-host.ps1
+
+# 构建 cloudmount.sys 并执行 PE 静态门禁
+powershell -ExecutionPolicy Bypass -File scripts/build-driver.ps1
+# 产物：drivers/win/out/cloudmount.sys
+
+# 用户态客户端
+cargo build -p cmflt-client
+# 产物：drivers/win/target/debug/cmflt-client.exe
+# 握手：cmflt-client handshake
+# 占位符：cmflt-client create-placeholder <new-file> --size 4096 --file-id 42
+```
+
+Git Bash 可直接 `bash scripts/test-host.sh`。
+
+## 安装与加载（测试机）
+
+**前置：Secure Boot 必须关闭**。`bcdedit /set testsigning on` 在 Secure Boot
+开启时会返回「该值受安全引导策略保护」。当前开发机 `Confirm-SecureBootUEFI`
+仍为 True，所以只能完成签名与预检，无法在本机加载驱动。
+
+```powershell
+# 0. 预检：管理员 / Secure Boot 关闭 / testsigning 生效 / 驱动签名
+powershell -ExecutionPolicy Bypass -File scripts/preflight-load.ps1
+
+# 1. test-sign（首次创建自签证书并导入 Root/TrustedPublisher，需要管理员）
+powershell -ExecutionPolicy Bypass -File scripts/sign-test.ps1
+
+# 2. 开启测试签名并重启（Secure Boot 已关闭的前提下）
+bcdedit /set testsigning on
+Restart-Computer
+
+# 3. 一键安装 + 加载 + 握手冒烟
+powershell -ExecutionPolicy Bypass -File scripts/load-driver.ps1
+
+# 4. G1：100 次加载/卸载循环
+powershell -ExecutionPolicy Bypass -File scripts/g1-loop.ps1
+
+# 手动操作等价于：
+# InfDefaultInstall.exe .\cloudmount.inf
+# fltmc load cloudmount
+# .\target\debug\cmflt-client.exe handshake
+# fltmc unload cloudmount
+```
+
+生产使用前必须申请正式 altitude 并过 HLK/WHCP；attestation 签名仅限测试用途。
+
+## 验证记录（2026-10-28，KM-2 续）
+
+```text
+cargo test --workspace            110 passed / 0 failed
+cargo clippy --workspace          -D warnings OK
+cargo build -p cmflt-driver       OK（release）
+cargo build -p cmflt-client       OK
+cloudmount.sys（unsigned）         7,168 bytes
+cloudmount.sys（test-signed）      8,592 bytes
+entry point                       DriverEntry
+subsystem                         Native (1)
+imports                           FLTMGR.SYS + NTOSKRNL.EXE
+FP/SSE/AVX in disassembly         none
+writable+executable sections      none
+cmflt-client handshake（无 driver） 0x80070002（预期：端口不存在）
+cmflt-client create-placeholder    本机实测：sparse + reparse + OFFLINE 成功；
+                                  RECALL_ON_DATA_ACCESS 需加载 driver 后置
+testsigning 启用                   BLOCKED：Secure Boot=True
+```
+
+详细证据与复现命令见本文件"构建与测试"节；加载/卸载与真实握手仍待
+testsigning 或 VM 执行。
+
+## 里程碑
+
+| 里程碑 | 内容 | 状态 |
+|---|---|---|
+| KM-0 | 构建链 + 空 filter 生命周期 + 宿主仿真/PE 门禁 | **已合入（PR #1）** |
+| KM-1 | 通信端口 + connect/disconnect/message + Hello/Health/HelloAck + 版本协商 | **已合入（PR #2）** |
+| KM-2 | 占位符创建 + 目录投影 + 扫描抑制 | **续：CREATE 接线 + 占位符创建路径（user-mode reparse/offline + driver post-op recall）；投影待续** |
+| KM-3 | 按需水合 + 取消安全 + 超时降级 + 后备切换 | **协调器 + 协议 + MockEngine + IRP 生命周期仿真（110 tests）；内核 Cbdq/读路径待续** |
+| KM-4 | mmap/section 钩子 + 写路径 + oplock 降级 | 待开始 |
+| KM-5 | 崩溃一致对账 + ETW/黑匣子 + triage | **Journal/recovery + telemetry ring 核心完成（104 tests）；传输/真机对账待续** |
+| KM-6 | Shell 集成（NSE/overlay/右键/缩略图） | 待开始 |
+| KM-7 | HLK/WHCP + 安装器 + 灰度 | 待开始 |
 
 ## 参考（借鉴架构，不抄代码）
 
-- WinFsp `src/sys/`（借鉴：每设备过期定时器清理长 pending IRP、"加载后不可卸载"的取舍）
-- Microsoft CfAPI 文档与 CloudMirror 示例（占位符状态机语义、progressive 的随机 seek 要求）
-- ProjFS 文档（投影语义；官方推荐慢存储改用 CfAPI 的理由）
+- WinFsp `src/sys/`（长 pending 的过期定时器清理、不可卸载取舍）
+- Microsoft CfAPI 文档与 CloudMirror 示例（占位符状态机语义、progressive 随机 seek）
+- ProjFS 文档（投影语义）
 - WDK 样例：`cancelSafe`（Cbdq 正确用法）、`swapBuffers`、`SimRep`
-- `apriorit/filesystem-kernel-filter-rs`（Rust minifilter 先例与 build.rs 链接做法）
-- OSR/NTFSD 社区关于 minifilter 与 reparse point 的讨论
+- `apriorit/filesystem-kernel-filter-rs`（Rust minifilter 先例）
+- WDK 10.0.19041 `fltkernel.h` / Microsoft Learn DDI 页（ABI 事实来源）

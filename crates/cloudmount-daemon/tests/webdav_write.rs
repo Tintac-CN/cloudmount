@@ -23,7 +23,9 @@ use cloudmount_sync::testutil::MockRemote;
 use dav_server::davpath::DavPath;
 use dav_server::fs::{DavFile, DavFileSystem};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 

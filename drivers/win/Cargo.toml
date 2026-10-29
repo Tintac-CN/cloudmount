@@ -1,0 +1,48 @@
+# CloudMount native-Rust minifilter workspace.
+#
+# This workspace is intentionally independent from the main cloudmount
+# workspace: the driver must be built with kernel link settings and `no_std`,
+# while the main workspace is a user-mode product workspace. It has no
+# dependency on any C/C++ crate, bindgen, or libclang.
+
+[workspace]
+resolver = "2"
+members = [
+    "cmflt-core",
+    "cmflt-flt",
+    "cmflt-driver",
+    "cmflt-sim",
+    "cmflt-client",
+]
+# `cargo test` / `cargo build` from this directory must not attempt to link the
+# kernel image; the driver is built explicitly by scripts/build-driver.ps1.
+default-members = [
+    "cmflt-core",
+    "cmflt-flt",
+    "cmflt-sim",
+    "cmflt-client",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/Tintac-CN/cloudmount"
+
+[workspace.dependencies]
+cmflt-core = { path = "cmflt-core" }
+cmflt-flt = { path = "cmflt-flt" }
+
+[profile.dev]
+opt-level = 1
+panic = "abort"
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+overflow-checks = false
+strip = "debuginfo"
+incremental = false
