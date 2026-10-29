@@ -29,3 +29,24 @@
 
 GATE-REJECTED gate1 2026-10-29
 ---
+
+2026-10-29 Gate#1 复审 r2 人类审批（AskUserQuestion，逐字转写）：
+- 互审输入：reviews/gate1-ai-r2.md @ d98ba2e（reviewer-architect 0/3/5 + reviewer-qa 0/0/4——合并 0 BLOCKER / 3 MAJOR / ~6 MINOR。上轮 2 BLOCKER+8 MAJOR 全部消解实证：qa 机械 grep -F 三工件同串逐字命中；arch 逐项实测 #21-#41 与 ci.yml 实文全部命中；B2 值修正+精确断言；OQ① 落实；qa 侧 6 项全 PASS）。
+- 呈批两问（逐字）：
+  问①：「条目 23 Gate#1 复审（r2，只核收敛点）：上轮 2 BLOCKER+8 MAJOR 全部消解实证（B1 三工件同串逐字命中/B2 rust-cache 值修正+精确断言/护栏与负断言锚集补齐/现状统一 clean/OQ① 落实）；新发现 0 BLOCKER/3 MAJOR/6 MINOR。如何裁决？」
+  答①：「**通过+准出回填（推荐）**」
+  问②：「M-R2-1（OQ④）当场裁决：断言脚本是否纳入本批范围？（intent 原文「ci.yml 唯一改动面」与 A1 拆分预览③「断言脚本守护」存在张力——需人类定）」
+  答②：「**脚本入批（推荐）**」
+- 裁决落点（编排者执行）：
+  1. gate1 = approved（本回执为 decisions.md 最新 GATE-APPROVED gate1，满足 GATE-REJECTED gate1 2026-10-29 之后的新鲜度要求），phase → construction。
+  2. **OQ④ 裁决=断言脚本入批**：新增 `scripts/ci-desktop-yaml.test.sh` 属本批文件面（diff 白名单 = `.github/workflows/ci.yml` + 本脚本）；intent 原文「ci.yml 唯一改动面」由本裁决显式扩面（与 A1 拆分预览③一致）；扩展已完结脚本（desktop-installers-yaml.test.sh）与「排除」（AC3 作废）均否决。
+  3. **准出回填清单**（批准条件式文本级订正，编排者执行并核收留痕，不重走复审）：
+     a. M-R2-1（OQ④ 三工件状态统一）：prd OQ④ `[ ]`→`[x]` 引本裁决 + AC3/AC4 条件化措辞收敛；architecture OQ④ 关闭理由改引人类裁决（删单方关闭形态）+ 改动面/决策 9/头注同步；test-strategy OQ④ `[ ]`→`[x]` + TP-02 白名单定名单分支 + TP-04 载体单分支 + 分层策略同步。
+     b. M-R2-2（AC3「断言不得弱化」定义统一）：architecture 脚本头注改为 prd AC3 三条（①负断言必须经由 grep_absent_ok ②正断言不得由精确字面放宽为子串 ③脚本自检+CRLF 剥除+降级计数断言必须存在）+ 保留「计数不降/新增允许/弱化须人类批准」；对齐表 AC3 行改引 prd 三条。
+     c. M-R2-3（断言清单补 3 条 → M 44→47）：新增 #45（desktop 块内无 `working-directory: apps/desktop`）/#46（desktop 块内无 `RUSTFLAGS` 覆写）/#47（全文件三 OS matrix 精确行计数=2 + desktop 块内无 `strategy:`/`matrix:`）；architecture 计数四处同步（清单头/数据模型/开放问题/头注）；红阶段编号改 #1-#16+#45/#46；M 计数口径钉死=静态 report 调用点数 47，#42 actionlint 分支差异按 112/113 先例以运行末行为准且 N==M。
+     d. MINOR：prd 引用架构旧编号 3 处修正（#7/#8→#8/#9、#10→#11、#6→#7）；architecture AC2 实测节清除 cd 形态残留（对比命令改 --manifest-path 形态）；#12 从严口径明示（if: always() 属强制运行非跳过；本批蓝图零 if:；未来收紧须 decisions 留痕）；OQ② 两侧状态注记统一（architecture 实质收敛/PRD 留 `[ ]` 待人类逐字确认）。
+  4. 回填核收（编排者内联复验，2026-10-29 21:20）：三工件 grep 零残留（无实义「M 基线 44」/无「gate1 后落定」/无条件化「若④」分支）；prd 编号引用 #8/#9、#11、#7 命中；architecture #45-#47 行齐 + M=47 四处；test-strategy OQ④ 单分支。核收通过。
+  5. 后续：phase=construction，`/aidlc:construct` 进入 Sprint Planning（A3 拆分确认在派发执行泳道前呈出）。
+
+GATE-APPROVED gate1 2026-10-29
+---

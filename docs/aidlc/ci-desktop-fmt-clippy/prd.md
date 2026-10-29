@@ -2,6 +2,7 @@
 
 > 产出者：pm　日期：2026-10-28　来源：intent.md
 > 修订：2026-10-29 Gate#1 打回第 1 轮（人类裁决「打回修订，两项推荐采纳」：B1 字面源=`--manifest-path apps/desktop/Cargo.toml` 完整字面；OQ① 形态=独立 `desktop` job + windows-latest 单腿——留痕 decisions.md 2026-10-29 条）。
+> 修订 r2（2026-10-29 准出回填）：OQ④ 按人类裁决「脚本入批」关闭（AC3/AC4 条件化措辞收敛）；断言编号引用同步架构 r1 重排（#7/#8→#8/#9、#10→#11、#6→#7）；OQ② 两侧状态注记统一。
 
 ## 用户故事
 
@@ -15,13 +16,13 @@
 
 - **AC1**（U1）——desktop fmt+clippy 执行面字面在位（字面可断言）：
   - Given：ci.yml 现状四 job（`rust`/`rust-mock-features`/`web-ui`/`arm-cross`）；`rust` job 的 Format/Clippy step 为根级命令（`cargo fmt --all -- --check`／`cargo clippy --workspace --all-targets -- -D warnings`），对根 Cargo.toml:13 `exclude = ["apps/desktop"]` 的独立 cargo 项目零效力——desktop fmt/clippy 面在 CI 从不执行。
-  - When：本批在 ci.yml 落 desktop 执行面。形态与 runs-on 已按 gate1 裁决钉死（开放问题①）：新增独立 `desktop` job（job id=`desktop`），`runs-on: windows-latest` 单腿（无 matrix）。命令字面唯 `--manifest-path apps/desktop/Cargo.toml` 一源——**三工件同一字面源**（本 PRD AC1 ①②、test-strategy TP-01、architecture 断言 #7/#8 引用同一命令原文；working-directory/cd 形态锚已删除，不得在任何工件复活）。
+  - When：本批在 ci.yml 落 desktop 执行面。形态与 runs-on 已按 gate1 裁决钉死（开放问题①）：新增独立 `desktop` job（job id=`desktop`），`runs-on: windows-latest` 单腿（无 matrix）。命令字面唯 `--manifest-path apps/desktop/Cargo.toml` 一源——**三工件同一字面源**（本 PRD AC1 ①②、test-strategy TP-01、architecture 断言 #8/#9 引用同一命令原文；working-directory/cd 形态锚已删除，不得在任何工件复活）。
   - Then（字面可断言子项）：
     - **形态与 runs-on（gate1 裁决落字面）**：ci.yml 存在 job id=`desktop` 的 job；`runs-on: windows-latest` 单腿（无 `strategy.matrix`）。
-    1. 存在 desktop fmt 步：命令原文**精确字面** `cargo fmt --manifest-path apps/desktop/Cargo.toml --all -- --check`——唯 `--manifest-path` 形态，不得以 `working-directory: apps/desktop`／run 内 `cd apps/desktop` 等上下文锚替代或弱化（负断言：desktop job 块内无 `cd apps/desktop`，架构断言 #10）；
+    1. 存在 desktop fmt 步：命令原文**精确字面** `cargo fmt --manifest-path apps/desktop/Cargo.toml --all -- --check`——唯 `--manifest-path` 形态，不得以 `working-directory: apps/desktop`／run 内 `cd apps/desktop` 等上下文锚替代或弱化（负断言：desktop job 块内无 `cd apps/desktop`，架构断言 #11）；
     2. 存在 desktop clippy 步：命令原文**精确字面** `cargo clippy --manifest-path apps/desktop/Cargo.toml --all-targets -- -D warnings`（`--all-targets` 含=gate1 B1 裁决字面；开放问题②若收窄须回本 PRD 修订并同步三工件）；
     3. toolchain step 含 `components: clippy, rustfmt`（沿 `rust` job 先例 dtolnay/rust-toolchain@stable）；
-    4. 缓存覆盖（intent 缓存约束——desktop 构建依赖重 eframe/wgpu，独立 target 目录）：新增 `desktop` job 含 `Swatinem/rust-cache@v2` step，`workspaces` 参数精确字面 `apps/desktop -> target` 使 `apps/desktop/target` 进入缓存 key（B2 修正口径：target 相对 workspace，不得写成 `apps/desktop -> desktop`；精确断言由 architecture 断言 #6/TP-01 承接）；
+    4. 缓存覆盖（intent 缓存约束——desktop 构建依赖重 eframe/wgpu，独立 target 目录）：新增 `desktop` job 含 `Swatinem/rust-cache@v2` step，`workspaces` 参数精确字面 `apps/desktop -> target` 使 `apps/desktop/target` 进入缓存 key（B2 修正口径：target 相对 workspace，不得写成 `apps/desktop -> desktop`；精确断言由 architecture 断言 #7/TP-01 承接）；
     5. 负断言（desktop 违规必须真能红——防「补了步骤但静默绿」空真形态，沿 desktop-installers TP-02 先例口径）：
        - 无 `continue-on-error`（job/step 级均无）；
        - 无绕过性 `if:`：无 `if: false`、无条件收窄（收窄=仅在部分场景执行而可绕过违规）；注：`if: always()` 属强制运行（非跳过），按 gate1 pm-m4 口径不列为 fail-open 形态——fail-open 枚举以 `if: false`／条件收窄为准；
@@ -35,14 +36,14 @@
 
 - **AC3**（U3）——断言守护（沿五脚本先例；新脚本=第六脚本）：
   - Given：现有五断言脚本（scripts/{desktop-installers-yaml,installers-yaml,release-yaml,check-macos-yaml,package-macos}.test.sh）被测对象为 release.yml/check-macos.yml/main.wxs/打包脚本——ci.yml 当前零断言覆盖。
-  - When：本批新增独立断言脚本 **`scripts/ci-desktop-yaml.test.sh`**（gate1 同步定名；载体与文件面归属按开放问题④裁决——若④排除则 AC3 作废）守护 AC1 新执行面字面与 AC4 护栏字面，沿五脚本机制先例（job_block 段提取／grep_ok·grep_absent_ok 防空真／CRLF 剥除规范化／actionlint 不可用降级且降级计数诚实）。
+  - When：本批新增独立断言脚本 **`scripts/ci-desktop-yaml.test.sh`**（gate1 同步定名；载体与文件面入批已由 gate1 2026-10-29 人类裁决落定——见开放问题④）守护 AC1 新执行面字面与 AC4 护栏字面，沿五脚本机制先例（job_block 段提取／grep_ok·grep_absent_ok 防空真／CRLF 剥除规范化／actionlint 不可用降级且降级计数诚实）。
   - Then：红阶段（desktop 执行面未实现）desktop 相关断言 FAIL（缺失不空真）；实现后脚本全绿 exit 0（末行 N/N passed）；护栏类断言（AC4 既有四 job 字面锚）现状绿保持绿；脚本自检断言（防空真机制/CRLF 剥除在位）沿 desktop-installers TP-10 先例。「断言不得弱化」操作定义（可核）：①负断言必须用 `grep_absent_ok`（不得以裸 grep/取反或跳过替代）；②正断言不得由精确字面放宽为子串（如 `--manifest-path apps/desktop/Cargo.toml` 完整命令不得退化为 `cargo fmt` 子串匹配）；③脚本自检、CRLF 剥除、降级计数断言必须存在（缺一即视为弱化）。
   - 交付/ops 声明：新脚本纳入本批 ops 沉淀——runbook/checklist 以「**六脚本**」硬门口径收录（写入本批 ops 产物/回填，不修改已完结工件；不收录则新断言无执行载体=死守护）。
 
 - **AC4**（U3）——既有四 job 零删改（diff 边界）：
   - Given：ci.yml 现状四 job 及 workflow 级 env（`CARGO_TERM_COLOR`/`RUSTFLAGS: "-D warnings"`）、`on:` 触发（push main + pull_request）——字面锚集：`rust` job 四步命令原文（`cargo fmt --all -- --check`/`cargo check --workspace`/`cargo clippy --workspace --all-targets -- -D warnings`/`cargo test --workspace`）+ 三 OS matrix + `components: clippy, rustfmt`；`rust-mock-features` 的 `cargo test --workspace --features cloudmount-daemon/mock`；`web-ui` 的 npm 步；`arm-cross` 的 cross 构建步。
   - When：本批改动落盘，diff 审查+断言脚本护栏双通道核验。
-  - Then：上述既有字面锚全部在位原样——零删改（本批新增独立 `desktop` job，OQ① 的「rust job 内追加」形态已裁决排除，无追加例外）；本批 diff 仅含 ci.yml 新增面+断言脚本（若④纳入）——**diff 文件集断言由 TP-02 承载**（`git diff --name-only` 守卫：仅 `.github/workflows/ci.yml` 与 `scripts/ci-desktop-yaml.test.sh`；desktop 源码/release.yml/check-macos.yml/根与 desktop Cargo.toml 零触碰）。
+  - Then：上述既有字面锚全部在位原样——零删改（本批新增独立 `desktop` job，OQ① 的「rust job 内追加」形态已裁决排除，无追加例外）；本批 diff 仅含 ci.yml 新增面+断言脚本 `scripts/ci-desktop-yaml.test.sh`（gate1 2026-10-29 裁决入批，见 OQ④）——**diff 文件集断言由 TP-02 承载**（`git diff --name-only` 守卫：仅 `.github/workflows/ci.yml` 与 `scripts/ci-desktop-yaml.test.sh`；desktop 源码/release.yml/check-macos.yml/根与 desktop Cargo.toml 零触碰）。
 
 ## 非目标（明确排除）
 
@@ -58,7 +59,7 @@
 ## 开放问题（需人类裁决）
 
 - [x] ①（intent 原文）desktop fmt/clippy 的 CI 形态 —— **已裁决（gate1 2026-10-29，decisions.md 留痕）**：新增独立 `desktop` job（job id=`desktop`）+ `runs-on: windows-latest` 单腿；「rust job 内追加」及 ubuntu/3-OS 备选均排除。AC1「形态与 runs-on」子项已落字面，测试侧由 TP-01 同步承接。
-- [ ] ②（intent 原文）desktop clippy 是否含 `--all-targets`（终验口径=含；CI 时长考量）。pm 注：gate1 B1 裁决字面已含 `--all-targets`（见 AC1②/AC2 When）；若本项裁决收窄，须回本 PRD 修订并同步 test-strategy/architecture（三工件同一字面源）。
+- [ ] ②（intent 原文）desktop clippy 是否含 `--all-targets`（终验口径=含；CI 时长考量）。pm 注：gate1 B1 裁决字面已含 `--all-targets`（见 AC1②/AC2 When）；架构侧按含口径设计并在 architecture OQ② 节留「实质收敛、待本项逐字确认」——两侧状态一致。若本项裁决收窄，须回本 PRD 修订并同步 test-strategy/architecture（三工件同一字面源）。
 - [ ] ③（intent 原文）若 desktop 当前 fmt/clippy 有违规：CI 补死后首跑即红——修复归本 intent 还是分批？pm 注：证据链指向 clean（2026-10-16 准出回填核收复跑 clean + 其后 b1/b2 两批零触 desktop 源码），预期 clean、Construction 当日实测（AC2）确认后大概率自动消解为「无违规、首跑绿」；若实测 dirty，按 AC2「dirty 分支准出条件」处置（裁决记录+修复批号/backlog 登记）。
-- [ ] ④（pm 新增）断言脚本载体与文件面张力：intent.md「受影响系统」称 ci.yml 为「唯一改动面」，而 decisions.md A1 拆分预览③含断言脚本扩展（沿五脚本先例）——本 PRD AC3 按后者纳入。请裁决：确认新增 `scripts/ci-desktop-yaml.test.sh`（gate1 已同步定名）属本批文件面（推荐——A1 预览③+「断言不得弱化」先例），或排除（AC3 作废，desktop 执行面无断言守护）。
+- [x] ④（pm 新增）断言脚本载体与文件面张力 —— **已裁决（gate1 2026-10-29 人类逐字「脚本入批」，decisions.md 留痕）**：**断言脚本入批**——新增 `scripts/ci-desktop-yaml.test.sh` 属本批文件面（diff 白名单 = ci.yml + 本脚本）；扩展 desktop-installers-yaml.test.sh（已完结锁定工件）与「排除」（AC3 作废、新执行面无守护）均否决。intent 原文「ci.yml 唯一改动面」由本裁决显式扩面（与 A1 拆分预览③一致）。
 - [x] ⑤（pm 新增）当日现状实测执行归属 —— **已关闭（互审 MINOR 9：冗余项）**：归属已由 AC2 When 明确「Construction 拆②开工时执行并留痕」，无需单独裁决。
