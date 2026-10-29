@@ -1,7 +1,7 @@
 {
   "slug": "ci-desktop-fmt-clippy",
   "intent": "CI 补 desktop fmt/clippy 步骤（backlog 台账条目 23——终验口径缺口流水线上游补死）",
-  "phase": "construction",
+  "phase": "gate2",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -51,7 +51,7 @@
   "unitStatus": {
     "U1": "done"
   },
-  "updatedAt": "2026-10-29T21:54:08+08:00",
+  "updatedAt": "2026-10-29T21:54:54+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
@@ -100,6 +100,12 @@
       "from": "construction",
       "to": "construction",
       "why": "U1 绿完成（d5818ed：ci.yml desktop job +33/−0，jobs=rust/rust-mock-features/desktop/web-ui/arm-cross）→ completed（1/1）：断言脚本 47/47 exit 0；AC2 三条实测全 clean（fmt EXIT=0；clippy --all-targets 与不含 --all-targets 均 EXIT=0，OQ③ 未触发）；五既有脚本 112/72/23/13/9 计数不变；仓库级 fmt/clippy clean；F2 回归对比 cargo test --workspace 277/0（26 目标）与基线逐数一致零回退；diff 产品面=ci.yml+新脚本，黑名单零命中"
+    },
+    {
+      "at": "2026-10-29T21:54:54+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "Construction 收口（1/1 units done）：U1 绿提交 d5818ed + 断言 47/47 + AC2 实测 clean + F2 回归 277/0 零回退；phase → gate2，提示 /aidlc:gate（Gate#2=party-review+verifier 新鲜上下文终检）"
     }
   ]
 }
