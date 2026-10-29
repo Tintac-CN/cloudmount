@@ -73,3 +73,13 @@ GATE-APPROVED gate1 2026-10-29
 
 GATE-APPROVED gate2 2026-10-29
 ---
+
+2026-10-29 Operations 裁决收集（AskUserQuestion 三问，表单未获选择）：
+- 问①「Operations-1：本批无部署面（唯一触发=CI 运行），「首跑观察窗口」如何定？」（首推当日核[推荐]／次日汇总核／不设时点）
+- 问②「Operations-2：desktop job 的失败门控（是否加入 branch protection required checks）如何定？」（稳定后加 required[推荐]／首绿即加／不进 required）
+- 问③「Operations-3：desktop 缓存体积的告警/处置阈值如何定？」（10GB+时长双阈值[推荐]／仅观察不设阈）
+- **表单未获选择（非拒绝）**：如实记录「未获人类逐字裁决」；编排者按三问推荐项取**暂定缺省值**落 `ops-runbook.md` §5 并标注「暂定，待追认」；完结确认时一并追认或修订。本条不涉及 gate1/gate2 门控，无代答问题。
+- 暂定值（逐项对应推荐项）：①首跑观察窗口=首推当日核验（无部署窗口=N/A）②required checks=首跑后累计 ≥3 次绿再由人类在仓库设置加入（本批不代操作仓库外设置）③缓存阈值=10GB + 既有四 job 时长双阈值，超限按 `shared-key: desktop` → `save-if`（仅 main 保存）→ `cache-targets: false` 顺序处置，变更 decisions 留痕。
+- 工件落盘：`ops-runbook.md`（交付/触发面、监控告警、首跑观察清单含红态三分类、六脚本硬门口径 112/72/23/13/9/47、阈值与缓存处置顺序、回流与台账）+ `retro.md`（classic 硬性要求：什么有效/什么没用/学到的东西/下个 bolt）。
+- 回流机制：生产事件/学习写新 intent 的 `intent.md` 或 `docs/aidlc/backlog.md`；已完结 intent 工件只读；本 intent 学习已全部入 `retro.md`。
+- 完结确认呈出（待人类逐字裁决）：确认完结 → phase=done；否则继续观察或修订。
