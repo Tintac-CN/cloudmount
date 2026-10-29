@@ -1,11 +1,11 @@
 {
   "slug": "ci-desktop-fmt-clippy",
   "intent": "CI 补 desktop fmt/clippy 步骤（backlog 台账条目 23——终验口径缺口流水线上游补死）",
-  "phase": "gate2",
+  "phase": "operations",
   "route": "classic",
   "gates": {
     "gate1": "approved",
-    "gate2": "pending"
+    "gate2": "approved"
   },
   "tddLock": true,
   "tddLockPaths": [
@@ -51,7 +51,7 @@
   "unitStatus": {
     "U1": "done"
   },
-  "updatedAt": "2026-10-29T21:54:54+08:00",
+  "updatedAt": "2026-10-29T22:20:25+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
@@ -106,6 +106,12 @@
       "from": "construction",
       "to": "gate2",
       "why": "Construction 收口（1/1 units done）：U1 绿提交 d5818ed + 断言 47/47 + AC2 实测 clean + F2 回归 277/0 零回退；phase → gate2，提示 /aidlc:gate（Gate#2=party-review+verifier 新鲜上下文终检）"
+    },
+    {
+      "at": "2026-10-29T22:20:25+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 人类通过（decisions.md GATE-APPROVED gate2 2026-10-29，逐字「通过+准出回填」+「保持锁定」）：五方互审 0B/0M/15m（reviews/gate2-ai.md @ 227646b；五方独立复跑 47/47、五脚本 112/72/23/13/9、277/0 零回退、diff 白名单守恒、蓝图 0 差异、TDD 红→锁→绿完整）；准出回填闭合（M 计数口径订正/ fmt --all 作用域事实订正[70 文件]/--locked 与顺序措辞收严/OQ② 归属/TP-02 基线锚 2d5d695 补记/backlog 40-41 登记 + 条目 23 状态更新）；脚本头注口径=保持锁定（backlog 40）；phase → operations（/aidlc:ops，classic retro 硬性）"
     }
   ]
 }
