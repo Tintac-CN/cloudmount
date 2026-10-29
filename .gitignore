@@ -9,9 +9,6 @@
 node_modules/
 web-ui/dist/
 
-# Tauri
-apps/desktop/src-tauri/gen/
-apps/desktop/src-tauri/target/
 
 # Windows driver build artifacts
 drivers/win/*.sys

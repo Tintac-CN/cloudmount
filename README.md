@@ -86,14 +86,15 @@ propagate_local_deletes = false
   （空闲 RSS 10–20MB；musl 静态二进制 4MB）
 - **双通道**：官方 OpenAPI 为主；Cookie 通道为默认关闭的兜底（自动降级，
   见[风险声明](#cookie-通道风险声明)）
-- **一套前端**：桌面壳（Tauri 2）与边缘网关共用同一个 web-ui（零框架 2.5KB gzip）
+- **web-ui 管理页**：边缘网关浏览器管理页（零框架 2.5KB gzip）
+- **桌面端**：egui 原生 UI（apps/desktop，不使用 web-ui）
 - **全开源** AGPL-3.0
 
 ## 架构一图
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  UI：web-ui（共享 SPA）→ Tauri 桌面壳 / 边缘浏览器管理页      │
+│  UI：egui 桌面壳 / web-ui 管理页（边缘浏览器，--serve 托管）  │
 ├────────────────────────────────────────────────────────────┤
 │  挂载后端（cloudmount-vfs::MountBackend，可插拔）             │
 │   Windows: CfAPI ✅ → 自研 minifilter(长期)                 │
@@ -130,9 +131,9 @@ crates/
   cloudmount-sync        同步引擎（快照/三向对比/队列/缓存/.git 防护）
   cloudmount-cli         CLI：login/ls/upload/download/quota/dehydrate
   cloudmount-daemon      cloudmountd：同步/挂载/serve 三模式
-apps/desktop                Tauri 2 桌面壳（托盘 + web-ui）
+apps/desktop                桌面壳（egui/eframe，托盘 + 原生 UI）
 drivers/win             自研 minifilter（原生 Rust KM-0/1 + KM-2 起步，长期）
-web-ui/                  共享前端 SPA（零框架）
+web-ui/                  边缘网关管理页（零框架）
 packaging/               systemd / Dockerfile / 发布配置
 docs/                    架构、路线图、边缘部署手册
 ```
@@ -148,7 +149,7 @@ cd web-ui && npm run build           # 前端（typecheck + vite）
 cargo test -p cloudmount-vfs
 
 # 桌面壳
-cd apps/desktop && cargo tauri dev
+cd apps/desktop && cargo build --release  # 产物 target/release/cloudmount-desktop.exe
 ```
 
 - [架构文档](docs/ARCHITECTURE.md) ｜ [路线图](docs/ROADMAP.md) ｜

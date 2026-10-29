@@ -1,0 +1,145 @@
+{
+  "slug": "b1-doc-corrections",
+  "intent": "B1 文档纠偏批：stale Tauri 全量面回写（16 处）+owner 元数据修正+.gitignore 死路径清理+TLS 注释过时订正——审核报告 §2 偏离清单的文档面回写（路线图批次 B1）",
+  "phase": "done",
+  "route": "classic",
+  "gates": {
+    "gate1": "approved",
+    "gate2": "approved"
+  },
+  "tddLock": false,
+  "tddLockPaths": [],
+  "tddLockOverride": null,
+  "testBaseline": {
+    "recordedAt": "2026-10-17T08:59:45+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "completed"
+  },
+  "updatedAt": "2026-10-18T11:30:00+08:00",
+  "history": [
+    {
+      "at": "2026-10-16T23:36:31+08:00",
+      "from": null,
+      "to": "inception",
+      "why": "intent created via ops 裁决③预先指令「收口后直接开 B1 文档纠偏批」（audit-roadmap-next-steps INTENT-DONE 后自动接入）+ 显式 /aidlc:inception 入口；A1 表单呈出未获选择 → 按协议缺省 route=classic（未选 express 的 fail-safe 全量路径）；范围已被审核报告 §2.1① 明细+backlog.md 台账🚀行钉死（decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-17T02:40:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "classic 三工件齐且对齐拍完成：prd（AC1..AC6，AC1 清单经对齐拍扩至 23 处[16 清单+7 实测新发现——编排者裁决意图忠实，gate1 过目]）/architecture（回写蓝图 28 项全行锚实测+AS-IS 基准 F1-F7+断言面零联动结论）/test-strategy（7 TP P0=4/P1=2/P2=1，词边界+排除清单五项[含守护断言自身字面]+基线保护）；qa 引用 AC↔prd 实际编号一致、AC1..AC6 全覆盖无空锚；architect 知会 package.json name 无字面不改（D10）；phase → gate1"
+    },
+    {
+      "at": "2026-10-17T02:58:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-17，第 1 轮/上限 3 轮）：互审 0 BLOCKER/8 MAJOR/17 MINOR（去重 6 MAJOR/10 MINOR，reviews/gate1-ai.md @ 792caef；正面确认：蓝图行锚实测零实质漂移/23 处清单完备/AC↔TP 机械核对通过）；裁决=「打回修订，两项附带建议采纳」（①desktop fmt/clippy 单独跑必达 ②build --release 为 README:151 验证判据）；6 MAJOR 分配：M1 api.ts :1-6 收敛[D7 采纳]/M2 TP-07 动态清点/M3 fmt-clippy 必达/M4 TP-01 carve-out/M5 ROADMAP:164 必达+措辞域/M6 build 主形态——pm/architect/qa 三角色修订；decisions 补录对齐拍范围扩裁；gate1 复位 pending 待复审（只核收敛点），须新回执"
+    },
+    {
+      "at": "2026-10-17T09:05:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "Gate#1 修订轮完成（第 1 轮）：prd r1 @ 1d651a6（M1 :1-6 收敛+M2 .git 排除+M4 #5 对齐+M5 措辞域钉死+附带①② prd 侧落点[AC6c(c)/AC2]+m4）+ test-strategy r1 @ ee8466d（M1-M4/M6+双口径+执行序）+ architecture r1（M5 #25 移 B 段+D11/m1 E+ 段/m3 精度+附带①②加注）；修订只重跑被点名三角色；gate1 复位 pending 待复审（只核收敛点：6 MAJOR 消解+两项附带建议落实），须新回执"
+    },
+    {
+      "at": "2026-10-17T09:20:00+08:00",
+      "from": "gate1",
+      "to": "construction",
+      "why": "Gate#1 复审 r2 人类通过（decisions.md GATE-APPROVED gate1 2026-10-17）：复审只核收敛点确认上轮 6 MAJOR+10 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 5dc93f5，四方 0B/2M/7m——行锚 15+ 处抽验零漂移）；新发现 2 MAJOR（#25 替换字面三工件两套/TP-03 辅判据引注失实）+7 MINOR 均一行级→随准出回填闭合（单一形态「TLS 可选——--tls-cert/--tls-key，见下条」三处统一/TP-03 辅判据改写/5 项注记）；phase → construction"
+    },
+    {
+      "at": "2026-10-17T09:12:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Gate#1 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式订正）：M-R2-1 替换字面三工件统一[蓝图弃嵌套括号形态]/M-R2-2 TP-03 辅判据改写/MINOR 5 项（:44-81 统一/时态/TP-02 10 文件/TP-06 执行序/:11-32）——7 处全落位复验零残留；gate1 裁决全部准出条件闭合；下一步 /aidlc:construct"
+    },
+    {
+      "at": "2026-10-17T09:05:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Sprint Planning：plan.md（单 unit U1——23 处回写+3 项关联订正=蓝图 28+2 项照做；影响面 low[纯文档/元数据/注释回写零产品逻辑]；TDD 锁 N/A 如实记录[零测试文件产出]）+ units/1.md 落盘；第 0 步基线：cargo test --workspace 277 passed/0 failed（26 目标）+ 五断言脚本 112/72/23/13/9 全 exit 0 @ 08:59:45；回归语义特化=277/0 保持+五脚本计数不变+webdav.rs 仅注释行改动[任何测试失败=越界=BLOCKER]；A3 拆分确认呈出（凭据=decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-17T09:07:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-17）→ 派发 U1（单 unit：蓝图 28+2 项回写执行+TP-01..07 验证一体，dev 泳道）"
+    },
+    {
+      "at": "2026-10-17T10:20:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U1 回写执行完成 → completed（1/1），Construction 收口 → gate2：蓝图 28+2 项全落字 @ c6dbcb8（10 文件+56/−47：A 16 处+B 3+C 5+D 1+E 邻接 README:135+关联 owner/.gitignore/webdav.rs:29；一处蓝图措辞适配报备=#6 历史注记去 Tauri 字面[清零口径要求，语义保留]）；TP-01..07 全 PASS（TP-02 双口径产品面 0 命中/TP-03 build 56.3s+run 20s 超时冒烟可拉起/TP-04 三方 Tintac-CN 一致/TP-05 五脚本 112/72/23/13/9+277/0+fmt-clippy 双面/TP-06 diff 仅注释头注字段五类/TP-07 动态清点 33 文件 186 行时点值）；编排者核收复验：10 目标文件 tauri 残留=0（python 精确计数）+回归对比全绿=零影响证明；phase → gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-18T08:40:00+08:00",
+      "from": "gate2",
+      "to": "construction",
+      "why": "Gate#2 人类审批打回（decisions.md GATE-REJECTED gate2 2026-10-18，第 1 轮/上限 3 轮）：互审 0 BLOCKER/3 MAJOR 主题[去重 2]/13 MINOR（reviews/gate2-ai.md @ 0bf20ab；verifier 独立终检 30/30 落字+零计划外+零逻辑变更+验证全复现）；裁决=「打回修订+反馈」——反馈=互审清单 M-1（api.ts 8 命令 overstated，4/8 边缘 501 占位）/M-2（CLOUDMOUNT_WEB_UI 死机制引用）+MINOR 处置指令（prd 非目标注记归 pm/flaky 登记归台账/卫生项入 backlog）；修订点名 dev（M-1/M-2 一行级×2）+pm（prd 注记）；gate2 复位 pending 待复审（只核 M-1/M-2 消解），须新回执"
+    },
+    {
+      "at": "2026-10-18T09:00:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "Gate#2 修订轮完成（第 1 轮）：dev @ 8f8200d（M-1 api.ts:6 限定表述「8 命令契约已定形；其中 4 命令在边缘模式为文档化 501 边界」/M-2 web-ui README:20 机制名订正「--web-ui-dir 指向静态托管」——各恰好一行，落笔前实测锚确认）+ pm prd 非目标 gate2 裁决注记；gate2 复位 pending 待复审（只核 M-1/M-2 消解），须新回执"
+    },
+    {
+      "at": "2026-10-18T10:05:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 复审 r2 人类通过（decisions.md GATE-APPROVED gate2 2026-10-18）：复审只核收敛点确认 M-1/M-2 均按建议措辞族消解（reviews/gate2-ai-r2.md @ c5d7c76，四方 0B/0M/1m——事实锚独立复验+回归保护机械复跑全绿）；MINOR-1（prd/蓝图失实措辞保留为历史工件面）登记 backlog 条目 39；phase → operations（/aidlc:ops——route=classic retro 硬性）"
+    },
+    {
+      "at": "2026-10-18T10:20:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Operations 三裁决到齐（AskUserQuestion 逐字）：①回写效果维护=时点归档（产品面常态维护，工件随 intent 归档）②backlog 台账为唯一队列（后续 inception 前先查）③直接开下一批（批号待收口时由人类指定）；ops-runbook+retro 落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-18T11:15:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "ops-runbook.md（回写消费/台账维护/回流/观察项四节——文档批无部署监控面，按运维实质适配）+retro.md（classic 硬性）落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-18T11:30:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（AskUserQuestion 逐字「确认完结（推荐）」+ INTENT-DONE 2026-10-18）：classic 完结判据全达成（retro 硬性+ops-runbook+人类确认）→ phase=done，intent 退出活跃位。生命周期总览：23 处 stale Tauri 回写+owner/死路径/TLS 订正（c6dbcb8+8f8200d）经 gate1 两轮（8M 打回收敛）+gate2 两轮（2M 打回收敛）四方互审+verifier 独立终检；下一批批号待人类指定（台账待命）"
+    }
+  ]
+}

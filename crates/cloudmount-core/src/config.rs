@@ -1,6 +1,6 @@
 //! 用户配置文件（TOML）。
 //!
-//! 三个二进制（cloudmountd / cloudmount / Tauri 壳）共用同一份配置，
+//! 三个二进制（cloudmountd / cloudmount / egui 桌面壳）共用同一份配置，
 //! 位于[数据目录](crate::paths)`config.toml`：
 //!
 //! | 平台 | 路径 |

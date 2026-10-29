@@ -1,0 +1,165 @@
+{
+  "slug": "b2-115-qualify",
+  "intent": "M0 外部阻塞链启动：申请 115 开放平台个人开发者资质+创建 PKCE 应用（材料提交+受理跟进；人类操作为主，工程侧配套=申请材料技术清单整理+AppID 到位后的 TODO(verify) 闭环预备）——路线图批次表 B2",
+  "phase": "done",
+  "route": "classic",
+  "gates": {
+    "gate1": "approved",
+    "gate2": "approved"
+  },
+  "tddLock": false,
+  "tddLockPaths": [],
+  "tddLockOverride": null,
+  "testBaseline": {
+    "recordedAt": "2026-10-18T23:27:30+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "completed",
+    "U2": "completed",
+    "U3": "completed"
+  },
+  "updatedAt": "2026-10-28T16:45:00+08:00",
+  "history": [
+    {
+      "at": "2026-10-18T09:17:57+08:00",
+      "from": null,
+      "to": "inception",
+      "why": "intent created via ops 裁决③「直接开下一批」+批次表顺位（B1 已完成→B2=外部阻塞链源头，审核报告明示启动越早解锁越早）；A1 表单呈出未获选择 → 按协议缺省 route=classic（未选 express 的 fail-safe 全量路径）；范围=审核报告 §3.1 首行「材料提交+受理跟进（人类操作为主，工程侧零代码）」（decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-18T10:10:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "classic 三工件齐且对齐拍完成（decisions.md 对齐拍记录）：prd AC1..AC4（申请材料清单/提交留痕/受理跟踪/AppID 预备）+ architecture（申请材料技术规格 11 项+15 端点面+AppID 接入预备+受理状态机六态；勘误 TODO 锚=driver115/open.rs）+ test-strategy（5 TP P0=3/P1=2，TP→AC 回填 AC1..AC4 全覆盖无缺口）；qa 映射回填=qa 角色执行（跨 intent 重派新 agent——B1 qa 会话过期）；phase → gate1"
+    },
+    {
+      "at": "2026-10-18T10:35:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-18，第 1 轮/上限 3 轮）：互审 0 BLOCKER/8 MAJOR 报告条目[去重 2 主题]/19 MINOR（reviews/gate1-ai.md @ 7cf99dc；正面确认：规格锚 40+ 处零虚构/勘误锚定复核正确/受理状态机自洽）；两裁决逐字——①「打回修订（推荐）」②载体=「tracking.md（推荐）」（采纳即补 check_method 键+TP-03 第⑤字段）；修订点名 pm（M1 定指/M2 分面/MINOR 4 项）/architect（M1 蓝图规格/M2 分面/MINOR 4 项）/qa（M1 TP-03 第⑤字段/MINOR 6 项含 TP-07 动态清点 b1 先例）；gate1 复位 pending 待复审（只核收敛点），须新回执"
+    },
+    {
+      "at": "2026-10-18T11:20:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "Gate#1 修订轮完成（第 1 轮）：prd r1（M1 tracking.md 定指+M2 分面+MINOR 4）/ architecture r1（tracking 规格+check_method 键+draft 注记/M2 分面+决策 #8/MINOR 3+multipart 漂移收录）/ test-strategy r1（TP-03 五字段第⑤查看方式/M2 无冲突核对/MINOR 6 含动态清点+基点 14a7eb4+双口径自命中排除）；修订只重跑被点名三角色；gate1 复位 pending 待复审（只核收敛点：2 主题 MAJOR 消解+载体裁决落实），须新回执"
+    },
+    {
+      "at": "2026-10-18T11:50:00+08:00",
+      "from": "inception",
+      "to": "inception",
+      "why": "Gate#1 复审 r2 人类裁决「打回+反馈」（decisions.md GATE-REJECTED gate1 2026-10-18 第二次标记；第 2 轮/上限 3 轮）：r2 确认上轮 2 主题 MAJOR+14 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 49bd976，四方 0B/0M/~7m），反馈=7 MINOR 清单（四步五步口径调和/TP-04 子锚一位差/AC2③ 白名单标签/蓝图 usertime 残留/thread::scope 计数差/AC3③ 承载键注记）——修订点名 pm（①③）/architect（④⑤⑥）/qa（①②）；修订务必一次闭合（再打回即达 3 轮上限）"
+    },
+    {
+      "at": "2026-10-18T12:05:00+08:00",
+      "from": "inception",
+      "to": "inception",
+      "why": "Gate#1 r2 反馈修订完成（第 2 轮）：6 处一行修全落字 @ a0ae666（①四步五步双侧重合/②TP-04 子锚 :158/③AC2③ 白名单/④usertime/⑤scope 4 处/⑥notes 承载 AC3③）——编排者内联代跑[三 agent 会话过期，SKILL §8 留痕；反馈=r2 复审清单零裁量]；gate1 复位 pending 待复审 r3（只核 6 处消解；2/3 轮已用——r3 修订前置=复审仅余注记级时建议通过+准出回填）"
+    },
+    {
+      "at": "2026-10-18T12:10:00+08:00",
+      "from": "gate1",
+      "to": "construction",
+      "why": "Gate#1 复审 r3 人类通过（decisions.md GATE-APPROVED gate1 2026-10-18）：复审 r3 只核 r2 反馈 6 处消解确认全部实测闭合（reviews/gate1-ai-r3.md @ 941c457，两方 0B/0M/1m——§8 内联代跑质量经独立复核证实）；新发现 1 MINOR（notes 溯源标签笔误 gate2→gate1 一行修）随准出回填闭合；phase → construction"
+    },
+    {
+      "at": "2026-10-18T12:20:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Gate#1 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式一行订正）：M-R3-1 溯源标签 architecture notes 行 gate2→gate1 改净（decisions 核收条目同源笔误按只追加原则以核收条目声明订正）；gate1 裁决全部准出条件闭合；Construction 核心=工程侧材料清单+tracking.md 建文件+人类执行 115 提交"
+    },
+    {
+      "at": "2026-10-18T23:35:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Sprint Planning：plan.md（3 units 串行——U1 材料清单+tracking 骨架+操作指引/U2 人类提交执行+留痕[人类执行段]/U3 AppID 预备清单；影响面全 low[纯文档产出零代码引用方]；TDD 锁 N/A 如实记录[零测试文件]）+ units/1-3.md 落盘；第 0 步基线：cargo test --workspace 277/0（26 目标）+五脚本 112/72/23/13/9 全 exit 0 @ 23:27:30；回归语义特化=零影响证明[277/0 保持+五脚本计数不变+TP-05 diff 边界]；A3 拆分确认呈出（凭据=decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-18T23:40:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-18）→ 串行派发 U1（材料清单+tracking 骨架+操作指引——dev 泳道产出后 U2 呈人类执行 115 提交）"
+    },
+    {
+      "at": "2026-10-18T23:55:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 申请材料技术清单定稿+tracking 骨架完成 → completed：dev 交付 @ 90f5b0c（application-checklist.md 80 行[11 项表单参数+15 端点清单+操作指引 5 步+开放问题现场裁决项+锚实测附录]+tracking.md 34 行[追加式日志语义+7 键说明+空记录区]）；代码锚 81 处落笔前实读复验（含 grep 证据 3 组复验）；TP-01 自验过/TP-02 敏感面零命中（3 处字面命中经人工判别均为否定性技术陈述）；零代码变更（2 新文档 114 insertions）；基线 277/0 复验一致=零影响证明；蓝图勘误回报 2 处一行偏移（pkce.rs:58→:57/ARCHITECTURE.md:48→:47——清单按实测落锚，契约冻结未动）；下一步 U2 人类执行段（呈操作指引→人类提交 115→落 tracking 首条）"
+    },
+    {
+      "at": "2026-10-28T07:00:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 人类执行段完成 → completed：人类回报逐字「早已提交，但已经卡住不审批，先继续开发」——115 申请已提交（核心动作完成）、审核卡住（外部阻塞）；裁决=凭据细节不阻塞（tracking.md 首条占位落位[待补字段显式标注]）、不等待审核结果、收口后开下一开发批；AC2 判定口径按裁决落定（占位在案+gate2 如实披露）；下一步 U3（AppID 预备清单）"
+    },
+    {
+      "at": "2026-10-28T07:45:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U3 AppID 接入预备清单完成 → completed（3/3），Construction 收口 → gate2：appid-readiness.md @ 06f3a7c（88 行——TODO×2 逐条+相邻对照面+config 分面[gate1 M2 口径]+认证侧+下游输入清单；代码锚 44 处实测；TP-04 动态清点恰 2 处/TP-05 产品目录零改动[16 文件全在 intent 目录]）；回归对比（F2）：cargo test --workspace 277/0+五脚本 112/72/23/13/9 与基线逐数一致=零影响证明；U2 占位披露项（AC2① 凭据细节待补——人类裁决「先继续开发」不阻塞）随 gate2 呈批如实披露；phase → gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-28T08:30:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-28）：互审 0 BLOCKER/4 MAJOR 报告条目[去重 1 主题=tracking 首条占位行列错位，四方同源一格修]/12 MINOR[去重 8]（reviews/gate2-ai.md @ 0571b50；verifier 独立终检 0/0/3——3/3 units 一致+零代码约束成立+验证声称全复现+150 锚五方抽验零虚构；AC2 占位披露三处一致实证）；裁决=「通过+准出回填」——M1 一格修+8 MINOR 随准出回填闭合；AC2 占位披露终确认；phase → operations（/aidlc:ops——route=classic retro 硬性）"
+    },
+    {
+      "at": "2026-10-28T16:00:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Gate#2 准出回填核收（编排者内联——人类裁决「通过+准出回填」条件式一行级订正）：M1 tracking 首条 8 列复位[补 receipt_no 待补格+删空行+检查时点建议入 notes]+MINOR 7 项[ARCHITECTURE 锚 :48/footprint/一位差×2/AC1⑧ 子面补注/节标题/decisions 日期声明订正]——gate2 裁决全部准出条件闭合 @ 7e2b7ea；下一步 /aidlc:ops"
+    },
+    {
+      "at": "2026-10-28T16:15:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Operations 两裁决到齐（AskUserQuestion 逐字）：①tracking 留仓+手动更新（115 审核卡住为外部阻塞——人类随审核进展追加式更新；AppID 到位按 backlog A 节首行触发下游「AppID 实测」intent）②直接开下一批（批号待收口时指定）；ops-runbook+retro 落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-28T16:25:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "ops-runbook.md（受理跟踪维护[留仓+手动更新]/下游触发[AppID 到位→backlog A 节首行→「AppID 实测」intent]/回流/审核驳回分支——资质申请批无部署监控面，按运维实质适配）+retro.md（classic 硬性——含「人类操作批协议特化首次完整跑通」「外部阻塞处理范式」「编排者记录质量自检点」「AC↔规格子项双向核对」四条沉淀）落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-28T16:45:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（AskUserQuestion 逐字「确认完结（推荐）」+ INTENT-DONE 2026-10-28）：classic 完结判据全达成（retro 硬性+ops-runbook+人类确认）→ phase=done，intent 退出活跃位。生命周期总览：115 资质申请批——材料技术清单（11 项+15 端点，150+ 锚五方抽验零虚构）+tracking.md（受理跟踪，人类回报「早已提交，卡住不审批」逐字在案+占位留痕）+appid-readiness.md（下游「AppID 实测」intent 输入）；Gate#1 三轮（2 主题打回→修订→7m 打回→内联 6 处→r3 通过）+Gate#2 五方互审+verifier（0 BLOCKER+M1 一格修准出回填）；下一批批号待人类指定（台账待命）"
+    }
+  ]
+}

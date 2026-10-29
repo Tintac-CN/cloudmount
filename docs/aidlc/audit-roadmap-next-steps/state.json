@@ -1,0 +1,148 @@
+{
+  "slug": "audit-roadmap-next-steps",
+  "intent": "请对现在的开发计划和功能实现做一次审核，开始计划下一步的实现和推进",
+  "phase": "done",
+  "route": "classic",
+  "gates": {
+    "gate1": "approved",
+    "gate2": "approved"
+  },
+  "tddLock": false,
+  "tddLockPaths": [],
+  "tddLockOverride": null,
+  "testBaseline": {
+    "recordedAt": "2026-10-16T21:26:42+08:00",
+    "command": "cargo test --workspace",
+    "suites": [
+      "cloudmount_auth(lib unittests)",
+      "cloudmount(cli bin unittests)",
+      "cloudmount_core(lib unittests)",
+      "cloudmount_daemon(lib unittests)",
+      "cloudmountd(daemon bin unittests)",
+      "cloudmount_driver115(lib unittests)",
+      "cloudmount_sync(lib unittests)",
+      "cloudmount_vfs(lib unittests)",
+      "webdav_serve",
+      "webdav_write",
+      "cookie_channel",
+      "cookie_logging",
+      "mock_api",
+      "single_flight_refresh",
+      "engine_e2e",
+      "exec_remote_dir",
+      "rdc_release",
+      "cfapi_backend",
+      "cfapi_hydration",
+      "control_dehydrate",
+      "doc-tests:cloudmount_auth",
+      "doc-tests:cloudmount_core",
+      "doc-tests:cloudmount_daemon",
+      "doc-tests:cloudmount_driver115",
+      "doc-tests:cloudmount_sync",
+      "doc-tests:cloudmount_vfs"
+    ],
+    "total": 277,
+    "pass": 277,
+    "fail": 0,
+    "coverage": null
+  },
+  "unitStatus": {
+    "U1": "completed",
+    "U2": "completed",
+    "U3": "completed",
+    "U4": "completed"
+  },
+  "updatedAt": "2026-10-17T01:58:00+08:00",
+  "history": [
+    {
+      "at": "2026-10-16T18:11:25+08:00",
+      "from": null,
+      "to": "inception",
+      "why": "intent created via 显式 /aidlc:inception「请对现在的开发计划和功能实现做一次审核，开始计划下一步的实现和推进」；A1 表单呈出未获选择 → 按协议缺省 route=classic（「用户未选 express 或未确认 → 缺省 classic」，fail-safe 全量路径），编排者按意图字面取交付范围默认（审核+路线图）与证据标准默认（抽样验证），均列入 intent.md 开放问题待 gate1 人审过目（decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-16T19:05:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "classic 三工件齐且对齐拍完成（decisions.md 对齐拍记录）：prd AC1..AC14 @ be118d4 + architecture AS-IS 快照+偏离表 D1–D6 @ 3e3feb7/88bf9b1 + test-strategy 26 TP[P0=20] @ c3276a1/align；qa 引用 AC 编号↔prd 实际编号 14/14 一致、architect 语义对齐表↔prd 动词一致（含 AC12 补行）；qa 回填为 §8 内联代行（代理停滞停单，decisions.md 留痕，gate1 人审列为追认项）；phase → gate1"
+    },
+    {
+      "at": "2026-10-16T19:40:00+08:00",
+      "from": "gate1",
+      "to": "inception",
+      "why": "Gate#1 人类审批打回（decisions.md GATE-REJECTED gate1 2026-10-16，第 1 轮/上限 3 轮）：互审 0 BLOCKER/12 MAJOR/20 MINOR（去重 10 MAJOR/16 MINOR，reviews/gate1-ai.md @ be5b021）；三裁决逐字——①「打回修订（推荐）」②交付范围确认=「审核+路线图（推荐）」（维持 A1 缺省，M4 零写入条款钉死）③证据标准升级=「全量验证」（覆盖 A1 缺省的抽样验证，沿 test-strategy 缺口节预铺方法学差异：TP 逐 [x] 条目+句内子声称）；修订点名 pm/architect/qa 三角色（10 MAJOR 分配：pm M2/M3/M4/M5+全量措辞、architect M6/M7、qa M1/M8/M9/M10+全量落实）；gate1 复位 pending 待修订后复审（只核收敛点，须新回执）"
+    },
+    {
+      "at": "2026-10-16T20:22:00+08:00",
+      "from": "inception",
+      "to": "gate1",
+      "why": "Gate#1 修订轮完成（第 1 轮）：prd r1 @ f13d80d（M2/M3/M4 零写入/M5 载体 audit-findings.md 骨架 §0–§6+新增 AC15/全量口径/m1–m5）+ architecture r1 @ 7eb70ba（M6 9 job/M7 CI-CD 权限面/m6–m10；D1 锚改区间式知会）+ test-strategy r1 @ ad264f0（M1 证伪重标定/M8 TP-27 AC13 七项/M9 testutil/M10 执行面声明/全量升级 43 条 [x] 分区承接 30 TP P0=24/MINOR 全消+顺手消 M2/M3）+ align2（AC15 锚位）；修订只重跑被点名三角色（dev 无工件）；gate1 复位 pending 待复审（只核收敛点：10 MAJOR 消解+全量升级落实），须新回执"
+    },
+    {
+      "at": "2026-10-16T20:52:00+08:00",
+      "from": "gate1",
+      "to": "construction",
+      "why": "Gate#1 复审 r2 人类通过（decisions.md GATE-APPROVED gate1 2026-10-16）：复审只核收敛点确认上轮 10 MAJOR+16 MINOR 全部消解实证（reviews/gate1-ai-r2.md @ 0aa0048，四方 0B/2M/5m——arch 侧全清/D1 区间锚处置判定正确）；新发现 2 MAJOR（对齐表残留抽样措辞/TP-28 路径失锚）+5 MINOR 均字面级→随准出回填闭合；§8 追认打包（qa 对齐回填内联代行+编排者代提交）；phase → construction"
+    },
+    {
+      "at": "2026-10-16T21:30:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "Sprint Planning：plan.md（4 units 串行——U1 里程碑核验上[M0/M1/M1.5 23 条]/U2 下[M2 段/M3/M4/M5/长期 21 条]/U3 偏离扫描+质量体检[TP-13..20+24]/U4 归集+路线图+报告集成[AC15 自检]；影响面全 low[审核单文件产出无代码引用方]；TDD 锁 N/A 如实记录[零写入 intent 无测试工件]）+ units/1-4.md 落盘；第 0 步基线：cargo test --workspace 277 passed/0 failed（26 目标）+ 五断言脚本 112/72/23/13/9 全 exit 0 @ 21:26:42；回归语义特化声明=终验重跑同命令保持 277/0+计数不变即零影响证明；A3 拆分确认呈出（凭据=decisions.md A1 记录）"
+    },
+    {
+      "at": "2026-10-16T21:33:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "A3 拆分确认人类批准（decisions.md PLAN-CONFIRMED 2026-10-16）→ 串行派发 U1（里程碑断言核验上：M0/M1/M1.5 23 条，TP-01..06+28/29，创建 audit-findings.md 骨架+§1 前半）；执行泳道=dev（无 TDD 测试面，按 TP 四要素产出审核证据）"
+    },
+    {
+      "at": "2026-10-16T22:05:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U1 里程碑断言核验·上完成 → completed：TP-01..06+28/29 执行，M0×7/M1×9/M1.5×7=23/23 判定齐（已证实 23/漂移 0/不可证 0），测试计数复跑 277/0 与基线一致+静态交叉验证 281-4(inotify Linux-only)=277 吻合；audit-findings.md @ 83e43c0（骨架 §0–§6+§1 M0–M1.5，192 行）；随附 P2 小发现 4 条（水合位图注记未字面落地/store.rs Linux 头注/PKCE S256 命名/usertime 命名——归 U4 处理）；test-strategy 契约零错误（回报条款未触发）"
+    },
+    {
+      "at": "2026-10-16T23:20:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U2 里程碑断言核验·下完成 → completed：TP-07..12+30 执行，21/21 判定齐（已证实 19/漂移 2[即 AC4 明文要求的「Tauri 壳」结论 L111/L124，§1.4 专节落字+回写建议]/不可证 0）；§1 全量覆盖 43 条声明（累计已证实 42/漂移 2）；两处真机声称升级本机复现（cldflt 金标准复跑 8/8、万级投影 693.8ms vs 声称 618ms 同量级）；新发现：CfDehydratePlaceholder API 命名偏差（实现刻意绕开未文档化导出，P2）、M4 mock 腿 12/12 解释 webdav 双目标 0 passed、512MB/48h=未验证（可独立开 intent）；audit-findings.md @ 980d216（§1.0–1.8 完整，§2–§5 待 U3/U4）"
+    },
+    {
+      "at": "2026-10-16T23:59:00+08:00",
+      "from": "construction",
+      "to": "construction",
+      "why": "U3 偏离扫描+质量与交付面体检完成 → completed：TP-13..20+24 全执行（五脚本 112/72/23/13/9 全绿/fmt-clippy 双面全绿/死链分项对账[.gitignore 残留为真+gen_icons 为假+ROADMAP 29 路径零死链]/CI 全命中/审核自检 3/3 可复现）；§2/§4 落盘+§6 证据索引覆盖全部 30 TP；AC13 七项三栏齐（#1/#7 已消解，#2–#6 刻意取舍或外部依赖）；新发现 5 条：NEW-1 P1=README.md 四处 stale Tauri 含 :151 不可执行死命令（超出 D 表锚面的首屏漂移）/NEW-2,3 P2=webdav.rs TLS 注释过时+ROADMAP L164/167 未收敛/NEW-4 P2=edge-packaging 分叉复证/NEW-5 P2=owner 元数据根 Cargo.toml 为错侧；audit-findings.md @ 9cf612c（§0 摘要矩阵/§3 归集表/§5 路线图待 U4）"
+    },
+    {
+      "at": "2026-10-17T00:40:00+08:00",
+      "from": "construction",
+      "to": "gate2",
+      "why": "U4 归集+路线图+报告集成完成 → completed（4/4），Construction 收口 → gate2：audit-findings.md @ 242bbbd（报告全部七章+§7 自检节；§3 归集=开放项 12+四 intent backlog 37 条[去重 28+观察项 5 组+retro 候选 4]/§5 路线图=8 批次+长期轨道[头号建议=B1 文档纠偏与 B2 资质申请双线并行]/§0 摘要=43 条 41 证实+2 漂移[均 Tauri 命名]+P0=0/P1=3/P2=9）；AC15 五项机械自检全过（报告完成判据达成）；回归对比（F2）：cargo test --workspace 277/0+五脚本 112/72/23/13/9 与基线逐数一致=审核零影响证明；零写入约束全程保持（唯一写入物=audit-findings.md）；phase → gate2，提示 /aidlc:gate"
+    },
+    {
+      "at": "2026-10-17T00:58:00+08:00",
+      "from": "gate2",
+      "to": "operations",
+      "why": "Gate#2 人类审批通过（decisions.md GATE-APPROVED gate2 2026-10-16）：互审 0 BLOCKER/4 MAJOR/16 MINOR（reviews/gate2-ai.md @ 5fcf1e1；verifier 独立终检 0/0/0——4/4 units 兑现+零写入+验证声称全复现+AC15 独立复验全过；实质结论零翻车）；裁决=「通过+准出回填」——4 MAJOR（标注/索引级：§6 缺 6 TP 节/TP-27 痕迹链/state 勘误/§3.2 行锚）+MINOR 随准出回填闭合；route=classic 补确认（MINOR-12 闭合）；phase → operations（/aidlc:ops——route=classic retro 硬性）"
+    },
+    {
+      "at": "2026-10-17T01:25:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Gate#2 准出回填核收：dev @ 5b3ca6f（M1 §6 30/30 TP 节/M2 TP-27 痕迹三处/M4 §3.2 行锚 15 处实测订正/MINOR 10 项）；gate2 裁决条件全闭合（M3 勘误声明随 decisions.md 回填核收条目）；ops 三裁决呈出待人类回复（报告维护口径/backlog 台账落点/下一步衔接）"
+    },
+    {
+      "at": "2026-10-17T01:45:00+08:00",
+      "from": "operations",
+      "to": "operations",
+      "why": "Operations 三裁决到齐（对话逐字）：①audit-findings.md 时点快照归档 ②归集抽入 docs/aidlc/backlog.md 建统一台账（已落盘：开放项 12+backlog 37）③收口后直接开 B1 文档纠偏批；ops-runbook.md（报告消费/台账维护/回流/观察项四节——审核类 intent 无部署监控面，按运维实质适配）+retro.md（classic 硬性）落盘；完结确认呈出"
+    },
+    {
+      "at": "2026-10-17T01:58:00+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（对话逐字「确认完结」+ INTENT-DONE 2026-10-16）：classic 完结判据全达成（retro 硬性+ops-runbook+人类确认）→ phase=done，intent 退出活跃位；附带指令生效=收口后直接开 B1 文档纠偏批（ops 裁决③预先授权）。生命周期总览：审核报告 audit-findings.md（43 条声明 41 证实+2 漂移[单一 Tauri 根因]+P0=0/P1=3/P2=9；行锚实测零漂移）+backlog.md 统一台账（49 行）+verifier 独立终检 0/0/0"
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 /**
  * CloudMount API 面（前后端契约）。
  *
- * 桌面 Tauri 壳与边缘 cloudmountd 都要实现这些命令，命名与参数保持一致。
- * 当前为骨架；随里程碑逐步填充。
+ * 唯一实现方为边缘 cloudmountd（POST /api/{cmd}，见 daemon webdav.rs /api/*）；
+ * 桌面端已切换为纯 Rust egui 壳（apps/desktop），不经本契约。
+ * 命名与参数保持一致。8 命令契约已定形；其中 4 命令在边缘模式为文档化 501 边界。
  */
 
 import { call } from "./platform";
