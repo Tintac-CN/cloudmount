@@ -25,6 +25,8 @@
 
 ## 3. 首跑观察清单（TP-06 / M6）
 
+**首推前置（2026-10-29 实测，`git rev-list --left-right --count origin/main...HEAD`）**：本地 `main` 与 `origin/main` **已分叉**——远端独有 13 提交（cmflt KM-0..KM-3 原生 Rust minifilter 线，tip `f109dc7` 2026-10-28），本地独有 107 提交（AIDLC/交付面）。**CI 首跑发生在成功 push 或开 PR 之后**；推送前须由人类裁决合并策略（merge / rebase / 单独 PR 分支），本 runbook 不预设。合入后本批 diff 的产品面白名单不变（`ci.yml` + 新断言脚本）。
+
 **时点**：本批下次 push/PR 即触发（暂定口径=首推当日核验，待人类追认，见 §5）。逐项记录：
 
 1. run URL + 触发方式（pull_request 优先 / push main 兜底）；
