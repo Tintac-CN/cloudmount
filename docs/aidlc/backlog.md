@@ -47,7 +47,8 @@
 | 2026-10-16 | 35 | 伪隐藏 mac 形态二选一（Dock 留存 vs LSUIElement）随真机实测裁决 | desktop-installers retro+runbook | 代码 | 并入真机核验批（条目 31） |
 | 2026-10-16 | 36 | gen_icons 扩尺寸集沿 stdlib 方案扩（条件性） | desktop-installers retro | 代码 | 条件待排 |
 | 2026-10-29 | 40 | ci-desktop-yaml.test.sh 断言硬化：负断言语法变体（#12 `- if:` 列表项/#46 flow-map `env: {RUSTFLAGS: ...}`/#45 `./apps/desktop` 前缀/#10-#14 同类变体）+ `job_block` 2 空格注释截断 + #43/#44 自检端到端深度 + 头注「M 基线=47 个 report 调用点」措辞与 python/pyyaml 依赖注明（当前无违规，硬化批随下次解锁执行） | ci-desktop-fmt-clippy gate2-ai MINOR 3/4/5/10 | CI | 待排 |
-| 2026-10-29 | 41 | ci-desktop job 首跑观察与门控收口：TP-06 首跑（desktop job 绿 + runner `rustc -V` 与本机对比 + cache 体积/命中率与 10GB 配额）+ branch protection 加入 desktop required checks（现状未加入，红可见但不挡 merge） | ci-desktop-fmt-clippy gate2-ai MINOR 12 + architecture M6 风险节 | CI | 待排（首推后触发） |
+| 2026-10-29 | 41 | ci-desktop job 首跑观察与门控收口：TP-06 首跑（desktop job 绿 + runner `rustc -V` 与本机对比 + cache 体积/命中率与 10GB 配额）+ branch protection 加入 desktop required checks | ci-desktop-fmt-clippy gate2-ai MINOR 12 + architecture M6 风险节 | CI | **首跑已观察**（2026-10-29 PR#12/main run 40900994862：desktop **success 3m11s**，rustc 1.99.1，cache `No cache found` 冷编 clippy 2m05s）——待 warm 跑复观测（命中率/体积）+ required checks 决策 |
+| 2026-10-29 | 42 | 【首跑实测·预存在】cross aarch64-unknown-linux-musl 腿失败：cross-rs 0.2.5 镜像内 build-script 需 GLIBC 2.28/2.29/2.30（libc 0.2.190）而镜像 glibc 过旧（gettid relocation error）；合并前 origin/main 同腿已失败（run 40665993886），非本次合入引入；修复方向=升级 cross 镜像/容器或钉 rustc 版本（本批不改） | main 首跑 run 40900994862 + 合并前 run 40665993886 | CI | 待排 |
 
 ### 观察项（跟踪类）
 
