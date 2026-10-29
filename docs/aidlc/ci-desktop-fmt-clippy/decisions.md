@@ -88,3 +88,12 @@ GATE-APPROVED gate2 2026-10-29
 - 问：「Operations 收口：ops-runbook（六脚本硬门 112/72/23/13/9/47、首跑观察清单、缓存处置顺序）+ retro（含 verifier 发现的 fmt --all 作用域事实订正）已提交；ops 三问表单未获选择，阈值以推荐暂定值落档（标注待追认）。是否完结本 intent？」（确认完结[推荐]／暂不完结／打回修订）
 - **表单未获选择（非拒绝）**：按协议「完结判据 = retro.md 落盘 + 人类确认」——编排者**不自行置 done**；phase 保持 `operations`（intent 仍活跃），待人类一句话「确认完结」后置 done。
 - 当前状态：gate1/gate2=approved；`ops-runbook.md` + `retro.md` 已落盘提交（9a9eb9e）；三项 ops 暂定阈值仍待追认（首推当日核／稳定 ≥3 绿加 required checks／10GB+既有 job 时长双阈）；backlog 条目 41 承接首跑观察与 required checks。
+
+2026-10-29 完结确认（对话逐字）：
+- 呈批文案：「Operations 收口：ops-runbook（六脚本硬门 112/72/23/13/9/47、首跑观察清单、缓存处置顺序）+ retro……是否完结本 intent？」
+  答：「**确认完结**」
+- 完结判据核验（classic 全达成）：retro.md 落盘（硬性）+ ops-runbook.md 落盘 + 人类确认（本条）→ **phase=done**；ci-desktop-fmt-clippy 退出活跃位（resume/续跑均拒，历史只读）。
+- 收口状态：gate1/gate2=approved；六脚本硬门口径入 runbook；backlog 条目 23 标记 ✅ 已消解（条目 40 断言硬化／41 首跑观察待排）；首推前置（本地 main 与 origin/main 分叉：远端独有 13 cmflt 提交）与三项 ops 暂定阈值（首推当日核／稳定 ≥3 绿加 required checks／10GB+既有 job 时长双阈，待追认）已记录在案。
+
+INTENT-DONE 2026-10-29
+---

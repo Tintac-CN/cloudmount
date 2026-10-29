@@ -38,7 +38,7 @@
 | 2026-10-16 | 15 | TP-23 无显式承接载体（补埋点） | desktop-installers runbook 备案④ | 测试 | 待排 |
 | 2026-10-16 | 16 | T4 修订断言①防空真依赖步骤名字面 | desktop-installers runbook 备案⑤ | CI | 待排 |
 | 2026-10-16 | 22 | .gitignore L13-14 src-tauri 死路径清理（=D2） | desktop-installers runbook 备案⑪ | 文档 | **并入 B1** |
-| 2026-10-16 | 23 | CI 补 desktop fmt/clippy 步骤（终验口径缺口上游补死） | desktop-installers retro | CI | **🚧 已交付**（ci-desktop-fmt-clippy gate2 通过 2026-10-29：ci.yml desktop job + 断言 47 条；待 ops 收口） |
+| 2026-10-16 | 23 | CI 补 desktop fmt/clippy 步骤（终验口径缺口上游补死） | desktop-installers retro | CI | **✅ 已消解（ci-desktop-fmt-clippy）**（INTENT-DONE 2026-10-29：ci.yml desktop job + 断言 47 条 + 六脚本硬门口径入 ops-runbook） |
 | 2026-10-16 | 24 | hash.rs:157 per-run 唯一 temp 目录（间歇 flaky 头号嫌疑根治） | audit-p0p1-fixes runbook+retro | 代码 | 待排 |
 | 2026-10-16 | 25 | exec.rs 错误路径 dir_creating 条目残留 | audit-p0p1-fixes runbook | 代码 | 待排 |
 | 2026-10-16 | 26 | webdav.rs:513 冗余条件 | audit-p0p1-fixes runbook | 代码 | 待排 |

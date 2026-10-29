@@ -1,7 +1,7 @@
 {
   "slug": "ci-desktop-fmt-clippy",
   "intent": "CI 补 desktop fmt/clippy 步骤（backlog 台账条目 23——终验口径缺口流水线上游补死）",
-  "phase": "operations",
+  "phase": "done",
   "route": "classic",
   "gates": {
     "gate1": "approved",
@@ -51,7 +51,7 @@
   "unitStatus": {
     "U1": "done"
   },
-  "updatedAt": "2026-10-29T22:33:29+08:00",
+  "updatedAt": "2026-10-29T22:36:10+08:00",
   "history": [
     {
       "at": "2026-10-28T17:05:51+08:00",
@@ -118,6 +118,12 @@
       "from": "operations",
       "to": "operations",
       "why": "Operations 工件落盘（9a9eb9e：ops-runbook.md 六脚本硬门 112/72/23/13/9/47 + 首跑观察清单 + 缓存处置顺序；retro.md classic 硬性）；完结确认 AskUserQuestion 表单未获选择（非拒绝）——按协议不自行置 done，phase 保持 operations，待人类逐字「确认完结」后置 done"
+    },
+    {
+      "at": "2026-10-29T22:36:10+08:00",
+      "from": "operations",
+      "to": "done",
+      "why": "完结确认（人类逐字「确认完结」）：classic 完结判据全达成（retro.md 硬性 + ops-runbook.md + 人类确认）→ phase=done；ci-desktop-fmt-clippy 退出活跃位（历史只读）；生命周期总览：条目 23 CI 补 desktop fmt/clippy——gate1 两轮（2B/8M 打回收敛，OQ④ 脚本入批）+ TDD 红 29/47→锁→绿 47/47 + Gate#2 五方 0B/0M/15m + 准出回填（M 口径/fmt 作用域事实/TP-02 基线锚/backlog 40-41）+ ops-runbook 六脚本口径与首跑观察；backlog 条目 23 标记已消解"
     }
   ]
 }
