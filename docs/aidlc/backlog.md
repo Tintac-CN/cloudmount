@@ -48,7 +48,7 @@
 | 2026-10-16 | 36 | gen_icons 扩尺寸集沿 stdlib 方案扩（条件性） | desktop-installers retro | 代码 | 条件待排 |
 | 2026-10-29 | 40 | ci-desktop-yaml.test.sh 断言硬化：负断言语法变体（#12 `- if:` 列表项/#46 flow-map `env: {RUSTFLAGS: ...}`/#45 `./apps/desktop` 前缀/#10-#14 同类变体）+ `job_block` 2 空格注释截断 + #43/#44 自检端到端深度 + 头注「M 基线=47 个 report 调用点」措辞与 python/pyyaml 依赖注明（当前无违规，硬化批随下次解锁执行） | ci-desktop-fmt-clippy gate2-ai MINOR 3/4/5/10 | CI | 待排 |
 | 2026-10-29 | 41 | ci-desktop job 首跑观察与门控收口：TP-06 首跑（desktop job 绿 + runner `rustc -V` 与本机对比 + cache 体积/命中率与 10GB 配额）+ branch protection 加入 desktop required checks | ci-desktop-fmt-clippy gate2-ai MINOR 12 + architecture M6 风险节 | CI | **首跑+warm 均已观察**（cold run 40900994862：desktop **success 3m11s**/`No cache found`；warm run 40901926387：success **1m29s**/cache hit `v0-rust-desktop-Windows_NT-x64-…`，entry ≈253MB；仓库缓存总量 ≈4.18GB/10GB 无挤占）——余 required checks 决策（建议稳定后加入 desktop） |
-| 2026-10-29 | 42 | 【首跑实测·预存在】cross aarch64-unknown-linux-musl 腿失败：cross-rs 0.2.5 镜像内 build-script 需 GLIBC 2.28/2.29/2.30（libc 0.2.190）而镜像 glibc 过旧（gettid relocation error）；合并前 origin/main 同腿已失败（run 40665993886），非本次合入引入；修复方向=升级 cross 镜像/容器或钉 rustc 版本（本批不改） | main 首跑 run 40900994862 + 合并前 run 40665993886 | CI | 待排 |
+| 2026-10-29 | 42 | 【首跑实测·预存在】cross aarch64-unknown-linux-musl 腿失败：build-script 报 GLIBC 2.28/2.29/2.30（gettid relocation error）；合并前 origin/main 同腿已失败（run 40665993886），非合入引入 | main 首跑 run 40900994862 + 合并前 run 40665993886 | CI | **✅ 已消解（PR #13 @ 83d4846）**：根因=两 musl 腿共用 rust-cache key（未含 `matrix.target`），x86_64 腿宿主 build-script 被 aarch64 旧 glibc 容器复用（cross #724）；修复=rust-cache `key: ${{ matrix.target }}`；验证=PR run 41062279811 两腿 success + main run 41062782859 全绿 |
 
 ### 观察项（跟踪类）
 
