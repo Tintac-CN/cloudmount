@@ -117,7 +117,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      # 每 target 独立 cache key：x86_64/aarch64 两腿的 build-script 二进制
+      # 不能互相复用（cross #724：宿主/容器 glibc 混用会使 aarch64 腿报
+      # GLIBC_2.28/2.30 not found——x86_64 腿在宿主编译的 build-script 被
+      # aarch64 腿在旧 glibc 容器内复用）。
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
       # cross：docker 化交叉编译（自带 musl 工具链镜像，含 ring 所需的 C 编译器）。
       # musl.cc 直接下载在本环境不稳定，故走 cross 预编译镜像。
       - uses: taiki-e/install-action@cross
